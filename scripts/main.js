@@ -1642,6 +1642,24 @@ bindLegacyInlineHandlers();
         function focusTypingInput() {
             if (!elements.input) return;
             if (document.activeElement === elements.input) return;
+            const isTouchMobileViewport = window.matchMedia('(max-width: 900px) and (pointer: coarse)').matches;
+            if (isTouchMobileViewport) {
+                const prevScrollX = window.scrollX;
+                const prevScrollY = window.scrollY;
+                try {
+                    elements.input.focus({ preventScroll: true });
+                } catch (e) {
+                    elements.input.focus();
+                }
+                const restoreScrollIfNeeded = () => {
+                    if (Math.abs(window.scrollY - prevScrollY) > 2 || Math.abs(window.scrollX - prevScrollX) > 2) {
+                        window.scrollTo(prevScrollX, prevScrollY);
+                    }
+                };
+                requestAnimationFrame(restoreScrollIfNeeded);
+                setTimeout(restoreScrollIfNeeded, 80);
+                return;
+            }
             const prevScrollX = window.scrollX;
             const prevScrollY = window.scrollY;
             try {
@@ -2284,6 +2302,10 @@ bindLegacyInlineHandlers();
                 .trim();
         }
 
+        function rowHasLyrics(row) {
+            return Boolean((row?.plainLyrics || '').trim() || (row?.syncedLyrics || '').trim());
+        }
+
         function hideSearchSuggestions() {
             elements.artistSuggestions?.classList.add('hidden');
             elements.titleSuggestions?.classList.add('hidden');
@@ -2491,7 +2513,9 @@ bindLegacyInlineHandlers();
                 fetchLrcLibSearchRaw(raw),
                 fetchItunesSongsByArtist(raw)
             ]);
-            const rows = [...lrRows, ...itRows];
+            const lrRowsWithLyrics = lrRows.filter((row) => rowHasLyrics(row));
+            // Prefer rows that already contain lyrics to avoid "song found but no lyrics".
+            const rows = lrRowsWithLyrics.length > 0 ? lrRowsWithLyrics : [...lrRows, ...itRows];
             const normArtist = normalizeLookupText(raw);
             const map = new Map();
             rows.forEach((row) => {
@@ -2503,7 +2527,13 @@ bindLegacyInlineHandlers();
                 if (!artistNorm.includes(normArtist)) return;
                 const key = `${normalizeLookupText(track)}|||${normalizeLookupText(artist)}`;
                 if (!key || map.has(key)) return;
-                map.set(key, { title: track, artist, album });
+                map.set(key, {
+                    title: track,
+                    artist,
+                    album,
+                    plainLyrics: (row?.plainLyrics || '').trim(),
+                    syncedLyrics: (row?.syncedLyrics || '').trim()
+                });
             });
             const songs = Array.from(map.values()).sort((a, b) => a.title.localeCompare(b.title));
             state.artistSongsCache.set(cacheKey, songs);
@@ -2526,7 +2556,9 @@ bindLegacyInlineHandlers();
                 fetchLrcLibSearchRaw(termText),
                 fetchItunesSongsByQuery(`${artist} ${termText}`)
             ]);
-            const merged = [...lrRows, ...lrExactRows, ...lrTermOnlyRows, ...itRows];
+            const lrMerged = [...lrRows, ...lrExactRows, ...lrTermOnlyRows];
+            const lrWithLyrics = lrMerged.filter((row) => rowHasLyrics(row));
+            const merged = lrWithLyrics.length > 0 ? lrWithLyrics : [...lrMerged, ...itRows];
             const map = new Map();
             merged.forEach((row) => {
                 const track = (row?.trackName || '').trim();
@@ -2539,7 +2571,13 @@ bindLegacyInlineHandlers();
                 if (!trackNorm.includes(targetTerm)) return;
                 const key = `${trackNorm}|||${artistNorm}`;
                 if (map.has(key)) return;
-                map.set(key, { title: track, artist: rowArtist, album });
+                map.set(key, {
+                    title: track,
+                    artist: rowArtist,
+                    album,
+                    plainLyrics: (row?.plainLyrics || '').trim(),
+                    syncedLyrics: (row?.syncedLyrics || '').trim()
+                });
             });
             const out = Array.from(map.values());
             state.artistTermSearchCache.set(cacheKey, out);
@@ -2631,6 +2669,21 @@ bindLegacyInlineHandlers();
             if (!title || !artist) return;
             if (elements.artistInput) elements.artistInput.value = artist;
             if (elements.titleInput) elements.titleInput.value = title;
+            const selectedKey = `${normalizeLookupText(title)}|||${normalizeLookupText(artist)}`;
+            const selectedSong = (state.artistCatalogSongs || []).find((song) => {
+                const key = `${normalizeLookupText(song.title)}|||${normalizeLookupText(song.artist)}`;
+                return key === selectedKey;
+            });
+            const inlineLyrics = String(selectedSong?.plainLyrics || '').trim() || syncedToPlainLyrics(String(selectedSong?.syncedLyrics || ''));
+            if (inlineLyrics) {
+                const cacheKey = `${artist}-${title}`.toLowerCase();
+                state.searchCache.set(cacheKey, {
+                    lyrics: inlineLyrics,
+                    syncedLyrics: String(selectedSong?.syncedLyrics || '')
+                });
+                await handleLyricsSuccess(inlineLyrics, title, artist, null, String(selectedSong?.syncedLyrics || ''));
+                return;
+            }
             await fetchLyrics();
         }
 
@@ -2753,9 +2806,39 @@ bindLegacyInlineHandlers();
         async function fetchFromLrcLib(artist, title, signal) {
             const artistClean = artist.replace(/\s+(ft|feat)\.?\s+.*$/i, '').trim();
             const titleClean = title.replace(/\s*[\(\[]?\s*(ft|feat)\.?.*?[\)\]]?\s*$/i, '').trim();
+            // First try exact endpoint, then fallback to broader search.
+            const exactPairs = [
+                { a: artist, t: title },
+                { a: artistClean, t: titleClean }
+            ];
+            for (const pair of exactPairs) {
+                try {
+                    const params = new URLSearchParams({
+                        artist_name: pair.a,
+                        track_name: pair.t
+                    });
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 4200);
+                    if (signal) {
+                        signal.addEventListener('abort', () => controller.abort(), { once: true });
+                    }
+                    const res = await fetch(`https://lrclib.net/api/get?${params}`, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    if (res.ok) {
+                        const row = await res.json();
+                        const synced = (row?.syncedLyrics || '').trim();
+                        const plain = (row?.plainLyrics || '').trim();
+                        const lyrics = plain || syncedToPlainLyrics(synced);
+                        if (lyrics) return { lyrics, syncedLyrics: synced };
+                    }
+                } catch (e) {}
+            }
+
             const queries = [...new Set([
                 `${artist} ${title}`.trim(),
-                `${artistClean} ${titleClean}`.trim()
+                `${artistClean} ${titleClean}`.trim(),
+                `${titleClean} ${artistClean}`.trim(),
+                titleClean
             ])];
 
             const searchCalls = queries.map(async (q) => {
@@ -2780,15 +2863,22 @@ bindLegacyInlineHandlers();
 
             if (allResults.length === 0) throw new Error("No results");
 
-            const targetArtist = artistClean.toLowerCase();
-            const targetTitle = titleClean.toLowerCase();
+            const targetArtist = normalizeLookupText(artistClean);
+            const targetTitle = normalizeLookupText(titleClean);
             const hasLyrics = (item) => Boolean(item?.plainLyrics || item?.syncedLyrics);
             let bestMatch = allResults.find(item =>
                 hasLyrics(item) &&
-                item.artistName?.toLowerCase().includes(targetArtist) &&
-                item.trackName?.toLowerCase().includes(targetTitle)
+                normalizeLookupText(item.artistName || '').includes(targetArtist) &&
+                normalizeLookupText(item.trackName || '').includes(targetTitle)
             );
-            if (!bestMatch) bestMatch = allResults.find(item => hasLyrics(item) && item.artistName?.toLowerCase() === targetArtist);
+            if (!bestMatch) {
+                bestMatch = allResults.find((item) => {
+                    if (!hasLyrics(item)) return false;
+                    const rowArtist = normalizeLookupText(item.artistName || '');
+                    const rowTrack = normalizeLookupText(item.trackName || '');
+                    return rowArtist === targetArtist || rowTrack === targetTitle;
+                });
+            }
             if (!bestMatch) bestMatch = allResults.find(item => hasLyrics(item));
             if (!bestMatch) throw new Error("No lyrics");
 

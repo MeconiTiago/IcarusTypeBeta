@@ -209,6 +209,7 @@ $$;
 revoke all on function public.respond_friend_request(bigint, boolean) from public;
 grant execute on function public.respond_friend_request(bigint, boolean) to authenticated;
 
+drop function if exists public.get_my_friend_requests();
 create or replace function public.get_my_friend_requests()
 returns table (
   request_id bigint,
@@ -239,6 +240,7 @@ $$;
 revoke all on function public.get_my_friend_requests() from public;
 grant execute on function public.get_my_friend_requests() to authenticated;
 
+drop function if exists public.get_my_friends_with_stats();
 create or replace function public.get_my_friends_with_stats()
 returns table (
   friend_id uuid,
@@ -270,7 +272,7 @@ as $$
   from friends f
   left join public.profiles p on p.id = f.friend_id
   left join public.game_results gr on gr.user_id = f.friend_id
-  group by f.friend_id, p.username
+  group by f.friend_id, p.username, p.avatar_url
   order by avg_wpm desc, games desc, username asc;
 $$;
 
