@@ -1,0 +1,2686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Icarus Type</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- OpenDyslexic Font -->
+    <link href="https://cdn.jsdelivr.net/npm/opendyslexic@2.1.0/open-dyslexic.min.css" rel="stylesheet">
+    <style>
+        /* Theme: Dark Blue & Green */
+        :root {
+            --bg-color: #0d2f45;       
+            --main-color: #3EE39E;     
+            --caret-color: #3EE39E;    
+            --sub-color: #5e8396;      
+            --sub-alt-color: #082030;  
+            --text-color: #e6f4f1;     
+            --error-color: #ca4754;    
+            --error-extra-color: #7e2a33;
+            --trans-color: #4a7a96;    
+            --success-color: #3EE39E;
+            --gold-color: #e2b714;
+            --btn-text-color: #0d2f45;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--sub-color);
+            font-family: 'Roboto Mono', monospace;
+            overflow-x: hidden;
+            transition: background-color 0.3s, color 0.3s;
+            padding-bottom: 2rem;
+        }
+        
+        /* Dyslexic Mode Override */
+        body.dyslexic-mode, 
+        body.dyslexic-mode * {
+            font-family: 'OpenDyslexic', sans-serif !important;
+        }
+        
+        /* Adjust letter spacing for dyslexic font */
+        body.dyslexic-mode .word {
+            letter-spacing: 0.1em;
+        }
+
+        h1, h2, h3, h4, button, .ui-font { font-family: 'Roboto Mono', monospace; }
+
+        /* Navigation */
+        .nav-link {
+            cursor: pointer;
+            transition: color 0.2s ease;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .nav-link:hover { color: var(--text-color); }
+        .nav-link.active { color: var(--main-color); }
+        
+        .separator {
+            width: 2px;
+            height: 16px;
+            background-color: var(--sub-color);
+            margin: 0 15px;
+            opacity: 0.3;
+        }
+
+        /* Lyrics */
+        .lyrics-line {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 0.25rem;
+            min-height: 1.5em;
+            align-items: baseline;
+        }
+
+        .translation-line {
+            display: none;
+            width: 100%;
+            color: var(--trans-color);
+            font-size: 0.75em;
+            font-style: italic;
+            margin-bottom: 1rem;
+            padding-left: 8px;
+            border-left: 2px solid var(--sub-alt-color);
+            margin-top: 4px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        body.easy-mode .translation-line { display: block; }
+
+        .stanza-break { height: 1.5em; width: 100%; }
+
+        .word {
+            position: relative;
+            margin: 0 8px 4px 0;
+            display: inline-block;
+            border-bottom: 2px solid transparent;
+            line-height: 1.5em;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        
+        .word:hover { border-bottom-color: var(--sub-color); }
+        .word.active { border-bottom-color: var(--main-color); } /* Highlight active word */
+
+        .letter { transition: color 0.1s ease; }
+        .letter.correct { color: var(--text-color); }
+        .letter.incorrect { color: var(--error-color); }
+        .letter.extra { color: var(--error-extra-color); opacity: 0.7; }
+
+        /* --- CLOZE MODE STYLES --- */
+        .word.cloze-context .letter { color: var(--sub-color); opacity: 0.5; }
+        .word.cloze-target .letter { color: transparent; border-bottom: 2px solid var(--sub-color); }
+        .word.cloze-target.active .letter { color: transparent; }
+        .word.cloze-target .letter.correct { color: var(--main-color); border-bottom-color: var(--main-color); }
+        .word.cloze-target .letter.incorrect { color: var(--error-color); border-bottom-color: var(--error-color); }
+        .word.cloze-target.revealed .letter { color: inherit; } 
+
+        /* Caret (Cursor) */
+        #caret {
+            width: 3px;
+            height: 1.5em;
+            background-color: var(--caret-color);
+            position: absolute;
+            transition: left 0.08s ease, top 0.08s ease;
+            animation: blink 1s infinite;
+            z-index: 10;
+            display: none; /* Hidden by default until game starts */
+            border-radius: 2px;
+            box-shadow: 0 0 4px var(--caret-color);
+        }
+        @keyframes blink { 
+            0%, 100% { opacity: 1; } 
+            50% { opacity: 0.3; } 
+        }
+
+        .fade-in { animation: fadeIn 0.3s ease-in-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Loader */
+        .loader {
+            border: 3px solid var(--sub-color);
+            border-top: 3px solid var(--main-color);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--sub-color); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--main-color); }
+
+        .hidden-input { opacity: 0; position: absolute; z-index: -1; pointer-events: none; }
+        
+        /* Modal Overlay */
+        #modal-overlay, #restart-modal-overlay, #about-modal-overlay, #settings-modal-overlay, #practice-modal-overlay, #profile-modal-overlay, #onboarding-overlay {
+            background-color: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
+        }
+        
+        /* Transparent Overlay for Popover (Click outside to close) */
+        #popover-overlay { background-color: transparent; }
+
+        /* Context Menu Popover */
+        .word-popover {
+            position: absolute;
+            background: var(--sub-alt-color);
+            border: 1px solid var(--sub-color);
+            border-radius: 8px;
+            padding: 0;
+            min-width: 240px;
+            max-width: 320px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            animation: popIn 0.1s ease-out;
+        }
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .popover-header {
+            padding: 10px 15px;
+            background: rgba(0,0,0,0.2);
+            border-bottom: 1px solid rgba(125,125,125,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .popover-actions {
+            display: flex;
+            padding: 5px;
+            background: rgba(0,0,0,0.3);
+            gap: 5px;
+        }
+        .popover-btn {
+            flex: 1;
+            padding: 8px;
+            font-size: 0.75rem;
+            text-align: center;
+            color: var(--sub-color);
+            border-radius: 4px;
+            transition: all 0.2s;
+            cursor: pointer;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .popover-btn:hover { background: var(--bg-color); color: var(--text-color); }
+        .popover-btn.active {
+            background: var(--bg-color);
+            color: var(--main-color);
+            border-bottom: 2px solid var(--main-color);
+            border-radius: 4px 4px 0 0;
+        }
+        .popover-body {
+            padding: 15px;
+            font-size: 0.85rem;
+            color: var(--text-color);
+            max-height: 200px;
+            overflow-y: auto;
+            line-height: 1.5;
+        }
+        .def-part-speech { color: var(--main-color); font-size: 0.7rem; font-style: italic; margin-right: 5px; }
+
+        /* Toast */
+        #toast-container { position: fixed; bottom: 30px; right: 30px; z-index: 100; }
+        .toast {
+            background: var(--sub-alt-color);
+            color: var(--text-color);
+            padding: 12px 20px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            margin-top: 10px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+            border-left: 3px solid var(--main-color);
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.error { border-left-color: var(--error-color); }
+        .toast.achievement { border-left-color: var(--gold-color); }
+
+        /* Layout Utilities */
+        .config-bar {
+            background-color: var(--sub-alt-color);
+            border-radius: 8px;
+            padding: 0 20px;
+            height: 40px;
+            display: inline-flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 0.85rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .mode-group { display: flex; gap: 15px; }
+        .nav-icon { width: 18px; height: 18px; fill: currentColor; }
+        
+        /* Stats Header Layout */
+        .stats-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end; 
+            width: 100%;
+            border-bottom: 1px solid var(--sub-color);
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stats-info { display: flex; gap: 3rem; }
+
+        .stat-group { display: flex; flex-direction: column; align-items: flex-start; }
+        .stat-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--sub-color); margin-bottom: 2px; }
+        .stat-value { line-height: 1; font-family: 'Roboto Mono', monospace; }
+        .stat-value.large { font-size: 2.5rem; font-weight: 700; color: var(--main-color); }
+        .stat-value.medium { font-size: 1.5rem; font-weight: 500; color: var(--text-color); }
+        .text-success { color: var(--success-color); }
+        
+        /* Toggle Icons */
+        .header-toggle-btn { color: var(--sub-color); transition: all 0.2s; padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+        .header-toggle-btn:hover { color: var(--text-color); background: var(--sub-alt-color); }
+        .header-toggle-btn.active { color: var(--main-color); }
+
+        .custom-input { background: transparent; border-bottom: 2px solid var(--sub-color); color: var(--text-color); transition: all 0.2s; }
+        .custom-input:focus { border-color: var(--main-color); }
+        .custom-input::placeholder { color: var(--sub-color); opacity: 0.7; }
+
+        /* Preview Mode Fix */
+        .preview-mode #words-wrapper { pointer-events: auto !important; user-select: text !important; overflow-y: auto !important; mask-image: none !important; -webkit-mask-image: none !important; background: rgba(0,0,0,0.15); border-radius: 8px; }
+        .preview-mode #words-wrapper::-webkit-scrollbar { width: 8px; }
+        .preview-mode #words-wrapper::-webkit-scrollbar-thumb { background: var(--sub-color); border-radius: 4px; }
+
+        /* CHART */
+        #chart-container { position: relative; width: 100%; height: 100%; }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        /* Dashboard */
+        .dashboard-stat-title { color: var(--sub-color); font-size: 0.8rem; margin-bottom: 0.2rem; }
+        .dashboard-stat-value { color: var(--main-color); font-size: 2rem; line-height: 1; }
+        .dashboard-sub-val { font-size: 0.8rem; color: var(--sub-color); }
+        
+        /* WPM Diff */
+        .wpm-diff { font-size: 0.8rem; font-weight: normal; margin-left: 6px; vertical-align: middle; opacity: 0.8; }
+        .wpm-diff.positive { color: var(--success-color); }
+        .wpm-diff.negative { color: var(--error-color); }
+
+        /* Practice Modal */
+        .practice-card { background: var(--sub-alt-color); padding: 30px; border-radius: 12px; border: 2px solid transparent; transition: all 0.3s; display: flex; flex-col: column; align-items: center; justify-content: center; min-height: 200px; }
+        .practice-card.success { border-color: var(--success-color); background: rgba(62, 227, 158, 0.1); }
+        .practice-word-display { font-size: 2.5rem; font-weight: bold; color: var(--main-color); margin-bottom: 0.5rem; }
+        .practice-translation { font-size: 1rem; color: var(--sub-color); font-style: italic; margin-bottom: 1.5rem; }
+        .practice-input { width: 100%; max-width: 300px; background: rgba(0,0,0,0.2); border: 2px solid var(--sub-color); border-radius: 8px; padding: 12px; font-size: 1.2rem; color: var(--text-color); text-align: center; outline: none; transition: border-color 0.2s; }
+        .practice-input:focus { border-color: var(--main-color); }
+        .practice-progress { margin-top: 1rem; font-size: 0.8rem; color: var(--sub-color); }
+
+        /* Profile & Badges */
+        .level-badge { background: var(--main-color); color: var(--btn-text-color); padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; }
+        .xp-bar-container { width: 100%; height: 8px; background: #000; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+        .xp-bar-fill { height: 100%; background: var(--main-color); transition: width 0.5s ease; }
+        .badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; }
+        .badge-item { width: 80px; height: 80px; background: var(--sub-alt-color); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--sub-color); border: 1px solid transparent; opacity: 0.5; transition: all 0.2s; position: relative; padding: 5px; }
+        .badge-item.unlocked { opacity: 1; border-color: var(--gold-color); color: var(--gold-color); background: rgba(226, 183, 20, 0.1); }
+        .badge-stars { font-size: 0.6rem; margin-top: 4px; letter-spacing: -1px; }
+        .badge-item:hover .badge-tooltip { display: block; }
+        .badge-tooltip { display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: var(--bg-color); color: var(--text-color); padding: 8px; border-radius: 4px; font-size: 0.75rem; white-space: nowrap; border: 1px solid var(--sub-color); z-index: 20; margin-bottom: 5px; text-align: center; }
+
+        /* Theme Buttons */
+        .theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .theme-btn {
+            background: var(--sub-alt-color);
+            border: 1px solid var(--sub-color);
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s;
+        }
+        .theme-btn:hover { border-color: var(--text-color); }
+        .theme-btn.active { border-color: var(--main-color); box-shadow: 0 0 0 1px var(--main-color); }
+        .theme-preview { width: 20px; height: 20px; border-radius: 50%; }
+        
+        /* Preset Buttons */
+        .preset-btn { background: var(--sub-alt-color); border: 1px solid transparent; transition: all 0.2s; }
+        .preset-btn:hover { border-color: var(--main-color); background: var(--bg-color); }
+
+        /* Vocab List */
+        .vocab-item {
+            background: var(--sub-alt-color);
+            border: 1px solid var(--sub-color);
+            border-radius: 6px;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+            transition: border-color 0.2s;
+        }
+        .vocab-item:hover { border-color: var(--main-color); }
+
+        /* Virtual Keyboard (Visual Only - Minimalist) */
+        #virtual-keyboard {
+            width: 100%;
+            max-width: 600px;
+            margin: 2rem auto 1rem;
+            padding: 10px;
+            background: transparent;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+            opacity: 0.6;
+            transition: opacity 0.3s;
+            pointer-events: none; /* Disable clicking */
+        }
+        /* Always highlight on key press to serve as guide */
+        
+        .kb-row {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 4px;
+            gap: 4px;
+            width: 100%;
+        }
+        
+        .kb-key {
+            background: transparent;
+            color: var(--sub-color);
+            border: 1px solid var(--sub-color);
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            padding: 6px 0;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-transform: uppercase;
+            transition: all 0.05s ease-out;
+        }
+        
+        /* Active State (Correct) */
+        .kb-key.active {
+            background: var(--main-color);
+            color: var(--btn-text-color);
+            border-color: var(--main-color);
+            transform: scale(0.95);
+            box-shadow: 0 0 8px var(--main-color);
+        }
+
+        /* Error State (Incorrect) */
+        .kb-key.error {
+            background: var(--error-color);
+            color: #fff;
+            border-color: var(--error-color);
+            transform: scale(0.95);
+            box-shadow: 0 0 8px var(--error-color);
+        }
+        
+        .kb-space { width: 200px; }
+        .kb-backspace { width: 50px; font-size: 0.7rem; border-color: var(--error-extra-color); color: var(--error-color); }
+        .kb-backspace.active { background: var(--main-color); color: var(--btn-text-color); border-color: var(--main-color); }
+        
+        /* Make sure it's smaller on mobile but still visible */
+        @media (max-width: 600px) {
+            #virtual-keyboard {
+                max-width: 100%;
+                margin: 1rem 0;
+            }
+            .kb-key {
+                width: 8%;
+                font-size: 0.7rem;
+                height: 32px;
+            }
+            .kb-space { width: 40%; }
+        }
+
+    </style>
+</head>
+<body class="h-screen flex flex-col items-center">
+
+    <input type="text" id="typing-input" class="hidden-input" autocomplete="off" capitalize="off" spellcheck="false">
+    <div id="toast-container"></div>
+
+    <!-- Word Menu Popover -->
+    <div id="popover-overlay" class="fixed inset-0 z-40 hidden" onclick="closeWordPopover()"></div>
+    <div id="word-popover" class="word-popover">
+        <div class="popover-header">
+            <h4 id="popover-word-title" class="text-main font-bold capitalize">Word</h4>
+            <div class="flex gap-2 items-center">
+                <button id="popover-speak-btn" onclick="speakWord(document.getElementById('popover-word-title').textContent)" class="text-sub hover:text-base" title="Listen">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>
+                </button>
+                <button id="popover-save-btn" onclick="toggleSavedWord()" class="text-sub hover:text-error" title="Save to Vocabulary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                </button>
+            </div>
+        </div>
+        <div class="popover-actions">
+            <div id="btn-def" class="popover-btn hover:opacity-80" onclick="showDefinition()">Meaning</div>
+            <div id="btn-trans" class="popover-btn hover:opacity-80" onclick="showTranslation()">Translation</div>
+        </div>
+        <div id="popover-content" class="popover-body">
+            <span class="text-sub text-xs italic">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Onboarding, Profile, About, Settings, Practice Modals (No Changes) -->
+    <!-- Onboarding Modal -->
+    <div id="onboarding-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-lg w-full mx-4 border border-main">
+            <h3 class="text-main font-bold text-2xl mb-4 text-center">Welcome to Icarus Type!</h3>
+            <div class="text-base text-sm space-y-4 mb-6">
+                <p>Improve your English typing and vocabulary through music.</p>
+                <ul class="list-disc list-inside space-y-2 text-sub">
+                    <li><strong class="text-main">Type Lyrics:</strong> Find your favorite songs or use presets.</li>
+                    <li><strong class="text-main">Modes:</strong> 
+                        <ul class="pl-6 mt-1 text-xs">
+                            <li><strong>Normal:</strong> Type along with the lyrics.</li>
+                            <li><strong>Cloze:</strong> Guess missing words for memory practice.</li>
+                        </ul>
+                    </li>
+                    <li><strong class="text-main">Tools:</strong> Use <span class="text-main">Ctrl</span> to speak words and <span class="text-main">Alt</span> to free look.</li>
+                    <li><strong class="text-main">Progress:</strong> Earn XP and badges as you type.</li>
+                </ul>
+            </div>
+            <div class="text-center">
+                <button onclick="closeOnboarding()" class="btn-primary px-8 py-2 rounded font-bold transition">Let's Rock</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profile-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" onclick="if(event.target === this) closeModal('profile')">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-lg w-full mx-4 border border-sub max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-full bg-main flex items-center justify-center text-white font-bold text-xl">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-lg">My Profile</h3>
+                        <span id="profile-level-title" class="level-badge">Busker</span>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-sub text-xs uppercase">Level</div>
+                    <div id="profile-level-num" class="text-main font-bold text-2xl">1</div>
+                </div>
+            </div>
+
+            <!-- XP Bar -->
+            <div class="mb-6">
+                <div class="flex justify-between text-xs text-sub mb-1">
+                    <span>XP Progress</span>
+                    <span id="profile-xp-text">0 / 1000</span>
+                </div>
+                <div class="xp-bar-container">
+                    <div id="profile-xp-fill" class="xp-bar-fill" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="bg-base p-3 rounded text-center">
+                    <div class="text-sub text-xs uppercase">Games</div>
+                    <div id="profile-games-played" class="text-base font-bold">0</div>
+                </div>
+                <div class="bg-base p-3 rounded text-center">
+                    <div class="text-sub text-xs uppercase">Best WPM</div>
+                    <div id="profile-top-wpm" class="text-base font-bold">0</div>
+                </div>
+                <div class="bg-base p-3 rounded text-center">
+                    <div class="text-sub text-xs uppercase">Words</div>
+                    <div id="profile-total-words" class="text-base font-bold">0</div>
+                </div>
+                <div class="bg-base p-3 rounded text-center">
+                    <div class="text-sub text-xs uppercase">Total XP</div>
+                    <div id="profile-total-xp" class="text-base font-bold">0</div>
+                </div>
+            </div>
+            
+            <div class="separator my-6"></div>
+            
+            <!-- Saved Vocabulary -->
+            <div class="mb-6">
+                <p class="text-xs text-sub uppercase font-bold mb-3">Saved Vocabulary</p>
+                <div id="profile-vocab-list" class="max-h-32 overflow-y-auto pr-2">
+                    <div class="text-center text-sub text-xs italic">No words saved yet.</div>
+                </div>
+            </div>
+
+            <div class="separator my-6"></div>
+
+            <!-- Badges -->
+            <div class="mb-2">
+                <p class="text-xs text-sub uppercase font-bold mb-3">Achievements</p>
+                <div class="badge-grid" id="profile-badges-grid">
+                    <!-- Badges injected via JS -->
+                </div>
+            </div>
+
+            <div class="text-center mt-6">
+                <button onclick="closeModal('profile')" class="text-sub hover:text-base text-sm">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals (Others) -->
+    <div id="modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-sm w-full mx-4 text-center border border-sub">
+            <h3 class="text-main font-bold text-xl mb-2">Cancel Search?</h3>
+            <p class="text-sub text-sm mb-6">Stop searching for lyrics?</p>
+            <div class="flex justify-center gap-4">
+                <button onclick="cancelNavigation()" class="text-base hover:text-main transition text-sm">No</button>
+                <button onclick="confirmNavigation()" class="btn-primary px-4 py-1 rounded transition text-sm">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="restart-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-sm w-full mx-4 text-center border border-sub">
+            <h3 class="text-main font-bold text-xl mb-2">Restart?</h3>
+            <p class="text-base text-sm mb-6">Your current progress will be lost.</p>
+            <div class="flex justify-center gap-4">
+                <button onclick="cancelRestart()" class="text-base hover:text-main transition text-sm">Resume</button>
+                <button onclick="confirmRestart()" class="btn-primary px-6 py-1 rounded font-bold transition text-sm">Restart</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="about-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" onclick="if(event.target === this) closeModal('about')">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-md w-full mx-4 text-center border border-sub">
+            <h3 class="text-main font-bold text-2xl mb-4">About Icarus Type</h3>
+            <div class="text-base text-sm space-y-4 text-left">
+                <p>Icarus Type is a minimalist typing practice tool designed to help you learn English through music.</p>
+                <div class="pt-4 border-t border-sub">
+                    <p class="text-xs text-sub mb-1">Powered by:</p>
+                    <ul class="list-disc list-inside text-xs text-main">
+                        <li>LrcLib.net (Lyrics)</li>
+                        <li>Lyrics.ovh (Backup)</li>
+                        <li>MyMemory (Translation)</li>
+                    </ul>
+                </div>
+            </div>
+            <button onclick="closeModal('about')" class="mt-6 text-sub hover:text-base text-sm">Close</button>
+        </div>
+    </div>
+
+    <div id="settings-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" onclick="if(event.target === this) closeModal('settings')">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-md w-full mx-4 border border-sub">
+            <h3 class="text-main font-bold text-xl mb-6 text-center">Settings</h3>
+            
+            <div class="space-y-6">
+                <!-- Toggles -->
+                <div>
+                    <p class="text-xs text-sub uppercase font-bold mb-3">Gameplay</p>
+                    <div class="flex justify-between items-center pb-2 border-b border-sub border-opacity-30">
+                        <span class="text-base text-sm">Easy Mode (Translation)</span>
+                        <button onclick="toggleEasyMode(); closeModal('settings')" class="text-main hover:text-base text-xs uppercase font-bold">Toggle</button>
+                    </div>
+                    <div class="flex justify-between items-center pt-2 border-b border-sub border-opacity-30 pb-2">
+                        <span class="text-base text-sm">Auto-Speak Words</span>
+                        <button onclick="toggleAutoSpeak(); closeModal('settings')" class="text-main hover:text-base text-xs uppercase font-bold">Toggle</button>
+                    </div>
+                    <div class="flex justify-between items-center pt-2">
+                        <span class="text-base text-sm">Sound FX</span>
+                        <button id="btn-toggle-sound" onclick="toggleSound();" class="text-main hover:text-base text-xs uppercase font-bold">OFF</button>
+                    </div>
+                    <div class="flex justify-between items-center pt-2">
+                        <span class="text-base text-sm">Dyslexic Font</span>
+                        <button id="btn-toggle-dyslexic" onclick="toggleDyslexicMode();" class="text-main hover:text-base text-xs uppercase font-bold">OFF</button>
+                    </div>
+                </div>
+
+                <!-- Themes -->
+                <div>
+                    <p class="text-xs text-sub uppercase font-bold mb-3">Theme</p>
+                    <div class="theme-grid" id="theme-selector">
+                        <!-- Injected by JS -->
+                    </div>
+                </div>
+
+                <!-- Shortcuts -->
+                <div>
+                    <p class="text-xs text-sub uppercase font-bold mb-3">Shortcuts</p>
+                    <div class="grid grid-cols-2 gap-2 text-sm text-base">
+                        <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Tab</kbd> Restart</div>
+                        <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Ctrl</kbd> Speak</div>
+                        <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Alt</kbd> Free Look</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-6">
+                <button onclick="closeModal('settings')" class="text-sub hover:text-base text-sm">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="practice-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-lg w-full mx-4 border border-sub min-h-[400px] flex flex-col items-center justify-center relative">
+            <button onclick="closeModal('practice')" class="absolute top-4 right-4 text-sub hover:text-base">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h3 class="text-main font-bold text-xl mb-8">Practice Tricky Words</h3>
+            <div id="practice-container" class="w-full flex flex-col items-center"></div>
+            <div id="practice-progress" class="practice-progress mt-8">0 / 0</div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="w-full max-w-6xl p-8 flex justify-between items-end mb-4">
+        <div class="flex items-center gap-3 cursor-pointer select-none" onclick="goHome()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-main" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <div class="flex flex-col leading-none">
+                <h1 class="text-2xl font-bold text-base">Icarus <span class="text-main">Type</span></h1>
+                <span class="text-[10px] text-sub tracking-widest">learn english with music</span>
+            </div>
+        </div>
+        <div class="flex gap-4 text-sub">
+            <button onclick="goHome()" class="btn-ghost transition" title="Home"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><path d="M6 8h.001"></path><path d="M10 8h.001"></path><path d="M14 8h.001"></path><path d="M18 8h.001"></path><path d="M6 12h.001"></path><path d="M10 12h.001"></path><path d="M14 12h.001"></path><path d="M18 12h.001"></path><path d="M7 16h10"></path></svg></button>
+            <button onclick="openModal('profile')" class="btn-ghost transition" title="Profile"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></button>
+            <button onclick="openModal('about')" class="btn-ghost transition" title="About"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg></button>
+            <button onclick="openModal('settings')" class="btn-ghost transition" title="Shortcuts"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></button>
+        </div>
+    </header>
+
+    <div class="w-full max-w-4xl flex justify-center mb-8">
+        <div class="config-bar">
+            <div class="mode-group">
+                <div class="nav-link active" id="nav-search" onclick="trySwitchTab('search')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>search</div>
+                <div class="nav-link" id="nav-presets" onclick="trySwitchTab('presets')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>presets</div>
+                <div class="nav-link" id="nav-custom" onclick="trySwitchTab('custom')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>custom</div>
+            </div>
+            <div class="separator"></div>
+            <div class="mode-group">
+                <div class="nav-link active" id="mode-normal" onclick="setGameMode('normal')">normal</div>
+                <div class="nav-link" id="mode-cloze" onclick="setGameMode('cloze')">cloze</div>
+            </div>
+        </div>
+    </div>
+
+    <main class="flex-1 w-full max-w-4xl relative flex flex-col justify-start items-center p-4 min-h-[400px]">
+        <!-- Setup Views and Game Area (Same as before) -->
+        <div id="setup-area" class="w-full fade-in">
+            <div id="view-search" class="w-full flex flex-col gap-6">
+                <div class="flex gap-4">
+                    <input type="text" id="input-artist" placeholder="Artist" class="flex-1 custom-input p-2 outline-none" onkeydown="if(event.key === 'Enter') fetchLyrics()">
+                    <input type="text" id="input-title" placeholder="Song Title" class="flex-1 custom-input p-2 outline-none" onkeydown="if(event.key === 'Enter') fetchLyrics()">
+                    <button onclick="fetchLyrics()" id="btn-fetch-action" class="btn-primary px-6 py-2 rounded font-bold transition flex items-center gap-2">
+                        <span id="search-btn-text">Search</span>
+                        <div id="search-loader" class="loader hidden"></div>
+                    </button>
+                </div>
+                <div id="search-status-container" class="hidden w-full bg-surface rounded-full h-1 mt-2 overflow-hidden">
+                    <div id="search-progress-bar" class="bg-main h-1 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <p id="search-status-text" class="text-main text-xs mt-1 hidden">Initializing...</p>
+                <div id="search-error-container" class="hidden mt-4 p-4 bg-surface rounded text-center border border-error">
+                    <p id="search-error" class="text-error text-sm font-bold mb-2"></p>
+                    <a id="google-fallback-link" href="#" target="_blank" class="text-xs text-base underline hover:text-white">Search on Google</a>
+                </div>
+            </div>
+
+            <div id="view-presets" class="w-full hidden grid grid-cols-2 gap-4">
+                <button onclick="loadPreset('test')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
+                    <div class="text-base group-hover:text-main font-bold">Test Song</div>
+                    <div class="text-xs text-sub">Debug (2 Lines)</div>
+                </button>
+                <button onclick="loadPreset('queen')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
+                    <div class="text-base group-hover:text-main font-bold">Bohemian Rhapsody</div>
+                    <div class="text-xs text-sub">Queen</div>
+                </button>
+                <button onclick="loadPreset('nirvana')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
+                    <div class="text-base group-hover:text-main font-bold">Smells Like Teen Spirit</div>
+                    <div class="text-xs text-sub">Nirvana</div>
+                </button>
+                <button onclick="loadPreset('adele')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
+                    <div class="text-base group-hover:text-main font-bold">Hello</div>
+                    <div class="text-xs text-sub">Adele</div>
+                </button>
+                <button onclick="loadPreset('imagine')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
+                    <div class="text-base group-hover:text-main font-bold">Imagine</div>
+                    <div class="text-xs text-sub">John Lennon</div>
+                </button>
+            </div>
+
+            <div id="view-custom" class="w-full hidden flex flex-col gap-4">
+                <textarea id="custom-text-area" class="w-full h-32 bg-surface p-4 rounded text-base outline-none border border-transparent focus:border-main resize-none" placeholder="Paste lyrics here..."></textarea>
+                <div id="custom-translation-container" class="hidden">
+                    <textarea id="custom-translation-area" class="w-full h-32 bg-surface p-4 rounded text-base outline-none border border-transparent focus:border-main resize-none" placeholder="Paste translation here (optional)..."></textarea>
+                </div>
+                <button onclick="startCustomGame()" class="self-end btn-primary px-8 py-2 rounded font-bold transition">Start</button>
+            </div>
+        </div>
+
+        <div id="game-area" class="w-full hidden relative flex flex-col">
+            <div class="stats-header">
+                <div class="flex flex-col justify-end">
+                    <h2 id="current-song-title" class="text-3xl font-bold text-main leading-tight">Song Title</h2>
+                    <div class="flex items-center gap-4 mt-2">
+                        <p id="current-song-artist" class="text-sm text-base opacity-80">Artist</p>
+                        <!-- Integrated Toggles -->
+                        <div class="flex gap-2 ml-4 border-l border-sub pl-4">
+                            <button id="btn-toggle-easy" class="header-toggle-btn" title="Toggle Easy Mode (Translation)" onclick="toggleEasyMode()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                            </button>
+                            <button id="btn-toggle-speak" class="header-toggle-btn" title="Toggle Auto-Speak" onclick="toggleAutoSpeak()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="stats-info">
+                    <div class="stat-group">
+                        <span class="stat-label">Words</span>
+                        <div class="stat-value medium">
+                            <span id="stats-word-count">0</span><span class="text-sub text-xs" id="stats-total-words">/0</span>
+                        </div>
+                    </div>
+                    <div class="stat-group">
+                        <span class="stat-label">C / W</span>
+                        <div class="stat-value medium text-success">
+                            <span id="live-correct">0</span> <span class="text-sub text-sm">/</span> <span id="live-wrong" class="text-error">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-group">
+                        <span class="stat-label">Combo</span>
+                        <div id="live-combo" class="stat-value medium text-base">0</div>
+                    </div>
+                    <div class="stat-group">
+                        <span class="stat-label">WPM</span>
+                        <div class="stat-value large text-main">
+                            <span id="live-wpm">0</span>
+                            <span id="live-wpm-diff" class="wpm-diff"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Added pb-32 to ensure enough scroll space at bottom -->
+            <div id="words-wrapper" class="relative w-full text-2xl leading-relaxed cursor-text outline-none select-none h-64 overflow-hidden mask-fade-bottom" onclick="document.getElementById('typing-input').focus()">
+                <div id="words" class="absolute top-0 left-0 w-full transition-all duration-200 pb-32">
+                    <div id="caret"></div>
+                    <!-- Words injected here -->
+                </div>
+            </div>
+            
+            <!-- Virtual Keyboard (Visual Only) -->
+            <div id="virtual-keyboard">
+                <!-- Keys generated here -->
+            </div>
+
+            <div class="mt-8 flex justify-center gap-8 text-xs text-sub opacity-70">
+                <span><kbd class="bg-surface px-1 rounded">tab</kbd> - restart</span>
+                <span><kbd class="bg-surface px-1 rounded">ctrl</kbd> - pronounce word</span>
+                <span><kbd class="bg-surface px-1 rounded">alt</kbd> - free look</span>
+            </div>
+        </div>
+
+        <div id="results-area" class="w-full hidden fade-in flex flex-col">
+            <!-- XP Gained Animation -->
+            <div class="mb-6 w-full text-center">
+                <div class="text-sub text-sm uppercase tracking-widest mb-1">XP Gained</div>
+                <div id="xp-gained-display" class="text-4xl font-bold text-main">+0 XP</div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-8 mb-8 w-full h-64">
+                <div class="flex flex-col justify-center gap-6 w-full md:w-1/4">
+                    <div>
+                        <div class="text-sub text-sm mb-1">wpm</div>
+                        <div class="text-6xl font-bold text-main" id="res-wpm-big">0</div>
+                    </div>
+                    <div>
+                        <div class="text-sub text-sm mb-1">acc</div>
+                        <div class="text-6xl font-bold text-main" id="res-acc-big">0%</div>
+                    </div>
+                </div>
+                <div class="w-full md:w-3/4 bg-surface rounded-lg p-4 relative border border-sub border-opacity-30">
+                    <div id="chart-container"><canvas id="wpm-chart"></canvas></div>
+                </div>
+            </div>
+            <div class="grid grid-cols-5 gap-4 mb-8 w-full">
+                 <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">test type</div>
+                    <div class="text-base text-lg">lyrics</div>
+                    <div class="dashboard-sub-val">english</div>
+                </div>
+                <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">raw</div>
+                    <div class="dashboard-stat-value" id="res-raw">0</div>
+                </div>
+                <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">characters</div>
+                    <div class="dashboard-stat-value text-base text-xl">
+                        <span id="res-char-total">0</span>/<span class="text-error" id="res-char-err">0</span>
+                    </div>
+                </div>
+                <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">consistency</div>
+                    <div class="dashboard-stat-value" id="res-consistency">0%</div>
+                </div>
+                 <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">time</div>
+                    <div class="dashboard-stat-value" id="res-time-val">0s</div>
+                </div>
+            </div>
+             <div id="missed-words-container" class="w-full mb-8 hidden">
+                <h3 class="text-sub text-xs uppercase font-bold mb-4 border-b border-sub pb-2">Tricky Words</h3>
+                <div id="missed-words-list" class="flex flex-wrap gap-2 mb-4"></div>
+                <div class="flex justify-center">
+                    <button onclick="startPracticeErrors()" class="bg-error text-white px-6 py-2 rounded text-sm hover:opacity-90 transition font-bold shadow-lg">Practice Tricky Words</button>
+                </div>
+            </div>
+            <div class="flex justify-center gap-12 mt-4">
+                <button onclick="switchTab('search'); goHome()" class="text-sub hover:text-base transition flex items-center gap-2"><svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg> Next Song</button>
+                <button onclick="resetGame(true)" class="text-main hover:text-success transition flex items-center gap-2"><svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 2v6h6M21.5 22v-6h-6"/><path d="M22 11.5A10 10 0 0 0 3.2 7.2M2 12.5a10 10 0 0 0 18.8 4.2"/></svg> Repeat Test</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Scripts -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, updateDoc, increment, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- FIREBASE INIT ---
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        let userId = null;
+
+        // --- AUTH & DATA ---
+        async function initAuth() {
+             try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                userId = auth.currentUser?.uid;
+                if (userId) loadUserProfile();
+             } catch(e) { console.error("Auth failed", e); }
+        }
+        initAuth();
+
+        // --- GAMIFICATION LOGIC ---
+        const LEVELS = [
+            { xp: 0, title: "Busker" },
+            { xp: 1000, title: "Coffee Shop" },
+            { xp: 5000, title: "Local Opener" },
+            { xp: 15000, title: "Touring Act" },
+            { xp: 50000, title: "Headliner" },
+            { xp: 100000, title: "Rockstar" }
+        ];
+
+        // 5-Level Badges
+        const BADGE_DEFINITIONS = {
+            songsCompleted: {
+                id: 'stage_presence',
+                name: 'Stage Presence',
+                desc: 'Complete songs',
+                icon: '🎤',
+                levels: [1, 5, 10, 25, 50]
+            },
+            wordsPracticed: {
+                id: 'vocal_coach',
+                name: 'Vocal Coach',
+                desc: 'Practice tricky words',
+                icon: '🧠',
+                levels: [1, 10, 50, 100, 250]
+            },
+            perfectSongs: {
+                id: 'virtuoso',
+                name: 'Virtuoso',
+                desc: '100% Accuracy songs',
+                icon: '👑',
+                levels: [1, 5, 10, 25, 50]
+            },
+            customSongs: {
+                id: 'lyricist',
+                name: 'Lyricist',
+                desc: 'Play custom lyrics',
+                icon: '📝',
+                levels: [1, 5, 10, 20, 50]
+            },
+            totalChars: {
+                id: 'marathon',
+                name: 'Marathon',
+                desc: 'Total characters typed',
+                icon: '🏃',
+                levels: [1000, 5000, 10000, 50000, 100000]
+            }
+        };
+
+        // User stats structure with counters
+        let userStats = { 
+            totalXP: 0, 
+            gamesPlayed: 0, 
+            topWPM: 0, 
+            counters: {
+                songsCompleted: 0,
+                wordsPracticed: 0,
+                perfectSongs: 0,
+                customSongs: 0,
+                totalChars: 0
+            },
+            savedWords: [] // Add saved words array
+        };
+
+        async function loadUserProfile() {
+            if (!userId) return;
+            const ref = doc(db, 'artifacts', appId, 'users', userId, 'stats', 'main');
+            const snap = await getDoc(ref);
+            if (snap.exists()) {
+                userStats = snap.data();
+                if(!userStats.counters) userStats.counters = {};
+                if(!userStats.savedWords) userStats.savedWords = []; // Init array if missing
+                updateProfileUI();
+            } else {
+                await setDoc(ref, userStats);
+            }
+        }
+
+        async function saveGameResult(wpm, acc, correctChars, mode, isCustom) {
+            if (!userId) return;
+            
+            const xpGained = correctChars;
+            userStats.totalXP = (userStats.totalXP || 0) + xpGained;
+            userStats.gamesPlayed = (userStats.gamesPlayed || 0) + 1;
+            userStats.topWPM = Math.max(userStats.topWPM || 0, wpm);
+            
+            if(!userStats.counters) userStats.counters = {};
+            
+            userStats.counters.songsCompleted = (userStats.counters.songsCompleted || 0) + 1;
+            userStats.counters.totalChars = (userStats.counters.totalChars || 0) + correctChars;
+            
+            if (acc === 100) {
+                userStats.counters.perfectSongs = (userStats.counters.perfectSongs || 0) + 1;
+            }
+            if (isCustom) {
+                userStats.counters.customSongs = (userStats.counters.customSongs || 0) + 1;
+            }
+            
+            updateProfileUI();
+            
+            const xpDisplay = document.getElementById('xp-gained-display');
+            if(xpDisplay) xpDisplay.textContent = `+${xpGained} XP`;
+            
+            const ref = doc(db, 'artifacts', appId, 'users', userId, 'stats', 'main');
+            await setDoc(ref, userStats, { merge: true });
+        }
+        
+        window.incrementPracticeCounter = async function() {
+            if (!userId) return;
+             if(!userStats.counters) userStats.counters = {};
+            userStats.counters.wordsPracticed = (userStats.counters.wordsPracticed || 0) + 1;
+            updateProfileUI();
+            const ref = doc(db, 'artifacts', appId, 'users', userId, 'stats', 'main');
+            await updateDoc(ref, { "counters.wordsPracticed": increment(1) });
+        };
+        
+        window.toggleSavedWord = async function() {
+             const word = document.getElementById('popover-word-title').textContent;
+             if (!word || !userId) return;
+             
+             if (!userStats.savedWords) userStats.savedWords = [];
+             
+             const index = userStats.savedWords.indexOf(word);
+             if (index > -1) {
+                 userStats.savedWords.splice(index, 1);
+                 showToast("Removed from vocabulary", "info");
+                 document.getElementById('popover-save-btn').classList.remove('text-main');
+             } else {
+                 userStats.savedWords.push(word);
+                 showToast("Saved to vocabulary", "achievement");
+                 document.getElementById('popover-save-btn').classList.add('text-main');
+             }
+             
+             updateProfileUI(); // Updates the list in modal
+             const ref = doc(db, 'artifacts', appId, 'users', userId, 'stats', 'main');
+             await updateDoc(ref, { savedWords: userStats.savedWords });
+        };
+        
+        window.isWordSaved = (word) => {
+            return userStats.savedWords && userStats.savedWords.includes(word);
+        };
+
+        function updateProfileUI() {
+            if(!document.getElementById('profile-level-title')) return;
+
+            let currentLevel = LEVELS[0];
+            let nextLevel = LEVELS[1];
+            for (let i = 0; i < LEVELS.length; i++) {
+                if (userStats.totalXP >= LEVELS[i].xp) {
+                    currentLevel = LEVELS[i];
+                    nextLevel = LEVELS[i+1] || { xp: userStats.totalXP * 2, title: "Legend" };
+                }
+            }
+
+            document.getElementById('profile-level-title').textContent = currentLevel.title;
+            const lvlNum = LEVELS.indexOf(currentLevel) + 1;
+            document.getElementById('profile-level-num').textContent = lvlNum;
+            document.getElementById('profile-games-played').textContent = userStats.gamesPlayed || 0;
+            document.getElementById('profile-top-wpm').textContent = userStats.topWPM || 0;
+            document.getElementById('profile-total-words').textContent = userStats.counters?.totalChars || 0;
+            document.getElementById('profile-total-xp').textContent = userStats.totalXP || 0;
+
+            const xpInLevel = userStats.totalXP - currentLevel.xp;
+            const xpNeeded = nextLevel.xp - currentLevel.xp;
+            const progress = Math.min(100, Math.max(0, (xpInLevel / xpNeeded) * 100));
+            document.getElementById('profile-xp-fill').style.width = `${progress}%`;
+            document.getElementById('profile-xp-text').textContent = `${Math.floor(userStats.totalXP)} / ${nextLevel.xp}`;
+
+            // Render Saved Words
+            const vocabList = document.getElementById('profile-vocab-list');
+            if (vocabList) {
+                if (!userStats.savedWords || userStats.savedWords.length === 0) {
+                    vocabList.innerHTML = '<div class="text-center text-sub text-xs italic">No words saved yet.</div>';
+                } else {
+                    vocabList.innerHTML = '';
+                    userStats.savedWords.forEach(w => {
+                        const div = document.createElement('div');
+                        div.className = 'vocab-item';
+                        div.innerHTML = `<span class="text-base font-bold">${w}</span> <span class="text-xs text-sub cursor-pointer hover:text-main" onclick="speakWord('${w}')">🔊</span>`;
+                        vocabList.appendChild(div);
+                    });
+                }
+            }
+
+            // Badges Grid
+            const grid = document.getElementById('profile-badges-grid');
+            grid.innerHTML = '';
+            
+            for (const key in BADGE_DEFINITIONS) {
+                const def = BADGE_DEFINITIONS[key];
+                const count = userStats.counters?.[key] || 0;
+                
+                let level = 0;
+                for (let i = 0; i < def.levels.length; i++) {
+                    if (count >= def.levels[i]) level = i + 1;
+                }
+                
+                const el = document.createElement('div');
+                const isUnlocked = level > 0;
+                el.className = `badge-item ${isUnlocked ? 'unlocked' : ''}`;
+                let stars = "";
+                for(let k=0; k<5; k++) stars += (k < level ? "★" : "☆");
+                
+                el.innerHTML = `
+                    <div class="text-2xl">${def.icon}</div>
+                    <div class="badge-stars text-[8px]">${stars}</div>
+                    <div class="badge-tooltip">
+                        <div class="font-bold">${def.name}</div>
+                        <div>${def.desc}</div>
+                        <div class="mt-1 text-main">Level ${level}/5</div>
+                        <div class="text-xs opacity-70">Progress: ${count} / ${def.levels[Math.min(level, 4)]}</div>
+                    </div>
+                `;
+                grid.appendChild(el);
+            }
+        }
+        
+        window.saveGameResult = saveGameResult;
+    </script>
+    
+    <!-- Main Logic Script -->
+    <script>
+        // --- SOUND MANAGER ---
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioCtx();
+        
+        function playSound(type) {
+            if (!state.isSoundEnabled) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const t = audioCtx.currentTime;
+            
+            if (type === 'click') {
+                const bufferSize = audioCtx.sampleRate * 0.05; 
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i * 15); 
+                }
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(600, t); 
+                filter.frequency.linearRampToValueAtTime(100, t + 0.03); 
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.5, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.04);
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+                noise.start(t);
+                
+                const osc = audioCtx.createOscillator();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(200, t);
+                const gain2 = audioCtx.createGain();
+                gain2.gain.setValueAtTime(0.1, t);
+                gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.01); 
+                osc.connect(gain2);
+                gain2.connect(audioCtx.destination);
+                osc.start(t);
+                osc.stop(t + 0.01);
+
+            } else if (type === 'error') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(100, t);
+                osc.frequency.linearRampToValueAtTime(50, t + 0.1);
+                gain.gain.setValueAtTime(0.2, t);
+                gain.gain.linearRampToValueAtTime(0.001, t + 0.1);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(t);
+                osc.stop(t + 0.1);
+            }
+        }
+        
+        function toggleSound() {
+             state.isSoundEnabled = !state.isSoundEnabled;
+             const btn = document.getElementById('btn-toggle-sound');
+             btn.textContent = state.isSoundEnabled ? "ON" : "OFF";
+             btn.classList.toggle('text-main', state.isSoundEnabled);
+             btn.classList.toggle('text-sub', !state.isSoundEnabled);
+             if(state.isSoundEnabled) playSound('click');
+        }
+        window.toggleSound = toggleSound;
+
+        // --- THEME LOGIC ---
+        const THEMES = {
+            'icarus': {
+                '--bg-color': '#0d2f45',
+                '--main-color': '#3EE39E',
+                '--caret-color': '#3EE39E',
+                '--sub-color': '#5e8396',
+                '--sub-alt-color': '#082030',
+                '--text-color': '#e6f4f1',
+                '--error-color': '#ca4754',
+                '--error-extra-color': '#7e2a33',
+                '--trans-color': '#4a7a96',
+                '--success-color': '#3EE39E',
+                '--gold-color': '#e2b714',
+                '--btn-text-color': '#0d2f45'
+            },
+            'midnight': {
+                '--bg-color': '#111111',
+                '--main-color': '#6495ed',
+                '--caret-color': '#6495ed',
+                '--sub-color': '#555555',
+                '--sub-alt-color': '#1a1a1a',
+                '--text-color': '#cccccc',
+                '--error-color': '#ff4444',
+                '--error-extra-color': '#880000',
+                '--trans-color': '#666666',
+                '--success-color': '#6495ed',
+                '--gold-color': '#ffd700',
+                '--btn-text-color': '#111111'
+            },
+            'paper': {
+                '--bg-color': '#f5f5f5',
+                '--main-color': '#444444',
+                '--caret-color': '#000000',
+                '--sub-color': '#999999',
+                '--sub-alt-color': '#e0e0e0',
+                '--text-color': '#333333',
+                '--error-color': '#d32f2f',
+                '--error-extra-color': '#b71c1c',
+                '--trans-color': '#777777',
+                '--success-color': '#388e3c',
+                '--gold-color': '#fbc02d',
+                '--btn-text-color': '#ffffff'
+            },
+            'matrix': {
+                '--bg-color': '#000000',
+                '--main-color': '#00ff00',
+                '--caret-color': '#00ff00',
+                '--sub-color': '#005500',
+                '--sub-alt-color': '#001100',
+                '--text-color': '#00aa00',
+                '--error-color': '#ff0000',
+                '--error-extra-color': '#880000',
+                '--trans-color': '#004400',
+                '--success-color': '#00ff00',
+                '--gold-color': '#ffff00',
+                '--btn-text-color': '#000000'
+            },
+            'sunset': {
+                '--bg-color': '#2d1b2e',
+                '--main-color': '#ff9e64',
+                '--caret-color': '#ff9e64',
+                '--sub-color': '#b45a6c',
+                '--sub-alt-color': '#1f1020',
+                '--text-color': '#fff0f5',
+                '--error-color': '#ff456a',
+                '--error-extra-color': '#802030',
+                '--trans-color': '#904050',
+                '--success-color': '#ff9e64',
+                '--gold-color': '#ffd700',
+                '--btn-text-color': '#2d1b2e'
+            }
+        };
+
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('icarus_theme') || 'icarus';
+            setTheme(savedTheme);
+            renderThemeSelector();
+        }
+
+        function setTheme(themeName) {
+            const theme = THEMES[themeName];
+            if (!theme) return;
+            
+            const root = document.documentElement;
+            for (const [key, value] of Object.entries(theme)) {
+                root.style.setProperty(key, value);
+            }
+            
+            localStorage.setItem('icarus_theme', themeName);
+            renderThemeSelector(); 
+        }
+
+        function renderThemeSelector() {
+            const container = document.getElementById('theme-selector');
+            if (!container) return;
+            container.innerHTML = '';
+            
+            const currentTheme = localStorage.getItem('icarus_theme') || 'icarus';
+            
+            for (const [key, val] of Object.entries(THEMES)) {
+                const btn = document.createElement('div');
+                btn.className = `theme-btn ${key === currentTheme ? 'active' : ''}`;
+                btn.onclick = () => setTheme(key);
+                
+                const previewColor = val['--main-color'];
+                const previewBg = val['--bg-color'];
+                
+                btn.innerHTML = `
+                    <div class="theme-preview" style="background:${previewColor}; border: 2px solid ${previewBg};"></div>
+                    <span class="capitalize text-sub">${key}</span>
+                `;
+                container.appendChild(btn);
+            }
+        }
+
+        loadTheme();
+
+        // --- VIRTUAL KEYBOARD ---
+        const KEYS = [
+            'q w e r t y u i o p',
+            'a s d f g h j k l',
+            'z x c v b n m'
+        ];
+
+        function initVirtualKeyboard() {
+            const container = document.getElementById('virtual-keyboard');
+            container.innerHTML = '';
+            
+            KEYS.forEach(rowStr => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'kb-row';
+                rowStr.split(' ').forEach(key => {
+                    const btn = document.createElement('div');
+                    btn.className = 'kb-key';
+                    btn.setAttribute('data-key', key);
+                    btn.textContent = key;
+                    // No onclick, visual only
+                    rowDiv.appendChild(btn);
+                });
+                container.appendChild(rowDiv);
+            });
+            
+            const bottomRow = document.createElement('div');
+            bottomRow.className = 'kb-row';
+            
+            const space = document.createElement('div');
+            space.className = 'kb-key kb-space';
+            space.setAttribute('data-key', ' ');
+            space.textContent = ''; 
+            // No onclick
+            
+            const back = document.createElement('div');
+            back.className = 'kb-key kb-backspace';
+            back.setAttribute('data-key', 'Backspace');
+            back.innerHTML = '⌫';
+            // No onclick
+            
+            bottomRow.appendChild(space);
+            bottomRow.appendChild(back);
+            container.appendChild(bottomRow);
+        }
+
+        // Removed handleVirtualKey as it's visual only
+        
+        function toggleDyslexicMode() {
+            document.body.classList.toggle('dyslexic-mode');
+            const isDyslexic = document.body.classList.contains('dyslexic-mode');
+            const btn = document.getElementById('btn-toggle-dyslexic');
+            btn.textContent = isDyslexic ? "ON" : "OFF";
+            btn.classList.toggle('text-main', isDyslexic);
+            btn.classList.toggle('text-sub', !isDyslexic);
+        }
+        window.toggleDyslexicMode = toggleDyslexicMode;
+        
+        initVirtualKeyboard();
+
+        const wordTranslationCache = new Map();
+        let popoverWord = null;
+
+        function closeWordPopover() {
+            document.getElementById('word-popover').style.display = 'none';
+            document.getElementById('popover-overlay').style.display = 'none';
+            document.getElementById('popover-content').innerHTML = '<span class="text-sub text-xs italic">Loading...</span>';
+            elements.input.focus();
+        }
+
+        function handleWordClick(e, word) {
+            state.isPlaying = false;
+            clearInterval(state.timerInterval);
+            
+            popoverWord = word.replace(/[.,!?;:"()]/g, ''); 
+            const popover = document.getElementById('word-popover');
+            const overlay = document.getElementById('popover-overlay');
+            const titleEl = document.getElementById('popover-word-title');
+            const speakBtn = document.getElementById('popover-speak-btn');
+            const btnTrans = document.getElementById('btn-trans');
+            const saveBtn = document.getElementById('popover-save-btn');
+            
+            if (window.isWordSaved && window.isWordSaved(popoverWord)) {
+                 saveBtn.classList.add('text-main');
+            } else {
+                 saveBtn.classList.remove('text-main');
+            }
+            
+            const wordEl = e.target.closest('.word');
+            let isLocked = false;
+            if (state.isClozeMode && wordEl && wordEl.classList.contains('cloze-target')) {
+                 if (!wordEl.classList.contains('revealed')) {
+                     isLocked = true;
+                 }
+            }
+
+            if (isLocked) {
+                 titleEl.textContent = "???";
+                 titleEl.classList.add('italic', 'opacity-50');
+                 speakBtn.style.display = 'none'; 
+                 btnTrans.style.pointerEvents = 'none';
+                 btnTrans.style.opacity = '0.5';
+                 btnTrans.textContent = "Locked";
+                 showDefinition();
+            } else {
+                 titleEl.textContent = popoverWord;
+                 titleEl.classList.remove('italic', 'opacity-50');
+                 speakBtn.style.display = 'block';
+                 btnTrans.style.pointerEvents = 'auto';
+                 btnTrans.style.opacity = '1';
+                 btnTrans.textContent = "Translation";
+                 showDefinition();
+            }
+            
+            const rect = wordEl ? wordEl.getBoundingClientRect() : e.target.getBoundingClientRect();
+            let top = rect.top - 10 - popover.offsetHeight; 
+            popover.style.display = 'flex';
+            popover.style.opacity = '0';
+            
+            const popHeight = popover.offsetHeight || 150;
+            const popWidth = popover.offsetWidth || 220;
+            
+            top = rect.top - popHeight - 10;
+            let left = rect.left + (rect.width / 2) - (popWidth / 2);
+            
+            if (top < 10) top = rect.bottom + 10; 
+            if (left < 10) left = 10;
+            if (left + popWidth > window.innerWidth - 10) left = window.innerWidth - popWidth - 10;
+            
+            popover.style.top = `${top + window.scrollY}px`;
+            popover.style.left = `${left + window.scrollX}px`;
+            popover.style.opacity = '1';
+            
+            overlay.style.display = 'block';
+        }
+        
+        window.handleWordClick = handleWordClick;
+        window.closeWordPopover = closeWordPopover;
+
+        async function showDefinition() {
+            if(!popoverWord) return;
+            document.getElementById('btn-def').classList.add('active');
+            document.getElementById('btn-trans').classList.remove('active');
+
+            const content = document.getElementById('popover-content');
+            content.innerHTML = '<div class="loader mx-auto"></div>';
+            
+            try {
+                const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${popoverWord}`);
+                const data = await res.json();
+                
+                if (Array.isArray(data)) {
+                    const meanings = data[0].meanings.slice(0, 2); 
+                    let html = '';
+                    meanings.forEach(m => {
+                        html += `<div class="mb-2"><span class="def-part-speech">${m.partOfSpeech}</span> ${m.definitions[0].definition}</div>`;
+                    });
+                    content.innerHTML = html;
+                } else {
+                    content.innerHTML = '<div class="text-center text-error">Definition not found.</div>';
+                }
+            } catch (e) {
+                content.innerHTML = '<div class="text-center text-error">Error fetching definition.</div>';
+            }
+        }
+        window.showDefinition = showDefinition;
+
+        async function showTranslation() {
+            if(!popoverWord) return;
+            document.getElementById('btn-trans').classList.add('active');
+            document.getElementById('btn-def').classList.remove('active');
+
+            const content = document.getElementById('popover-content');
+            content.innerHTML = '<div class="loader mx-auto"></div>';
+            
+            let cached = wordTranslationCache.get(popoverWord.toLowerCase());
+            if (cached) {
+                content.innerHTML = `<div class="text-center text-lg font-bold text-main">${cached}</div>`;
+                return;
+            }
+
+            try {
+                const trans = await fetchTranslation(popoverWord);
+                wordTranslationCache.set(popoverWord.toLowerCase(), trans);
+                content.innerHTML = `<div class="text-center text-lg font-bold text-main">${trans}</div>`;
+            } catch (e) {
+                content.innerHTML = '<div class="text-center text-error">Translation error.</div>';
+            }
+        }
+        window.showTranslation = showTranslation;
+
+
+        const presets = {
+            test: {
+                artist: "Test Artist",
+                title: "Test Song",
+                lyrics: "Line one of the test.\nLine two is the end.",
+                translation: "Linha um do teste.\nLinha dois é o fim."
+            },
+            queen: {
+                artist: "Queen",
+                title: "Bohemian Rhapsody",
+                lyrics: "Is this the real life?\nIs this just fantasy?\nCaught in a landslide,\nno escape from reality.\n\nOpen your eyes,\nlook up to the skies and see.\nI'm just a poor boy,\nI need no sympathy.",
+                translation: "Isso é vida real?\nIsso é apenas fantasia?\nPreso em um deslizamento,\nsem escapatória da realidade.\n\nAbra seus olhos,\nolhe para os céus e veja.\nEu sou apenas um menino pobre,\nnão preciso de simpatia."
+            },
+            nirvana: {
+                artist: "Nirvana",
+                title: "Smells Like Teen Spirit",
+                lyrics: "Load up on guns, bring your friends\nIt's fun to lose and to pretend\nShe's over-bored and self-assured\nOh no, I know a dirty word",
+                translation: "Carreguem as armas, tragam seus amigos\nÉ divertido perder e fingir\nEla está entediada e autoconfiante\nAh não, eu sei um palavrão"
+            },
+            adele: {
+                artist: "Adele",
+                title: "Hello",
+                lyrics: "Hello, it's me\nI was wondering if after all these years you'd like to meet\nTo go over everything\nThey say that time's supposed to heal ya\nBut I ain't done much healing",
+                translation: "Olá, sou eu\nEu estava me perguntando se depois de todos esses anos você gostaria de encontrar\nPara repassar tudo\nDizem que o tempo supostamente te cura\nMas eu não me curei muito"
+            },
+            imagine: {
+                artist: "John Lennon",
+                title: "Imagine",
+                lyrics: "Imagine there's no heaven\nIt's easy if you try\nNo hell below us\nAbove us only sky\n\nImagine all the people\nLiving for today",
+                translation: "Imagine que não há paraíso\nÉ fácil se você tentar\nNenhum inferno abaixo de nós\nAcima de nós apenas o céu\n\nImagine todas as pessoas\nVivendo o hoje"
+            }
+        };
+
+        const state = {
+            lines: [],
+            transLines: [],
+            words: [],
+            wordElements: [],
+            currentWordIndex: 0,
+            startTime: null,
+            endTime: null,
+            correctChars: 0,
+            incorrectChars: 0,
+            extraChars: 0,
+            timerInterval: null,
+            isPlaying: false,
+            isPreviewMode: false,
+            songTitle: '',
+            artist: '',
+            history: [],
+            missedWords: new Set(),
+            searchCache: new Map(),
+            isFetching: false,
+            pendingNav: null,
+            abortController: null,
+            wordsCorrect: 0,
+            wordsWrong: 0,
+            currentCombo: 0,
+            isEasyMode: false,
+            isAutoSpeak: false,
+            isClozeMode: false,
+            clozeIndices: new Set(),
+            wpmHistory: [],
+            previousRun: null,
+            practiceQueue: [],
+            currentPracticeIndex: 0,
+            isCustomGame: false,
+            tooltipTimeout: null,
+            isSoundEnabled: false 
+        };
+
+        const elements = {
+            setupArea: document.getElementById('setup-area'),
+            gameArea: document.getElementById('game-area'),
+            resultsArea: document.getElementById('results-area'),
+            wordsContainer: document.getElementById('words'),
+            wordsWrapper: document.getElementById('words-wrapper'),
+            input: document.getElementById('typing-input'),
+            caret: document.getElementById('caret'),
+            liveWpm: document.getElementById('live-wpm'),
+            liveWpmDiff: document.getElementById('live-wpm-diff'),
+            liveCombo: document.getElementById('live-combo'),
+            liveCorrect: document.getElementById('live-correct'),
+            liveWrong: document.getElementById('live-wrong'),
+            statsWordCount: document.getElementById('stats-word-count'),
+            statsTotalWords: document.getElementById('stats-total-words'),
+            navSearch: document.getElementById('nav-search'),
+            navPresets: document.getElementById('nav-presets'),
+            navCustom: document.getElementById('nav-custom'),
+            btnToggleEasy: document.getElementById('btn-toggle-easy'),
+            btnToggleSpeak: document.getElementById('btn-toggle-speak'),
+            btnToggleCloze: document.getElementById('btn-toggle-cloze'),
+            viewSearch: document.getElementById('view-search'),
+            viewPresets: document.getElementById('view-presets'),
+            viewCustom: document.getElementById('view-custom'),
+            artistInput: document.getElementById('input-artist'),
+            titleInput: document.getElementById('input-title'),
+            customText: document.getElementById('custom-text-area'),
+            customTrans: document.getElementById('custom-translation-area'),
+            customTransContainer: document.getElementById('custom-translation-container'),
+            missedWordsContainer: document.getElementById('missed-words-container'),
+            missedWordsList: document.getElementById('missed-words-list'),
+            resWpmBig: document.getElementById('res-wpm-big'),
+            resAccBig: document.getElementById('res-acc-big'),
+            resRaw: document.getElementById('res-raw'),
+            resCharTotal: document.getElementById('res-char-total'),
+            resCharErr: document.getElementById('res-char-err'),
+            resConsistency: document.getElementById('res-consistency'),
+            resTimeVal: document.getElementById('res-time-val'),
+            chartCanvas: document.getElementById('wpm-chart'),
+            modal: document.getElementById('modal-overlay'),
+            restartModal: document.getElementById('restart-modal-overlay'),
+            practiceModal: document.getElementById('practice-modal-overlay'),
+            practiceContainer: document.getElementById('practice-container'),
+            practiceProgress: document.getElementById('practice-progress'),
+            searchStatus: document.getElementById('search-status-text'),
+            searchBar: document.getElementById('search-progress-bar'),
+            searchStatusContainer: document.getElementById('search-status-container'),
+            searchErrorContainer: document.getElementById('search-error-container'),
+            searchError: document.getElementById('search-error'),
+            googleFallbackLink: document.getElementById('google-fallback-link'),
+            toastContainer: document.getElementById('toast-container')
+        };
+
+        function initSpeech() { window.speechSynthesis.getVoices(); }
+        initSpeech();
+        if (speechSynthesis.onvoiceschanged !== undefined) { speechSynthesis.onvoiceschanged = initSpeech; }
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `<span class="toast-icon"></span><span>${message}</span>`;
+            elements.toastContainer.appendChild(toast);
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function openModal(id) { document.getElementById(id + '-modal-overlay').classList.remove('hidden'); }
+        function closeModal(id) { document.getElementById(id + '-modal-overlay').classList.add('hidden'); }
+
+        function trySwitchTab(tabName) {
+            if (state.isFetching) {
+                state.pendingNav = tabName;
+                elements.modal.classList.remove('hidden');
+            } else {
+                switchTab(tabName);
+            }
+        }
+
+        function switchTab(tabName) {
+            ['search', 'presets', 'custom'].forEach(t => {
+                const el = document.getElementById(`nav-${t}`);
+                const view = document.getElementById(`view-${t}`);
+                if (t === tabName) {
+                    el.classList.add('active');
+                    view.classList.remove('hidden');
+                } else {
+                    el.classList.remove('active');
+                    view.classList.add('hidden');
+                }
+            });
+            if(tabName === 'custom' && state.isEasyMode) {
+                elements.customTransContainer.classList.remove('hidden');
+            } else {
+                elements.customTransContainer.classList.add('hidden');
+            }
+        }
+
+        function setGameMode(mode) {
+             state.isClozeMode = (mode === 'cloze');
+             document.getElementById('mode-normal').classList.toggle('active', !state.isClozeMode);
+             document.getElementById('mode-cloze').classList.toggle('active', state.isClozeMode);
+             if (!elements.gameArea.classList.contains('hidden')) { resetGame(); }
+        }
+
+        async function toggleEasyMode() {
+            state.isEasyMode = !state.isEasyMode;
+            elements.btnToggleEasy.classList.toggle('active', state.isEasyMode);
+            document.body.classList.toggle('easy-mode', state.isEasyMode);
+
+            if (state.isEasyMode && !state.transLines.some(l => l && l.length > 0)) {
+                const fullText = state.lines.map(l => l ? l.join(' ') : '').join('\n');
+                if (fullText.trim().length > 0) {
+                    showToast("Translating...", "info");
+                    try {
+                         const translatedText = await fetchTranslation(fullText);
+                         updateTranslations(translatedText);
+                         renderWords(); 
+                         if(state.wordElements[state.currentWordIndex]) {
+                             state.wordElements[state.currentWordIndex].classList.add('active');
+                             handleScroll(state.wordElements[state.currentWordIndex]);
+                             updateCaretPosition();
+                         }
+                         showToast("Translation enabled", "info");
+                    } catch (e) {
+                         showToast("Translation failed", "error");
+                         state.isEasyMode = false;
+                         elements.btnToggleEasy.classList.remove('active');
+                         document.body.classList.remove('easy-mode');
+                    }
+                }
+            }
+            if(state.isPlaying || !elements.gameArea.classList.contains('hidden')) {
+                elements.input.focus();
+                if(state.wordElements[state.currentWordIndex]) {
+                     handleScroll(state.wordElements[state.currentWordIndex]);
+                }
+            }
+        }
+
+        function updateTranslations(text) {
+             const transLinesRaw = text ? text.split('\n') : [];
+             state.transLines = [];
+             let tIndex = 0;
+             state.lines.forEach((line) => {
+                 if (line === null) {
+                     state.transLines.push(null);
+                 } else {
+                     while(tIndex < transLinesRaw.length && transLinesRaw[tIndex].trim() === '') tIndex++;
+                     if(tIndex < transLinesRaw.length) {
+                         state.transLines.push(transLinesRaw[tIndex]);
+                         tIndex++;
+                     } else {
+                         state.transLines.push("");
+                     }
+                 }
+             });
+        }
+        
+        async function fetchTranslation(text) {
+             if (!text.includes('\n') && text.length < 100) {
+                 const encodedText = encodeURIComponent(text);
+                 const pair = "en|pt";
+                 try {
+                    const transRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodedText}&langpair=${pair}`);
+                    const transData = await transRes.json();
+                    if (transData?.responseData?.translatedText) return transData.responseData.translatedText;
+                 } catch (e) { console.warn(e); }
+                 return "Translation unavailable";
+             }
+             const chunks = splitIntoChunks(text, 450);
+             const translatedChunks = [];
+             for (let i = 0; i < chunks.length; i++) {
+                 const textChunk = chunks[i];
+                 const encodedText = encodeURIComponent(textChunk);
+                 const pair = "en|pt";
+                 await new Promise(r => setTimeout(r, 200));
+                 const transRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodedText}&langpair=${pair}`);
+                 const transData = await transRes.json();
+                 if (transData?.responseData?.translatedText) {
+                     const resText = transData.responseData.translatedText;
+                     if (!resText.includes("QUERY LENGTH") && !resText.includes("MYMEMORY")) {
+                         translatedChunks.push(resText);
+                         continue;
+                     }
+                 } 
+                 translatedChunks.push(""); 
+             }
+             return translatedChunks.join('\n\n');
+        }
+        
+        function cleanPunctuation(word) { return word.replace(/[.,!?;:"()]/g, ''); }
+
+        async function startPracticeErrors() {
+             elements.practiceContainer.innerHTML = '<div class="text-center text-sub text-sm">Preparing words...</div>';
+             elements.practiceModal.classList.remove('hidden');
+             const rawErrors = Array.from(state.missedWords);
+             const cleanedErrors = [...new Set(rawErrors.map(w => cleanPunctuation(w)).filter(w => w.length > 0))];
+             state.practiceQueue = cleanedErrors;
+             state.currentPracticeIndex = 0;
+             if(state.practiceQueue.length === 0) {
+                 elements.practiceContainer.innerHTML = '<div class="text-center text-sub">No valid words to practice!</div>';
+                 return;
+             }
+             renderPracticeWord();
+        }
+        
+        async function renderPracticeWord() {
+            if(state.currentPracticeIndex >= state.practiceQueue.length) {
+                elements.practiceContainer.innerHTML = `<div class="text-center text-main text-2xl font-bold mb-2">All Done!</div><div class="text-center text-sub">Great job practicing your tricky words.</div>`;
+                elements.practiceProgress.textContent = "";
+                return;
+            }
+            const word = state.practiceQueue[state.currentPracticeIndex];
+            elements.practiceProgress.textContent = `${state.currentPracticeIndex + 1} / ${state.practiceQueue.length}`;
+            elements.practiceContainer.innerHTML = '<div class="loader"></div>';
+            let translation = "...";
+            try { translation = await fetchTranslation(word); } catch(e) { translation = "???"; }
+            elements.practiceContainer.innerHTML = `
+                <div class="practice-card w-full">
+                    <div class="flex flex-col items-center mb-6 w-full">
+                        <div class="flex items-center gap-4">
+                            <span class="practice-word-display">${word}</span>
+                            <button onclick="speakWord('${word}')" class="text-main hover:text-base p-2 rounded-full hover:bg-surface transition">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                            </button>
+                        </div>
+                        <span class="practice-translation">(${translation})</span>
+                    </div>
+                    <input type="text" id="practice-input-field" class="practice-input" placeholder="Type word here..." autocomplete="off">
+                </div>
+            `;
+            const inputEl = document.getElementById('practice-input-field');
+            inputEl.focus();
+            inputEl.addEventListener('input', (e) => checkPracticeInput(e.target, word));
+        }
+        
+        function checkPracticeInput(input, target) {
+            if (input.value.trim().toLowerCase() === target.toLowerCase()) {
+                input.disabled = true;
+                input.style.borderColor = 'var(--success-color)';
+                input.style.color = 'var(--success-color)';
+                const card = input.closest('.practice-card');
+                card.classList.add('success');
+                playSound('click'); // Reward sound
+                
+                if(window.incrementPracticeCounter) window.incrementPracticeCounter();
+
+                setTimeout(() => { state.currentPracticeIndex++; renderPracticeWord(); }, 800);
+            } else {
+                // Play error sound for incorrect input if sound enabled
+                if(input.value.length > 0 && !target.toLowerCase().startsWith(input.value.trim().toLowerCase())) {
+                    // Simple logic to detect obvious mistake
+                     // playSound('error'); 
+                     // Avoiding spam, only play if enabled in settings
+                }
+            }
+        }
+
+        function toggleAutoSpeak() {
+            state.isAutoSpeak = !state.isAutoSpeak;
+            elements.btnToggleSpeak.classList.toggle('active', state.isAutoSpeak);
+            elements.input.focus();
+        }
+
+        function cancelNavigation() { state.pendingNav = null; elements.modal.classList.add('hidden'); }
+        function confirmNavigation() {
+            if (state.abortController) { state.abortController.abort(); state.abortController = null; }
+            state.isFetching = false;
+            updateFetchUI(false);
+            elements.modal.classList.add('hidden');
+            if (state.pendingNav) { switchTab(state.pendingNav); state.pendingNav = null; }
+        }
+
+        function stopGame() {
+            state.isPlaying = false;
+            clearInterval(state.timerInterval);
+            if(elements.caret) elements.caret.style.display = 'none';
+        }
+
+        function goHome() {
+            stopGame();
+            if(state.isEasyMode) {
+                 state.isEasyMode = false;
+                 document.body.classList.remove('easy-mode');
+                 elements.btnToggleEasy.classList.remove('active');
+            }
+            state.isClozeMode = false;
+            document.getElementById('mode-cloze').classList.remove('active');
+            document.getElementById('mode-normal').classList.add('active');
+            state.previousRun = null; 
+            elements.gameArea.classList.add('hidden');
+            elements.resultsArea.classList.add('hidden');
+            elements.setupArea.classList.remove('hidden');
+            elements.input.blur();
+        }
+
+        function updateFetchUI(isFetching, progress = 0, message = "") {
+            const btnText = document.getElementById('search-btn-text');
+            const loader = document.getElementById('search-loader');
+            const fetchBtn = document.getElementById('btn-fetch-action');
+            if (isFetching) {
+                btnText.classList.add('hidden');
+                loader.classList.remove('hidden');
+                fetchBtn.classList.add('opacity-70', 'cursor-not-allowed');
+                elements.searchStatus.classList.remove('hidden');
+                elements.searchStatusContainer.classList.remove('hidden');
+                elements.searchStatus.textContent = message || "Searching...";
+                elements.searchBar.style.width = `${progress}%`;
+                elements.searchErrorContainer.classList.add('hidden'); 
+            } else {
+                btnText.classList.remove('hidden');
+                loader.classList.add('hidden');
+                fetchBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                elements.searchStatus.classList.add('hidden');
+                elements.searchStatusContainer.classList.add('hidden');
+                elements.searchBar.style.width = `0%`;
+            }
+        }
+
+        async function fetchLyrics() {
+            if (state.isFetching) return;
+            const artist = elements.artistInput.value.trim();
+            const title = elements.titleInput.value.trim();
+            if (!artist || !title) { showToast("Enter both artist and title", "error"); return; }
+            elements.searchErrorContainer.classList.add('hidden');
+            state.isFetching = true;
+            updateFetchUI(true, 5, "Connecting to database...");
+            state.abortController = new AbortController();
+            const signal = state.abortController.signal;
+            const cacheKey = `${artist}-${title}`.toLowerCase();
+            if(state.searchCache.has(cacheKey)) {
+                const data = state.searchCache.get(cacheKey);
+                setTimeout(() => { handleLyricsSuccess(data.lyrics, title, artist, signal); }, 300);
+                return;
+            }
+            try {
+                updateFetchUI(true, 30, "Searching LrcLib...");
+                const lyrics1 = await fetchFromLrcLib(artist, title, signal);
+                if (lyrics1) {
+                    state.searchCache.set(cacheKey, { lyrics: lyrics1 });
+                    await handleLyricsSuccess(lyrics1, title, artist, signal);
+                    return;
+                }
+            } catch(e) { console.warn("LrcLib failed", e); }
+            if(signal.aborted) return;
+            try {
+                updateFetchUI(true, 60, "Trying backup source...");
+                const lyrics2 = await fetchFromLyricsOvh(artist, title, signal);
+                if (lyrics2) {
+                    state.searchCache.set(cacheKey, { lyrics: lyrics2 });
+                    await handleLyricsSuccess(lyrics2, title, artist, signal);
+                    return;
+                }
+            } catch(e) { console.warn("OVH failed", e); }
+            if(signal.aborted) return;
+            state.isFetching = false;
+            updateFetchUI(false);
+            const query = encodeURIComponent(`${artist} ${title} lyrics`);
+            elements.googleFallbackLink.href = `https://www.google.com/search?q=${query}`;
+            elements.searchError.textContent = "Could not find lyrics automatically.";
+            elements.searchErrorContainer.classList.remove('hidden');
+        }
+
+        async function fetchFromLrcLib(artist, title, signal) {
+            const query = `${artist} ${title}`;
+            const params = new URLSearchParams({ q: query });
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000));
+            const res = await Promise.race([ fetch(`https://lrclib.net/api/search?${params}`, { signal }), timeout ]);
+            if(!res.ok) throw new Error("Status " + res.status);
+            const data = await res.json();
+            if (!Array.isArray(data) || data.length === 0) throw new Error("No results");
+            const targetArtist = artist.toLowerCase();
+            const targetTitle = title.toLowerCase();
+            let bestMatch = data.find(item => item.plainLyrics && item.artistName.toLowerCase().includes(targetArtist) && item.trackName.toLowerCase().includes(targetTitle));
+            if (!bestMatch) { bestMatch = data.find(item => item.plainLyrics && item.artistName.toLowerCase() === targetArtist); }
+            if (!bestMatch) { bestMatch = data.find(item => item.plainLyrics) || data[0]; }
+            if(!bestMatch || !bestMatch.plainLyrics) throw new Error("No lyrics");
+            return bestMatch.plainLyrics;
+        }
+
+        async function fetchFromLyricsOvh(artist, title, signal) {
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 6000));
+            const res = await Promise.race([ fetch(`https://api.lyrics.ovh/v1/${artist}/${title}`, { signal }), timeout ]);
+            if(!res.ok) throw new Error("Status " + res.status);
+            const data = await res.json();
+            if(!data.lyrics) throw new Error("No lyrics");
+            return data.lyrics;
+        }
+
+        async function handleLyricsSuccess(lyricsRaw, title, artist, signal) {
+            updateFetchUI(true, 80, "Processing text...");
+            const cleanedLyrics = cleanLyrics(lyricsRaw);
+            state.isFetching = false;
+            updateFetchUI(false);
+            startGame(cleanedLyrics, title, artist, "");
+        }
+
+        function splitIntoChunks(text, maxLength) {
+            const stanzas = text.split('\n\n');
+            const chunks = [];
+            let currentChunk = "";
+            stanzas.forEach(stanza => {
+                if (stanza.length > maxLength) {
+                    const lines = stanza.split('\n');
+                    lines.forEach(line => {
+                         if ((currentChunk.length + line.length) < maxLength) { currentChunk += (currentChunk ? '\n' : '') + line; } 
+                         else { if(currentChunk) chunks.push(currentChunk); currentChunk = line; }
+                    });
+                } else {
+                    if ((currentChunk.length + stanza.length + 2) < maxLength) { currentChunk += (currentChunk ? '\n\n' : '') + stanza; } 
+                    else { if(currentChunk) chunks.push(currentChunk); currentChunk = stanza; }
+                }
+            });
+            if (currentChunk) chunks.push(currentChunk);
+            return chunks;
+        }
+
+        function cleanLyrics(text) {
+             let lines = text.split('\n');
+             lines = lines.filter(line => {
+                const l = line.trim().toLowerCase();
+                if (l.startsWith('paroles de la chanson') && l.includes('par')) return false;
+                if (l.includes('paroles de la chanson')) return false; 
+                if (l.startsWith('written by')) return false;
+                if (l.includes('lyrics provided by')) return false;
+                if (l.startsWith('artist:')) return false;
+                if (l.startsWith('album:')) return false;
+                return true;
+            });
+            return lines.join('\n').replace(/\[.*?\]/g, "").replace(/[()]/g, "").replace(/\n\n\n+/g, "\n\n").trim();
+        }
+
+        function loadPreset(key) {
+            const song = presets[key];
+            state.isCustomGame = false;
+            startGame(song.lyrics, song.title, song.artist, "");
+        }
+
+        function startCustomGame() {
+            const text = elements.customText.value.trim();
+            const trans = elements.customTrans.value.trim();
+            if (!text) return;
+            state.isCustomGame = true;
+            startGame(text, "Custom Text", "You", trans);
+        }
+
+        function startGame(text, title, artist, translationText = '') {
+            const rawLines = text.split('\n');
+            const transLinesRaw = translationText ? translationText.split('\n') : [];
+            state.lines = [];
+            state.transLines = [];
+            let tIndex = 0;
+            rawLines.forEach((line) => {
+                const trimmed = line.trim();
+                if (trimmed.length === 0) {
+                    state.lines.push(null);
+                    state.transLines.push(null);
+                } else {
+                    state.lines.push(trimmed.split(/\s+/).filter(w => w.length > 0));
+                    while(tIndex < transLinesRaw.length && transLinesRaw[tIndex].trim() === '') tIndex++;
+                    if(tIndex < transLinesRaw.length) { state.transLines.push(transLinesRaw[tIndex]); tIndex++; } 
+                    else { state.transLines.push(""); }
+                }
+            });
+            state.words = state.lines.flat().filter(w => w !== null); 
+            
+            state.clozeIndices.clear();
+            if (state.isClozeMode) {
+                state.words.forEach((word, index) => {
+                    if (word.length <= 3) return;
+                    if (Math.random() < 0.25) { state.clozeIndices.add(index); }
+                });
+                if (state.clozeIndices.size === 0 && state.words.length > 5) { state.clozeIndices.add(5); }
+            }
+
+            state.currentWordIndex = 0;
+            if (state.isClozeMode && state.clozeIndices.size > 0) {
+                let firstCloze = -1;
+                for(let i=0; i<state.words.length; i++) { if(state.clozeIndices.has(i)) { firstCloze = i; break; } }
+                if (firstCloze !== -1) state.currentWordIndex = firstCloze;
+            }
+
+            state.startTime = null;
+            state.endTime = null;
+            state.correctChars = 0;
+            state.incorrectChars = 0;
+            state.extraChars = 0;
+            state.isPlaying = false;
+            state.songTitle = title;
+            state.artist = artist;
+            state.history = [];
+            state.wordElements = [];
+            state.missedWords.clear();
+            state.wordsCorrect = 0;
+            state.wordsWrong = 0;
+            state.currentCombo = 0;
+            state.wpmHistory = [];
+
+            document.getElementById('current-song-title').textContent = title;
+            document.getElementById('current-song-artist').textContent = artist;
+            elements.liveWpm.textContent = '0';
+            elements.liveWpmDiff.textContent = '';
+            elements.liveCombo.textContent = '0';
+            elements.liveCorrect.textContent = '0';
+            elements.liveWrong.textContent = '0';
+            elements.caret.style.display = 'block';
+            elements.statsWordCount.textContent = '0';
+            elements.statsTotalWords.textContent = '/' + state.words.length;
+            
+            elements.btnToggleEasy.classList.toggle('active', state.isEasyMode);
+            document.body.classList.toggle('easy-mode', state.isEasyMode);
+
+            elements.setupArea.classList.add('hidden');
+            elements.resultsArea.classList.add('hidden');
+            elements.gameArea.classList.remove('hidden');
+            renderWords();
+            elements.input.value = '';
+            elements.input.focus();
+            requestAnimationFrame(updateCaretPosition);
+            
+            if(state.isClozeMode && state.wordElements[state.currentWordIndex]) {
+                 handleScroll(state.wordElements[state.currentWordIndex]);
+            }
+        }
+
+        function renderWords() {
+            elements.wordsContainer.innerHTML = '<div id="caret"></div>';
+            elements.wordsContainer.style.transform = `translateY(0px)`;
+            elements.caret = document.getElementById('caret');
+            state.wordElements = []; 
+            let wordIdx = 0;
+            state.lines.forEach((lineData, lineIndex) => {
+                if (lineData === null) {
+                    const breakEl = document.createElement('div');
+                    breakEl.className = 'stanza-break';
+                    elements.wordsContainer.appendChild(breakEl);
+                } else {
+                    const lineEl = document.createElement('div');
+                    lineEl.className = 'lyrics-line';
+                    lineData.forEach(word => {
+                        const wordSpan = document.createElement('div');
+                        wordSpan.className = 'word';
+                        const isCloze = state.isClozeMode && state.clozeIndices.has(wordIdx);
+                        const isSkipped = state.isClozeMode && !state.clozeIndices.has(wordIdx);
+                        if (isSkipped) { wordSpan.classList.add('cloze-context'); } else if (isCloze) { wordSpan.classList.add('cloze-target'); }
+
+                        // Add click listener for popover
+                        wordSpan.setAttribute('onclick', `handleWordClick(event, "${word.replace(/"/g, '&quot;')}")`);
+
+                        word.split('').forEach(char => {
+                            const charSpan = document.createElement('span');
+                            charSpan.className = 'letter';
+                            if (isCloze) { charSpan.textContent = '\u00A0'; } else { charSpan.textContent = char; }
+                            charSpan.dataset.char = char; 
+                            wordSpan.appendChild(charSpan);
+                        });
+                        lineEl.appendChild(wordSpan);
+                        state.wordElements.push(wordSpan); 
+                        wordIdx++;
+                    });
+                    elements.wordsContainer.appendChild(lineEl);
+                    const transText = state.transLines[lineIndex];
+                    if(transText) {
+                        const transEl = document.createElement('div');
+                        transEl.className = 'translation-line';
+                        transEl.textContent = transText;
+                        elements.wordsContainer.appendChild(transEl);
+                    }
+                }
+            });
+            if(state.wordElements.length > 0 && state.currentWordIndex < state.wordElements.length) {
+                state.wordElements[state.currentWordIndex].classList.add('active');
+            }
+        }
+
+        function handleInput(currentVal) {
+            // Check popover state
+            const popover = document.getElementById('word-popover');
+            if (popover && popover.style.display !== 'none' && popover.style.display !== '') {
+                return;
+            }
+
+            // SAFETY: Do not process if game is hidden (finished)
+            if (elements.gameArea.classList.contains('hidden')) return;
+
+            if (state.currentWordIndex >= state.words.length) return;
+            if (!state.isPlaying && currentVal.length > 0) {
+                state.isPlaying = true;
+                state.startTime = new Date();
+                startTimer();
+            }
+            const currentWordVal = state.words[state.currentWordIndex];
+            const wordEl = state.wordElements[state.currentWordIndex];
+            const letterEls = wordEl.querySelectorAll('.letter');
+
+            // --- AUTO-FINISH: Detecta se completou a última palavra ---
+            if (state.currentWordIndex === state.words.length - 1) {
+                if (currentVal === currentWordVal) {
+                    // Marca como correto visualmente
+                    const originalChars = currentWordVal.split('');
+                    originalChars.forEach((char, index) => {
+                         if(letterEls[index]) {
+                             letterEls[index].className = 'letter correct';
+                             letterEls[index].textContent = char;
+                         }
+                    });
+                    
+                    state.wordsCorrect++;
+                    state.currentCombo++;
+                    playSound('click');
+                    
+                    if (state.isClozeMode && state.clozeIndices.has(state.currentWordIndex)) {
+                        wordEl.classList.add('revealed');
+                    }
+                    
+                    finishGame();
+                    return;
+                }
+            }
+
+            if (currentVal.endsWith(' ')) {
+                if (currentVal.trim() === '') { elements.input.value = ''; return; }
+                if (state.isAutoSpeak) speakWord(currentWordVal);
+                state.history.push(currentVal.trim());
+                const trimmedTyped = currentVal.trim();
+                wordEl.classList.remove('active');
+                
+                if (trimmedTyped === currentWordVal) {
+                    state.wordsCorrect++;
+                    state.currentCombo++;
+                    playSound('click'); 
+                    if (state.isClozeMode && state.clozeIndices.has(state.currentWordIndex)) {
+                        wordEl.classList.add('revealed');
+                    }
+                } else {
+                    state.wordsWrong++;
+                    state.currentCombo = 0; 
+                    state.missedWords.add(currentWordVal);
+                    playSound('error'); 
+                }
+                
+                if (trimmedTyped.length < currentWordVal.length) {
+                    for (let i = trimmedTyped.length; i < currentWordVal.length; i++) {
+                        letterEls[i].classList.add('incorrect');
+                        state.incorrectChars++;
+                    }
+                }
+                state.currentWordIndex++;
+                
+                // Skip words in Cloze mode
+                if (state.isClozeMode) {
+                    while (state.currentWordIndex < state.words.length && !state.clozeIndices.has(state.currentWordIndex)) {
+                        state.currentWordIndex++;
+                    }
+                }
+                
+                elements.input.value = '';
+                updateStats();
+                
+                // Check finish again in case skipping context words reached the end
+                if (state.currentWordIndex >= state.words.length) { 
+                    finishGame(); 
+                    return; 
+                }
+                
+                const nextWordEl = state.wordElements[state.currentWordIndex];
+                if (nextWordEl) {
+                    nextWordEl.classList.add('active');
+                    handleScroll(nextWordEl);
+                    updateCaretPosition();
+                }
+                return;
+            }
+
+            const currentArray = currentVal.split('');
+            const typedArray = currentVal.split('');
+            const originalChars = currentWordVal.split('');
+
+            originalChars.forEach((char, index) => {
+                const charEl = letterEls[index];
+                const typedChar = typedArray[index];
+                if (typedChar == null) { 
+                    charEl.className = 'letter'; 
+                    if (state.isClozeMode && state.clozeIndices.has(state.currentWordIndex)) { 
+                        charEl.textContent = '\u00A0'; 
+                    } else { 
+                        charEl.textContent = charEl.dataset.char; 
+                    }
+                } else if (typedChar === char) { 
+                    charEl.className = 'letter correct'; 
+                    charEl.textContent = char;
+                } else { 
+                    charEl.className = 'letter incorrect'; 
+                    charEl.textContent = char; // Mantém a letra correta, mas vermelha
+                }
+            });
+            
+            const existingExtras = wordEl.querySelectorAll('.letter.extra');
+            existingExtras.forEach(el => el.remove());
+            if (typedArray.length > originalChars.length) {
+                for (let i = originalChars.length; i < typedArray.length; i++) {
+                    const extraSpan = document.createElement('span');
+                    extraSpan.className = 'letter extra';
+                    extraSpan.textContent = typedArray[i];
+                    wordEl.appendChild(extraSpan);
+                }
+            }
+            
+            // KEYBOARD ERROR FEEDBACK LOGIC
+            const lastTypedChar = currentArray[currentArray.length - 1];
+            if (lastTypedChar) {
+                 const expectedChar = originalChars[currentArray.length - 1];
+                 const isCorrect = lastTypedChar === expectedChar;
+                 const keySelector = lastTypedChar === ' ' ? ' ' : lastTypedChar.toLowerCase();
+                 // Use querySelector to find key by data-key attribute. Need to handle special characters carefully if needed.
+                 // Assuming simple letters for now based on context.
+                 let keyEl = null;
+                 try {
+                     // Try finding the key. Escape double quotes if present.
+                     const safeKey = keySelector.replace(/"/g, '\\"');
+                     keyEl = document.querySelector(`.kb-key[data-key="${safeKey}"]`);
+                 } catch (e) { console.error(e); }
+                 
+                 if (keyEl) {
+                     // Remove previous error state to reset animation if needed
+                     keyEl.classList.remove('error');
+                     
+                     if (!isCorrect) {
+                         // Force reflow to restart animation if desired, or just add class
+                         void keyEl.offsetWidth; 
+                         keyEl.classList.add('error');
+                         
+                         // Remove error class after a short delay
+                         setTimeout(() => {
+                             keyEl.classList.remove('error');
+                         }, 200);
+                     } else {
+                         // If correct, maybe flash active color briefly? 
+                         // Already handled by keydown/keyup events for physical keyboard.
+                         // But for virtual clarity, we can flash active too.
+                         keyEl.classList.add('active');
+                         setTimeout(() => {
+                             keyEl.classList.remove('active');
+                         }, 100);
+                     }
+                 }
+            }
+
+            updateCaretPosition();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            const popover = document.getElementById('word-popover');
+            if (e.key === 'Escape') {
+                if (popover && popover.style.display !== 'none' && popover.style.display !== '') {
+                    closeWordPopover();
+                    return;
+                }
+                closeModal('about'); closeModal('settings'); closeModal('practice'); closeModal('profile'); cancelRestart(); cancelNavigation(); 
+            }
+            
+            if (popover && popover.style.display !== 'none' && popover.style.display !== '') return;
+
+            // Add keydown visual feedback for virtual keyboard
+            if (e.key) {
+                const safeKey = e.key.replace(/"/g, '\\"');
+                // Case insensitive check for letters
+                const lowerKey = e.key.toLowerCase();
+                const vKey = document.querySelector(`.kb-key[data-key="${safeKey}"]`) || 
+                             document.querySelector(`.kb-key[data-key="${lowerKey}"]`);
+                if (vKey) vKey.classList.add('active');
+            }
+
+            if (e.key === 'Alt') { if (e.repeat) return; e.preventDefault(); togglePreviewMode(true); }
+            if (e.key === 'Tab' && !elements.gameArea.classList.contains('hidden')) { e.preventDefault(); requestRestart(); }
+            if (e.key === 'Control' && !e.repeat) { speakWord(state.words[state.currentWordIndex]); }
+            if (e.key === 'Backspace' && !elements.gameArea.classList.contains('hidden') && !state.isPreviewMode) {
+                // Previne o backspace de navegar para a página anterior se o input estiver vazio
+                if (elements.input.value.length === 0 && state.currentWordIndex > 0) { 
+                    e.preventDefault(); 
+                    goBackToPreviousWord(); 
+                }
+            }
+            
+            if (!elements.gameArea.classList.contains('hidden') && !state.isPreviewMode && document.activeElement !== elements.input) { elements.input.focus(); }
+        });
+        document.addEventListener('keyup', (e) => { 
+            // Add keyup visual feedback for virtual keyboard
+            if (e.key) { // Safety check
+                 const safeKey = e.key.replace(/"/g, '\\"');
+                 const lowerKey = e.key.toLowerCase();
+                 const vKey = document.querySelector(`.kb-key[data-key="${safeKey}"]`) || 
+                              document.querySelector(`.kb-key[data-key="${lowerKey}"]`);
+                 if (vKey) vKey.classList.remove('active');
+            }
+            
+            if (e.key === 'Alt') { togglePreviewMode(false); } 
+        });
+
+        function requestRestart() { if (state.isPlaying) { clearInterval(state.timerInterval); state.isPlaying = false; } elements.restartModal.classList.remove('hidden'); }
+        function cancelRestart() { elements.restartModal.classList.add('hidden'); elements.input.focus(); }
+        function confirmRestart() { elements.restartModal.classList.add('hidden'); resetGame(); }
+        
+        function resetGame(saveHistory = false) {
+            if (saveHistory && state.wpmHistory.length > 0) { state.previousRun = { wpmHistory: [...state.wpmHistory] }; } 
+            else if (!saveHistory && state.wpmHistory.length > 0 && elements.resultsArea.classList.contains('hidden') === false) { state.previousRun = { wpmHistory: [...state.wpmHistory] }; }
+            const text = state.lines.map(l => l ? l.join(' ') : '').join('\n');
+            const trans = state.transLines.map(l => l || '').join('\n');
+            startGame(text, state.songTitle, state.artist, trans);
+        }
+        
+        function finishGame() { 
+            state.endTime = new Date();
+            stopGame(); 
+            
+            // CLEAR INPUT AND BLUR
+            elements.input.value = '';
+            elements.input.blur();
+
+            // Toggle screens
+            elements.gameArea.classList.add('hidden');
+            elements.resultsArea.classList.remove('hidden');
+
+            // Calculate final WPM and Acc for saving
+            const timeSeconds = Math.max(1, (state.endTime - state.startTime) / 1000);
+            const minutes = timeSeconds / 60;
+            
+            // CORREÇÃO: Calcular total de chars baseado no modo
+            let totalCharsTyped = 0;
+            state.words.forEach((word, index) => {
+                // Se for Normal, conta tudo. Se for Cloze, conta só se for índice de lacuna.
+                if (!state.isClozeMode || state.clozeIndices.has(index)) {
+                    totalCharsTyped += word.length + 1; // +1 espaço
+                }
+            });
+            if (totalCharsTyped > 0) totalCharsTyped--; // Remove último espaço
+
+            const netWpm = Math.round(((totalCharsTyped / 5) / minutes));
+            const totalKeypresses = totalCharsTyped + state.incorrectChars + state.extraChars;
+            const accuracy = totalKeypresses > 0 ? Math.round((totalCharsTyped / totalKeypresses) * 100) : 0;
+
+            if (window.saveGameResult) {
+                window.saveGameResult(netWpm, accuracy, state.wordsCorrect, state.isClozeMode ? 'cloze' : 'normal', state.isCustomGame);
+            }
+            
+            // Update Results UI
+            elements.resWpmBig.textContent = netWpm;
+            elements.resAccBig.textContent = `${accuracy}%`;
+            elements.resRaw.textContent = Math.round(netWpm * (accuracy/100)) || 0; 
+            elements.resCharTotal.textContent = totalCharsTyped;
+            elements.resCharErr.textContent = state.incorrectChars + state.extraChars;
+            elements.resTimeVal.textContent = `${Math.round(timeSeconds)}s`;
+            
+            const wpmMean = state.wpmHistory.reduce((a, b) => a + b, 0) / state.wpmHistory.length || 0;
+            const wpmVariance = state.wpmHistory.reduce((a, b) => a + Math.pow(b - wpmMean, 2), 0) / state.wpmHistory.length || 0;
+            const wpmStdDev = Math.sqrt(wpmVariance);
+            let consistency = 100;
+            if(wpmMean > 0) { const cv = wpmStdDev / wpmMean; consistency = Math.max(0, Math.round(100 * (1 - cv))); }
+            elements.resConsistency.textContent = `${consistency}%`;
+
+            elements.missedWordsList.innerHTML = '';
+            if(state.missedWords.size > 0) {
+                elements.missedWordsContainer.classList.remove('hidden');
+            } else {
+                elements.missedWordsContainer.classList.add('hidden');
+            }
+
+            drawChart(state.wpmHistory, state.previousRun ? state.previousRun.wpmHistory : null);
+        }
+
+        function drawChart(currentData, prevData) {
+            const canvas = elements.chartCanvas;
+            const ctx = canvas.getContext('2d');
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            
+            if(currentData.length < 2) return;
+
+            const padding = 20;
+            const width = canvas.width - padding * 2;
+            const height = canvas.height - padding * 2;
+            
+            let maxVal = Math.max(...currentData, 10);
+            if (prevData) maxVal = Math.max(maxVal, ...prevData);
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const drawLine = (data, color, dash) => {
+                ctx.beginPath();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                if(dash) ctx.setLineDash([5, 5]); else ctx.setLineDash([]);
+                const stepX = width / (Math.max(data.length, currentData.length) - 1);
+                data.forEach((val, i) => {
+                    const x = padding + (i * stepX);
+                    const y = padding + height - ((val / maxVal) * height);
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+            };
+
+            if (prevData) {
+                drawLine(prevData, '#5e8396', true);
+            }
+            drawLine(currentData, '#3EE39E', false);
+        }
+
+        function togglePreviewMode(forceState) {
+            state.isPreviewMode = forceState !== undefined ? forceState : !state.isPreviewMode;
+            elements.wordsContainer.style.transition = 'none';
+            if (state.isPreviewMode) {
+                document.body.classList.add('preview-mode');
+                elements.input.blur();
+                elements.caret.style.display = 'none';
+                const currentWord = state.wordElements[state.currentWordIndex];
+                if (currentWord) {
+                    const currentLine = currentWord.closest('.lyrics-line');
+                    const lineTop = currentLine ? currentLine.offsetTop : 0;
+                    elements.wordsContainer.style.transform = 'translateY(0px)';
+                    requestAnimationFrame(() => { elements.wordsWrapper.scrollTop = Math.max(0, lineTop - 50); });
+                }
+            } else {
+                document.body.classList.remove('preview-mode');
+                elements.input.focus();
+                elements.caret.style.display = 'block';
+                elements.wordsWrapper.scrollTop = 0; 
+                if (state.wordElements[state.currentWordIndex]) { handleScroll(state.wordElements[state.currentWordIndex]); }
+            }
+            setTimeout(() => { elements.wordsContainer.style.transition = ''; }, 50);
+        }
+
+        function goBackToPreviousWord() {
+            // Safety check for index
+            if (state.currentWordIndex <= 0) return;
+
+            if (state.isClozeMode) {
+                 let prevIndex = state.currentWordIndex - 1;
+                 while(prevIndex >= 0 && !state.clozeIndices.has(prevIndex)) { prevIndex--; }
+                 
+                 if (prevIndex < 0) return; // No previous cloze word found
+                 
+                 // Safely remove active class from current
+                 const currentEl = state.wordElements[state.currentWordIndex];
+                 if (currentEl) currentEl.classList.remove('active');
+                 
+                 state.currentWordIndex = prevIndex;
+                 
+                 // Safely add active class to new
+                 const newEl = state.wordElements[state.currentWordIndex];
+                 if (newEl) newEl.classList.add('active');
+                 
+                 const prevText = state.history.pop() || "";
+                 elements.input.value = prevText;
+                 handleInput(prevText);
+                 
+                 if (newEl) handleScroll(newEl);
+                 return;
+            }
+            
+            // Normal Mode
+            const oldIndex = state.currentWordIndex;
+            state.currentWordIndex--;
+            
+            const oldWordEl = state.wordElements[oldIndex];
+            const newWordEl = state.wordElements[state.currentWordIndex];
+            
+            if (oldWordEl) oldWordEl.classList.remove('active');
+            if (newWordEl) newWordEl.classList.add('active');
+            
+            const prevText = state.history.pop() || "";
+            elements.input.value = prevText;
+            handleInput(prevText);
+            if (newWordEl) handleScroll(newWordEl);
+        }
+        function handleScroll(activeElement) {
+            const wordsDiv = elements.wordsContainer;
+            const currentLine = activeElement.closest('.lyrics-line');
+            if (!currentLine) return; 
+            const lineTop = currentLine.offsetTop;
+            wordsDiv.style.transform = `translateY(-${lineTop}px)`;
+        }
+        function updateCaretPosition() {
+            const wordEl = state.wordElements[state.currentWordIndex];
+            if (!wordEl) return;
+            const typedLen = elements.input.value.length;
+            const letterEls = wordEl.querySelectorAll('.letter');
+            const contentRect = elements.wordsContainer.getBoundingClientRect();
+            const wordRect = wordEl.getBoundingClientRect();
+            const relativeWordX = wordRect.left - contentRect.left;
+            const relativeWordY = wordRect.top - contentRect.top;
+            let targetX = 0;
+            let targetY = 0;
+            if (typedLen === 0) {
+                targetX = relativeWordX; 
+                targetY = relativeWordY + 5; 
+            } else if (typedLen <= letterEls.length) {
+                const lastChar = letterEls[typedLen - 1];
+                const charRect = lastChar.getBoundingClientRect();
+                targetX = charRect.right - contentRect.left;
+                targetY = charRect.top - contentRect.top;
+            } else {
+                const extras = wordEl.querySelectorAll('.extra');
+                const lastExtra = extras[extras.length - 1];
+                if (lastExtra) {
+                    const extraRect = lastExtra.getBoundingClientRect();
+                    targetX = extraRect.right - contentRect.left;
+                    targetY = extraRect.top - contentRect.top;
+                }
+            }
+            elements.caret.style.left = (targetX - 1) + 'px'; 
+            elements.caret.style.top = targetY + 'px';
+        }
+        
+        function updateStats() {
+            const current = state.currentWordIndex;
+            elements.statsWordCount.textContent = current;
+            elements.liveCorrect.textContent = state.wordsCorrect;
+            elements.liveWrong.textContent = state.wordsWrong;
+            elements.liveCombo.textContent = state.currentCombo;
+        }
+        
+        function startTimer() {
+            state.timerInterval = setInterval(() => {
+                const now = new Date();
+                const diffSeconds = (now - state.startTime) / 1000;
+                let charCount = 0;
+                for(let i=0; i<state.currentWordIndex; i++) {
+                    charCount += state.words[i].length + 1; 
+                }
+                charCount += elements.input.value.length;
+                const minutes = diffSeconds / 60;
+                const wpm = Math.round((charCount / 5) / minutes);
+                
+                if (wpm > 0 && wpm < 300) {
+                     elements.liveWpm.textContent = wpm;
+                     state.wpmHistory.push(wpm);
+                     
+                     if (state.previousRun && state.previousRun.wpmHistory && state.wpmHistory.length <= state.previousRun.wpmHistory.length) {
+                         const tickIndex = state.wpmHistory.length - 1;
+                         const prevWpm = state.previousRun.wpmHistory[tickIndex] || 0;
+                         const diff = wpm - prevWpm;
+                         const diffEl = elements.liveWpmDiff;
+                         diffEl.textContent = diff > 0 ? `+${diff}` : diff;
+                         diffEl.className = `wpm-diff ${diff >= 0 ? 'positive' : 'negative'}`;
+                     } else {
+                         elements.liveWpmDiff.textContent = '';
+                     }
+                     
+                } else if(minutes > 0) {
+                    state.wpmHistory.push(0);
+                }
+            }, 1000);
+        }
+        function speakWord(wordToSpeak) {
+            if (!wordToSpeak) return;
+            const cleanWord = wordToSpeak.replace(/[^\w\s]|_/g, "");
+            if (!cleanWord) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(cleanWord);
+            utterance.lang = 'en-US';
+            utterance.rate = 1.0;
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en'));
+            if (preferredVoice) utterance.voice = preferredVoice;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        elements.input.addEventListener('input', (e) => handleInput(elements.input.value));
+        window.addEventListener('resize', () => { if(state.isPlaying) updateCaretPosition(); });
+        elements.gameArea.addEventListener('click', () => { if(!state.isPreviewMode) elements.input.focus(); });
+        switchTab('search'); 
+    </script>
+</body>
+</html>

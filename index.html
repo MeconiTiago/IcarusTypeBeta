@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lrclib.net https://api.lyrics.ovh https://api.mymemory.translated.net https://api.dictionaryapi.dev https://yt.lemnoslife.com https://www.youtube.com https://www.youtube-nocookie.com https://piped.video; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://piped.video; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests">
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()">
+    <title>Icarus Type</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- OpenDyslexic Font -->
+    <link href="https://cdn.jsdelivr.net/npm/opendyslexic@2.1.0/open-dyslexic.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/themes.css">
+</head>
+<body class="h-screen flex flex-col items-center">
+
+    <input type="text" id="typing-input" class="hidden-input" autocomplete="off" capitalize="off" spellcheck="false">
+    <div id="toast-container"></div>
+
+    <!-- Word Menu Popover -->
+    <div id="popover-overlay" class="fixed inset-0 z-40 hidden" data-onclick="closeWordPopover()"></div>
+    <div id="word-popover" class="word-popover">
+        <div class="popover-header">
+            <h4 id="popover-word-title" class="text-main font-bold capitalize">Word</h4>
+            <div class="flex gap-2 items-center">
+                <button id="popover-speak-btn" data-onclick="speakWord(document.getElementById('popover-word-title').textContent)" class="text-sub hover:text-base" title="Listen">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>
+                </button>
+                <button id="popover-save-btn" data-onclick="toggleSavedWord()" class="text-sub hover:text-error" title="Save to Vocabulary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                </button>
+            </div>
+        </div>
+        <div class="popover-actions">
+            <div id="btn-def" class="popover-btn hover:opacity-80" data-onclick="showDefinition()">Meaning</div>
+            <div id="btn-trans" class="popover-btn hover:opacity-80" data-onclick="showTranslation()">Translation</div>
+        </div>
+        <div id="popover-content" class="popover-body">
+            <span class="text-sub text-xs italic">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Onboarding, Profile, About, Settings, Practice Modals (No Changes) -->
+    <!-- Onboarding Modal -->
+    <div id="onboarding-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-lg w-full mx-4 border border-main">
+            <h3 class="text-main font-bold text-2xl mb-4 text-center">Welcome to Icarus Type!</h3>
+            <div class="text-base text-sm space-y-4 mb-6">
+                <p>Improve your English typing and vocabulary through music.</p>
+                <ul class="list-disc list-inside space-y-2 text-sub">
+                    <li><strong class="text-main">Type Lyrics:</strong> Find your favorite songs or use presets.</li>
+                    <li><strong class="text-main">Modes:</strong> 
+                        <ul class="pl-6 mt-1 text-xs">
+                            <li><strong>Normal:</strong> Type along with the lyrics.</li>
+                            <li><strong>Cloze:</strong> Guess missing words for memory practice.</li>
+                        </ul>
+                    </li>
+                    <li><strong class="text-main">Tools:</strong> Use <span class="text-main">Ctrl</span> to speak words and <span class="text-main">Alt</span> to free look.</li>
+                    <li><strong class="text-main">Progress:</strong> Earn XP and badges as you type.</li>
+                </ul>
+            </div>
+            <div class="text-center">
+                <button data-onclick="closeOnboarding()" class="btn-primary px-8 py-2 rounded font-bold transition">Let's Rock</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Modal -->
+    <div id="profile-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" data-onclick="if(event.target === this) closeModal('profile')">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-md w-full mx-4 border border-sub max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-main font-bold text-xl">Account</h3>
+                <button data-onclick="closeModal('profile')" class="text-sub hover:text-base text-sm">Close</button>
+            </div>
+
+            <div id="auth-guest-view">
+                <div class="auth-tabs mb-4">
+                    <button id="auth-tab-login" class="auth-tab active" data-onclick="switchAuthTab('login')">Login</button>
+                    <button id="auth-tab-register" class="auth-tab" data-onclick="switchAuthTab('register')">Register</button>
+                </div>
+
+                <div id="auth-login-form" class="auth-panel">
+                    <div class="auth-field-group">
+                        <label class="auth-label" for="auth-login-email">Email</label>
+                        <input id="auth-login-email" type="email" class="auth-input" placeholder="you@example.com" autocomplete="email">
+                    </div>
+                    <div class="auth-field-group">
+                        <label class="auth-label" for="auth-login-password">Password</label>
+                        <input id="auth-login-password" type="password" class="auth-input" placeholder="Your password" autocomplete="current-password">
+                    </div>
+                    <label class="auth-checkbox-row">
+                        <input id="auth-remember-me" type="checkbox">
+                        <span>Remember me</span>
+                    </label>
+                    <button class="auth-submit-btn mt-4" data-onclick="loginAccount()">Sign in</button>
+                </div>
+
+                <div id="auth-register-form" class="auth-panel hidden">
+                    <div class="auth-field-group">
+                        <label class="auth-label" for="auth-register-username">Username</label>
+                        <input id="auth-register-username" type="text" class="auth-input" placeholder="username" autocomplete="username">
+                    </div>
+                    <div class="auth-field-group">
+                        <label class="auth-label" for="auth-register-email">Email</label>
+                        <input id="auth-register-email" type="email" class="auth-input" placeholder="you@example.com" autocomplete="email">
+                    </div>
+                    <div class="auth-field-group">
+                        <label class="auth-label" for="auth-register-email-verify">Verify email</label>
+                        <input id="auth-register-email-verify" type="email" class="auth-input" placeholder="repeat email" autocomplete="email">
+                    </div>
+                    <div class="auth-field-group">
+                        <label class="auth-label" for="auth-register-password">Password</label>
+                        <input id="auth-register-password" type="password" class="auth-input" placeholder="Choose a password" autocomplete="new-password">
+                    </div>
+                    <div class="auth-field-group">
+                        <label class="auth-label" for="auth-register-password-verify">Verify password</label>
+                        <input id="auth-register-password-verify" type="password" class="auth-input" placeholder="repeat password" autocomplete="new-password">
+                    </div>
+                    <button class="auth-submit-btn mt-4" data-onclick="registerAccount()">Sign up</button>
+                </div>
+            </div>
+
+            <div id="auth-user-view" class="hidden">
+                <div class="auth-user-card">
+                    <div class="text-sub text-xs uppercase mb-1">Logged in as</div>
+                    <div id="auth-user-name" class="text-main font-bold text-lg">username</div>
+                    <div id="auth-user-email" class="text-base text-sm">email@example.com</div>
+                </div>
+
+                <div class="auth-stats-grid mt-4">
+                    <div class="auth-stat-box">
+                        <div class="auth-stat-label">Games</div>
+                        <div id="auth-stat-games" class="auth-stat-value">0</div>
+                    </div>
+                    <div class="auth-stat-box">
+                        <div class="auth-stat-label">Best WPM</div>
+                        <div id="auth-stat-best-wpm" class="auth-stat-value">0</div>
+                    </div>
+                    <div class="auth-stat-box">
+                        <div class="auth-stat-label">Avg WPM</div>
+                        <div id="auth-stat-avg-wpm" class="auth-stat-value">0</div>
+                    </div>
+                    <div class="auth-stat-box">
+                        <div class="auth-stat-label">Avg Acc</div>
+                        <div id="auth-stat-avg-acc" class="auth-stat-value">0%</div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <div class="text-sub text-xs uppercase mb-2">Recent results</div>
+                    <div id="auth-recent-results" class="auth-recent-list">
+                        <div class="auth-recent-empty">No saved games yet.</div>
+                    </div>
+                </div>
+
+                <div class="auth-field-group mt-4">
+                    <label class="auth-label" for="auth-delete-password">Confirm password to delete account</label>
+                    <input id="auth-delete-password" type="password" class="auth-input" placeholder="Current password" autocomplete="current-password">
+                </div>
+
+                <div class="auth-actions mt-6">
+                    <button class="auth-submit-btn" data-onclick="logoutAccount()">Logout</button>
+                    <button class="auth-delete-btn" data-onclick="deleteAccount()">Delete account</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals (Others) -->
+    <div id="modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-sm w-full mx-4 text-center border border-sub">
+            <h3 class="text-main font-bold text-xl mb-2">Cancel Search?</h3>
+            <p class="text-sub text-sm mb-6">Stop searching for lyrics?</p>
+            <div class="flex justify-center gap-4">
+                <button data-onclick="cancelNavigation()" class="text-base hover:text-main transition text-sm">No</button>
+                <button data-onclick="confirmNavigation()" class="btn-primary px-4 py-1 rounded transition text-sm">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="restart-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-sm w-full mx-4 text-center border border-sub">
+            <h3 class="text-main font-bold text-xl mb-2">Restart?</h3>
+            <p class="text-base text-sm mb-6">Your current progress will be lost.</p>
+            <div class="flex justify-center gap-4">
+                <button data-onclick="cancelRestart()" class="text-base hover:text-main transition text-sm">Resume</button>
+                <button data-onclick="confirmRestart()" class="btn-primary px-6 py-1 rounded font-bold transition text-sm">Restart</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="about-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" data-onclick="if(event.target === this) closeModal('about')">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-md w-full mx-4 text-center border border-sub">
+            <h3 class="text-main font-bold text-2xl mb-4">About Icarus Type</h3>
+            <div class="text-base text-sm space-y-4 text-left">
+                <p>Icarus Type is a minimalist typing practice tool designed to help you learn English through music.</p>
+                <div class="pt-4 border-t border-sub">
+                    <p class="text-xs text-sub mb-1">Powered by:</p>
+                    <ul class="list-disc list-inside text-xs text-main">
+                        <li>LrcLib.net (Lyrics)</li>
+                        <li>Lyrics.ovh (Backup)</li>
+                        <li>MyMemory (Translation)</li>
+                    </ul>
+                </div>
+            </div>
+            <button data-onclick="closeModal('about')" class="mt-6 text-sub hover:text-base text-sm">Close</button>
+        </div>
+    </div>
+
+    <div id="settings-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" data-onclick="if(event.target === this) closeModal('settings')">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-md w-full mx-4 border border-sub">
+            <h3 class="text-main font-bold text-xl mb-6 text-center">Settings</h3>
+            
+            <div class="space-y-6">
+                <!-- Toggles -->
+                <div>
+                    <p class="text-xs text-sub uppercase font-bold mb-3">Gameplay</p>
+                    <div class="flex justify-between items-center pb-2 border-b border-sub border-opacity-30">
+                        <span class="text-base text-sm">Easy Mode (Translation)</span>
+                        <button data-onclick="toggleEasyMode(); closeModal('settings')" class="text-main hover:text-base text-xs uppercase font-bold">Toggle</button>
+                    </div>
+                    <div class="flex justify-between items-center pt-2 border-b border-sub border-opacity-30 pb-2">
+                        <span class="text-base text-sm">Auto-Speak Words</span>
+                        <button data-onclick="toggleAutoSpeak(); closeModal('settings')" class="text-main hover:text-base text-xs uppercase font-bold">Toggle</button>
+                    </div>
+                    <div class="flex justify-between items-center pt-2">
+                        <span class="text-base text-sm">Sound FX</span>
+                        <button id="btn-toggle-sound" data-onclick="toggleSound();" class="text-main hover:text-base text-xs uppercase font-bold">OFF</button>
+                    </div>
+                    <div class="flex justify-between items-center pt-2">
+                        <span class="text-base text-sm">Dyslexic Font</span>
+                        <button id="btn-toggle-dyslexic" data-onclick="toggleDyslexicMode();" class="text-main hover:text-base text-xs uppercase font-bold">OFF</button>
+                    </div>
+                </div>
+
+                <!-- Themes -->
+                <div>
+                    <p class="text-xs text-sub uppercase font-bold mb-3">Theme</p>
+                    <div class="theme-grid" id="theme-selector">
+                        <!-- Injected by JS -->
+                    </div>
+                </div>
+
+                <!-- Shortcuts -->
+                <div>
+                    <p class="text-xs text-sub uppercase font-bold mb-3">Shortcuts</p>
+                    <div class="grid grid-cols-2 gap-2 text-sm text-base">
+                        <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Tab</kbd> Restart</div>
+                        <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Ctrl</kbd> Speak</div>
+                        <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Alt</kbd> Free Look</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-6">
+                <button data-onclick="closeModal('settings')" class="text-sub hover:text-base text-sm">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="practice-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-lg w-full mx-4 border border-sub min-h-[400px] flex flex-col items-center justify-center relative">
+            <button data-onclick="closeModal('practice')" class="absolute top-4 right-4 text-sub hover:text-base">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h3 class="text-main font-bold text-xl mb-8">Practice Tricky Words</h3>
+            <div id="practice-container" class="w-full flex flex-col items-center"></div>
+            <div id="practice-progress" class="practice-progress mt-8">0 / 0</div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="w-full max-w-6xl p-8 flex justify-between items-end mb-4">
+        <div class="flex items-center gap-3 cursor-pointer select-none" data-onclick="goHome()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-main" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <div class="flex flex-col leading-none">
+                <h1 class="text-2xl font-bold text-base">Icarus <span class="text-main">Type</span></h1>
+                <span class="text-[10px] text-sub tracking-widest">learn english with music</span>
+            </div>
+        </div>
+        <div class="flex gap-4 text-sub">
+            <button data-onclick="goHome()" class="btn-ghost transition" title="Home"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><path d="M6 8h.001"></path><path d="M10 8h.001"></path><path d="M14 8h.001"></path><path d="M18 8h.001"></path><path d="M6 12h.001"></path><path d="M10 12h.001"></path><path d="M14 12h.001"></path><path d="M18 12h.001"></path><path d="M7 16h10"></path></svg></button>
+            <button data-onclick="openModal('profile')" class="btn-ghost transition" title="Profile"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></button>
+            <button data-onclick="openModal('about')" class="btn-ghost transition" title="About"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg></button>
+            <button data-onclick="openModal('settings')" class="btn-ghost transition" title="Shortcuts"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></button>
+        </div>
+    </header>
+
+    <div class="w-full max-w-4xl flex justify-center mb-8">
+        <div class="config-bar">
+            <div class="mode-group">
+                <div class="nav-link active" id="nav-search" data-onclick="trySwitchTab('search')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>search</div>
+                <div class="nav-link" id="nav-presets" data-onclick="trySwitchTab('presets')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>presets</div>
+                <div class="nav-link" id="nav-custom" data-onclick="trySwitchTab('custom')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>custom</div>
+            </div>
+            <div class="separator"></div>
+            <div class="mode-group">
+                <div class="nav-link active" id="mode-normal" data-onclick="setGameMode('normal')">normal</div>
+                <div class="nav-link" id="mode-cloze" data-onclick="setGameMode('cloze')">cloze</div>
+                <div class="nav-link" id="mode-rhythm" data-onclick="setGameMode('rhythm')">rhythm</div>
+            </div>
+        </div>
+    </div>
+
+    <main class="flex-1 w-full max-w-4xl relative flex flex-col justify-start items-center p-4 min-h-[400px]">
+        <!-- Setup Views and Game Area (Same as before) -->
+        <div id="setup-area" class="w-full fade-in">
+            <div id="view-search" class="w-full flex flex-col gap-6">
+                <div class="flex gap-4">
+                    <input type="text" id="input-artist" placeholder="Artist" class="flex-1 custom-input p-2 outline-none" data-onkeydown="if(event.key === 'Enter') fetchLyrics()">
+                    <input type="text" id="input-title" placeholder="Song Title" class="flex-1 custom-input p-2 outline-none" data-onkeydown="if(event.key === 'Enter') fetchLyrics()">
+                    <button data-onclick="fetchLyrics()" id="btn-fetch-action" class="btn-primary px-6 py-2 rounded font-bold transition flex items-center gap-2">
+                        <span id="search-btn-text">Search</span>
+                        <div id="search-loader" class="loader hidden"></div>
+                    </button>
+                </div>
+                <div id="search-status-container" class="hidden w-full bg-surface rounded-full h-1 mt-2 overflow-hidden">
+                    <div id="search-progress-bar" class="bg-main h-1 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <p id="search-status-text" class="text-main text-xs mt-1 hidden">Initializing...</p>
+                <div id="search-error-container" class="hidden mt-4 p-4 bg-surface rounded text-center border border-error">
+                    <p id="search-error" class="text-error text-sm font-bold mb-2"></p>
+                    <a id="google-fallback-link" href="#" target="_blank" class="text-xs text-base underline hover:text-white">Search on Google</a>
+                </div>
+            </div>
+
+            <div id="view-presets" class="w-full hidden grid grid-cols-2 gap-4">
+                <button data-onclick="loadPreset('test')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
+                    <div class="text-base group-hover:text-main font-bold">Test Song</div>
+                    <div class="text-xs text-sub">Debug (2 Lines)</div>
+                </button>
+                <button data-onclick="loadPreset('queen')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
+                    <div class="text-base group-hover:text-main font-bold">Bohemian Rhapsody</div>
+                    <div class="text-xs text-sub">Queen</div>
+                </button>
+                <button data-onclick="loadPreset('nirvana')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
+                    <div class="text-base group-hover:text-main font-bold">Smells Like Teen Spirit</div>
+                    <div class="text-xs text-sub">Nirvana</div>
+                </button>
+                <button data-onclick="loadPreset('adele')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
+                    <div class="text-base group-hover:text-main font-bold">Hello</div>
+                    <div class="text-xs text-sub">Adele</div>
+                </button>
+                <button data-onclick="loadPreset('imagine')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
+                    <div class="text-base group-hover:text-main font-bold">Imagine</div>
+                    <div class="text-xs text-sub">John Lennon</div>
+                </button>
+            </div>
+
+            <div id="view-custom" class="w-full hidden flex flex-col gap-4">
+                <textarea id="custom-text-area" class="w-full h-32 bg-surface p-4 rounded text-base outline-none border border-transparent focus:border-main resize-none" placeholder="Paste lyrics here..."></textarea>
+                <div id="custom-translation-container" class="hidden">
+                    <textarea id="custom-translation-area" class="w-full h-32 bg-surface p-4 rounded text-base outline-none border border-transparent focus:border-main resize-none" placeholder="Paste translation here (optional)..."></textarea>
+                </div>
+                <button data-onclick="startCustomGame()" class="self-end btn-primary px-8 py-2 rounded font-bold transition">Start</button>
+            </div>
+        </div>
+
+        <div id="game-area" class="w-full hidden relative flex flex-col">
+            <div class="stats-header">
+                <div class="flex flex-col justify-end">
+                    <h2 id="current-song-title" class="text-3xl font-bold text-main leading-tight">Song Title</h2>
+                    <div class="flex items-center gap-4 mt-2">
+                        <p id="current-song-artist" class="text-sm text-base opacity-80">Artist</p>
+                        <!-- Integrated Toggles -->
+                        <div class="flex gap-2 ml-4 border-l border-sub pl-4">
+                            <button id="btn-toggle-easy" class="header-toggle-btn" title="Toggle Easy Mode (Translation)" data-onclick="toggleEasyMode()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                            </button>
+                            <button id="btn-toggle-speak" class="header-toggle-btn" title="Toggle Auto-Speak" data-onclick="toggleAutoSpeak()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                            </button>
+                            <button id="btn-toggle-video" class="header-toggle-btn" title="Toggle Video (PiP)" data-onclick="toggleVideoPanel()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M10 9l5 3-5 3z"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="stats-info">
+                    <div class="stat-group">
+                        <span class="stat-label">Words</span>
+                        <div class="stat-value medium">
+                            <span id="stats-word-count">0</span><span class="text-sub text-xs" id="stats-total-words">/0</span>
+                        </div>
+                    </div>
+                    <div class="stat-group">
+                        <span class="stat-label">C / W</span>
+                        <div class="stat-value medium text-success">
+                            <span id="live-correct">0</span> <span class="text-sub text-sm">/</span> <span id="live-wrong" class="text-error">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-group">
+                        <span class="stat-label">Combo</span>
+                        <div id="live-combo" class="stat-value medium text-base">0</div>
+                    </div>
+                    <div class="stat-group">
+                        <span class="stat-label">WPM</span>
+                        <div class="stat-value large text-main">
+                            <span id="live-wpm">0</span>
+                            <span id="live-wpm-diff" class="wpm-diff"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Added pb-32 to ensure enough scroll space at bottom -->
+            <div id="words-wrapper" class="relative w-full text-2xl leading-relaxed cursor-text outline-none select-none h-64 overflow-hidden mask-fade-bottom" data-onclick="focusTypingInput()">
+                <div id="words" class="absolute top-0 left-0 w-full transition-all duration-200 pb-32">
+                    <div id="caret"></div>
+                    <!-- Words injected here -->
+                </div>
+            </div>
+            
+            <!-- Virtual Keyboard (Visual Only) -->
+            <div id="virtual-keyboard">
+                <!-- Keys generated here -->
+            </div>
+
+            <div class="mt-8 flex justify-center gap-8 text-xs text-sub opacity-70">
+                <span><kbd class="bg-surface px-1 rounded">tab</kbd> - restart</span>
+                <span><kbd class="bg-surface px-1 rounded">ctrl</kbd> - pronounce word</span>
+                <span><kbd class="bg-surface px-1 rounded">alt</kbd> - free look</span>
+            </div>
+        </div>
+
+        <div id="results-area" class="w-full hidden fade-in flex flex-col">
+            <!-- XP Gained Animation -->
+            <div class="mb-6 w-full text-center">
+                <div class="text-sub text-sm uppercase tracking-widest mb-1">XP Gained</div>
+                <div id="xp-gained-display" class="text-4xl font-bold text-main">+0 XP</div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-8 mb-8 w-full h-64">
+                <div class="flex flex-col justify-center gap-6 w-full md:w-1/4">
+                    <div>
+                        <div class="text-sub text-sm mb-1">wpm</div>
+                        <div class="text-6xl font-bold text-main" id="res-wpm-big">0</div>
+                    </div>
+                    <div>
+                        <div class="text-sub text-sm mb-1">acc</div>
+                        <div class="text-6xl font-bold text-main" id="res-acc-big">0%</div>
+                    </div>
+                </div>
+                <div class="w-full md:w-3/4 bg-surface rounded-lg p-4 relative border border-sub border-opacity-30">
+                    <div id="chart-container"><canvas id="wpm-chart"></canvas></div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4 mb-8 w-full">
+                 <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">test type</div>
+                    <div class="text-base text-lg">lyrics</div>
+                    <div class="dashboard-sub-val">english</div>
+                </div>
+                <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">raw</div>
+                    <div class="dashboard-stat-value" id="res-raw">0</div>
+                </div>
+                <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">characters</div>
+                    <div class="dashboard-stat-value text-base text-xl">
+                        <span id="res-char-total">0</span>/<span class="text-error" id="res-char-err">0</span>
+                    </div>
+                </div>
+                <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">consistency</div>
+                    <div class="dashboard-stat-value" id="res-consistency">0%</div>
+                </div>
+                 <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">time</div>
+                    <div class="dashboard-stat-value" id="res-time-val">0s</div>
+                </div>
+                 <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">cpu finish</div>
+                    <div class="dashboard-stat-value text-base text-xl" id="res-cpu-finish">--</div>
+                </div>
+                 <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">user finish</div>
+                    <div class="dashboard-stat-value text-base text-xl" id="res-user-finish">--</div>
+                </div>
+                 <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">delta (you-cpu)</div>
+                    <div class="dashboard-stat-value text-base text-xl" id="res-race-diff">--</div>
+                </div>
+            </div>
+             <div id="missed-words-container" class="w-full mb-8 hidden">
+                <h3 class="text-sub text-xs uppercase font-bold mb-4 border-b border-sub pb-2">Tricky Words</h3>
+                <div id="missed-words-list" class="flex flex-wrap gap-2 mb-4"></div>
+                <div class="flex justify-center">
+                    <button data-onclick="startPracticeErrors()" class="bg-error text-white px-6 py-2 rounded text-sm hover:opacity-90 transition font-bold shadow-lg">Practice Tricky Words</button>
+                </div>
+            </div>
+            <div class="flex justify-center gap-12 mt-4">
+                <button data-onclick="switchTab('search'); goHome()" class="text-sub hover:text-base transition flex items-center gap-2"><svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg> Next Song</button>
+                <button data-onclick="resetGame(true)" class="text-main hover:text-success transition flex items-center gap-2"><svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 2v6h6M21.5 22v-6h-6"/><path d="M22 11.5A10 10 0 0 0 3.2 7.2M2 12.5a10 10 0 0 0 18.8 4.2"/></svg> Repeat Test</button>
+            </div>
+        </div>
+        <div id="video-pip-panel" class="video-pip-panel hidden">
+            <div class="video-pip-header">
+                <span class="text-xs uppercase tracking-wide">YouTube</span>
+                <a id="video-search-link" class="video-pip-link" href="#" target="_blank" rel="noopener noreferrer">search</a>
+                <button class="video-pip-link video-pip-link-btn" data-onclick="setYouTubeVideoManually()">paste</button>
+                <button class="video-pip-link video-pip-link-btn" data-onclick="nextYouTubeResult()">next</button>
+                <button class="video-pip-close" data-onclick="toggleVideoPanel(false)">x</button>
+            </div>
+            <iframe
+                id="video-pip-frame"
+                class="video-pip-frame"
+                allow="autoplay; encrypted-media; picture-in-picture"
+                referrerpolicy="strict-origin-when-cross-origin"
+                allowfullscreen
+                title="Icarus Video Player"></iframe>
+        </div>
+    </main>
+
+    <!-- Scripts -->
+    
+    
+    <!-- Main Logic Script -->
+    
+    <script type="module" src="scripts/main.js"></script>
+</body>
+</html>
