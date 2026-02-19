@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lrclib.net https://api.lyrics.ovh https://api.mymemory.translated.net https://api.dictionaryapi.dev https://yt.lemnoslife.com https://www.youtube.com https://www.youtube-nocookie.com https://piped.video; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://piped.video; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lrclib.net https://api.lyrics.ovh https://api.mymemory.translated.net https://api.dictionaryapi.dev https://yt.lemnoslife.com https://www.youtube.com https://www.youtube-nocookie.com https://piped.video https://itunes.apple.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://piped.video; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
     <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()">
     <title>Icarus Type</title>
@@ -85,9 +85,14 @@
                 </div>
 
                 <div id="auth-login-form" class="auth-panel">
+                    <div class="auth-social-grid">
+                        <button class="auth-social-btn" disabled title="Coming soon">Google (soon)</button>
+                        <button class="auth-social-btn" disabled title="Coming soon">GitHub (soon)</button>
+                    </div>
+                    <div class="auth-divider"><span>or</span></div>
                     <div class="auth-field-group">
-                        <label class="auth-label" for="auth-login-email">Email</label>
-                        <input id="auth-login-email" type="email" class="auth-input" placeholder="you@example.com" autocomplete="email">
+                        <label class="auth-label" for="auth-login-email">Email or username</label>
+                        <input id="auth-login-email" type="text" class="auth-input" placeholder="you@example.com or username" autocomplete="username">
                     </div>
                     <div class="auth-field-group">
                         <label class="auth-label" for="auth-login-password">Password</label>
@@ -127,12 +132,48 @@
 
             <div id="auth-user-view" class="hidden">
                 <div class="auth-user-card">
-                    <div class="text-sub text-xs uppercase mb-1">Logged in as</div>
-                    <div id="auth-user-name" class="text-main font-bold text-lg">username</div>
-                    <div id="auth-user-email" class="text-base text-sm">email@example.com</div>
+                    <div class="auth-profile-edit-row">
+                        <button class="auth-friend-btn" data-onclick="openProfileHub()">
+                            Open profile
+                        </button>
+                        <button class="auth-friend-btn" data-onclick="toggleProfileEditor()">
+                            Edit profile
+                        </button>
+                    </div>
+                    <div class="auth-profile-top">
+                        <img id="auth-user-avatar" class="auth-avatar auth-avatar-clickable" src="https://placehold.co/80x80/0B2D45/3EE39E?text=IT" alt="avatar" data-onclick="openAvatarPreview()">
+                        <div>
+                            <div class="text-sub text-xs uppercase mb-1">Logged in as</div>
+                            <div id="auth-user-name" class="text-main font-bold text-lg">username</div>
+                            <div id="auth-user-email" class="text-base text-sm">email@example.com</div>
+                            <div id="auth-user-level" class="auth-level mt-1">Level 1</div>
+                        </div>
+                    </div>
+                    <div id="auth-profile-edit-panel" class="auth-profile-edit-panel hidden">
+                        <div class="auth-field-group">
+                            <label class="auth-label" for="auth-avatar-file">Upload avatar</label>
+                            <input id="auth-avatar-file" type="file" class="auth-file-input" accept="image/*">
+                            <div class="auth-file-row">
+                                <button class="auth-file-trigger" data-onclick="triggerAvatarPicker()">Choose file</button>
+                                <span id="auth-avatar-file-name" class="auth-file-name">No file selected</span>
+                            </div>
+                        </div>
+                        <div class="auth-field-group">
+                            <label class="auth-label" for="auth-user-bio">Bio</label>
+                            <textarea id="auth-user-bio" class="auth-input auth-bio-input" rows="2" maxlength="180" placeholder="Tell people about your music taste..."></textarea>
+                        </div>
+                        <div class="auth-edit-actions">
+                            <button class="auth-submit-btn" data-onclick="saveProfileDetails()">Save profile</button>
+                            <button class="auth-friend-btn" data-onclick="toggleProfileEditor(false)">Cancel</button>
+                        </div>
+                    </div>
+                    <div id="auth-achievements" class="auth-achievements mt-2">
+                        <div class="auth-recent-empty">No achievements yet.</div>
+                    </div>
                 </div>
 
-                <div class="auth-stats-grid mt-4">
+                <div id="auth-nonedit-sections">
+                <div id="auth-stats-section" class="auth-stats-grid mt-4">
                     <div class="auth-stat-box">
                         <div class="auth-stat-label">Games</div>
                         <div id="auth-stat-games" class="auth-stat-value">0</div>
@@ -151,22 +192,121 @@
                     </div>
                 </div>
 
-                <div class="mt-4">
+                <div id="auth-recent-section" class="mt-4">
                     <div class="text-sub text-xs uppercase mb-2">Recent results</div>
                     <div id="auth-recent-results" class="auth-recent-list">
                         <div class="auth-recent-empty">No saved games yet.</div>
                     </div>
                 </div>
 
-                <div class="auth-field-group mt-4">
+                <div id="auth-history-section" class="mt-4">
+                    <div class="text-sub text-xs uppercase mb-2">Song history</div>
+                    <div class="auth-history-wrap">
+                        <select id="auth-history-song" class="auth-input">
+                            <option value="">Select a song</option>
+                        </select>
+                        <canvas id="auth-history-chart" height="120"></canvas>
+                        <div id="auth-history-summary" class="auth-history-summary">Finish more tests to see detailed history by song.</div>
+                    </div>
+                </div>
+
+                <div id="auth-friends-section" class="mt-4">
+                    <div class="text-sub text-xs uppercase mb-2">Friends</div>
+                    <div class="auth-friends-wrap">
+                        <div class="auth-friend-add-row">
+                            <input id="auth-friend-username" type="text" class="auth-input" placeholder="friend email or username">
+                            <button class="auth-submit-btn" data-onclick="sendFriendRequest()">Add</button>
+                        </div>
+                        <div class="auth-subtitle">Requests</div>
+                        <div id="auth-friend-requests" class="auth-friend-list">
+                            <div class="auth-recent-empty">No requests.</div>
+                        </div>
+                        <div class="auth-subtitle">Compare</div>
+                        <div id="auth-friend-compare" class="auth-friend-list">
+                            <div class="auth-recent-empty">No friends added yet.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="auth-favorites-section" class="mt-4">
+                    <div class="text-sub text-xs uppercase mb-2">Favorites playlist</div>
+                    <div class="auth-favorites-wrap">
+                        <button class="auth-submit-btn" data-onclick="addCurrentSongToFavorites()">Add current song</button>
+                        <div id="auth-favorites-list" class="auth-favorite-list">
+                            <div class="auth-recent-empty">No favorites yet.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="auth-danger-section" class="auth-field-group mt-4">
                     <label class="auth-label" for="auth-delete-password">Confirm password to delete account</label>
                     <input id="auth-delete-password" type="password" class="auth-input" placeholder="Current password" autocomplete="current-password">
                 </div>
 
-                <div class="auth-actions mt-6">
+                <div id="auth-actions-section" class="auth-actions mt-6">
                     <button class="auth-submit-btn" data-onclick="logoutAccount()">Logout</button>
                     <button class="auth-delete-btn" data-onclick="deleteAccount()">Delete account</button>
                 </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="profile-hub-overlay" class="fixed inset-0 z-50 hidden fade-in profile-hub-overlay" data-onclick="if(event.target === this) closeProfileHub()">
+        <div class="profile-hub-shell">
+            <div class="profile-hub-header">
+                <div>
+                    <div class="profile-hub-kicker">Icarus Profile</div>
+                    <h2 id="profile-hub-name" class="profile-hub-title">username</h2>
+                </div>
+                <button class="auth-friend-btn" data-onclick="closeProfileHub()">Close</button>
+            </div>
+
+            <div class="profile-hub-hero">
+                <img id="profile-hub-avatar" class="profile-hub-avatar auth-avatar-clickable" src="https://placehold.co/96x96/0B2D45/3EE39E?text=IT" alt="avatar" data-onclick="openAvatarPreview()">
+                <div class="profile-hub-meta">
+                    <div id="profile-hub-level" class="profile-hub-level">Level 1</div>
+                    <div id="profile-hub-email" class="profile-hub-email">email@example.com</div>
+                    <p id="profile-hub-bio" class="profile-hub-bio">No bio yet.</p>
+                </div>
+            </div>
+
+            <div class="profile-hub-stats-grid">
+                <div class="profile-hub-stat"><span>Games</span><strong id="profile-hub-games">0</strong></div>
+                <div class="profile-hub-stat"><span>Best WPM</span><strong id="profile-hub-best">0</strong></div>
+                <div class="profile-hub-stat"><span>Avg WPM</span><strong id="profile-hub-avgwpm">0</strong></div>
+                <div class="profile-hub-stat"><span>Avg Acc</span><strong id="profile-hub-avgacc">0%</strong></div>
+            </div>
+
+            <div class="profile-hub-main-grid">
+                <section class="profile-hub-card">
+                    <h3>Performance</h3>
+                    <canvas id="profile-hub-chart" height="140"></canvas>
+                </section>
+                <section class="profile-hub-card">
+                    <h3>Achievements</h3>
+                    <div id="profile-hub-achievements" class="profile-hub-achievements">
+                        <div class="auth-recent-empty">No achievements yet.</div>
+                    </div>
+                </section>
+                <section class="profile-hub-card">
+                    <h3>Recent Results</h3>
+                    <div id="profile-hub-recent" class="profile-hub-list">
+                        <div class="auth-recent-empty">No saved games yet.</div>
+                    </div>
+                </section>
+                <section class="profile-hub-card">
+                    <h3>Favorite Playlist</h3>
+                    <div id="profile-hub-favorites" class="profile-hub-list">
+                        <div class="auth-recent-empty">No favorites yet.</div>
+                    </div>
+                </section>
+                <section class="profile-hub-card profile-hub-card-wide">
+                    <h3>Friends Comparison</h3>
+                    <div id="profile-hub-friends" class="profile-hub-list">
+                        <div class="auth-recent-empty">No friends added yet.</div>
+                    </div>
+                </section>
             </div>
         </div>
     </div>
@@ -275,8 +415,8 @@
     </div>
 
     <!-- Header -->
-    <header class="w-full max-w-6xl p-8 flex justify-between items-end mb-4">
-        <div class="flex items-center gap-3 cursor-pointer select-none" data-onclick="goHome()">
+    <header class="w-full max-w-6xl px-4 py-5 sm:p-8 flex flex-col sm:flex-row sm:justify-between sm:items-end items-start gap-4 mb-3 sm:mb-4">
+        <div class="header-brand flex items-center gap-3 cursor-pointer select-none" data-onclick="goHome()">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-main" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="5"></circle>
                 <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -293,16 +433,19 @@
                 <span class="text-[10px] text-sub tracking-widest">learn english with music</span>
             </div>
         </div>
-        <div class="flex gap-4 text-sub">
+        <div class="header-actions flex justify-start sm:justify-end items-center gap-3 sm:gap-4 text-sub flex-nowrap pb-1 sm:pb-0">
             <button data-onclick="goHome()" class="btn-ghost transition" title="Home"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><path d="M6 8h.001"></path><path d="M10 8h.001"></path><path d="M14 8h.001"></path><path d="M18 8h.001"></path><path d="M6 12h.001"></path><path d="M10 12h.001"></path><path d="M14 12h.001"></path><path d="M18 12h.001"></path><path d="M7 16h10"></path></svg></button>
-            <button data-onclick="openModal('profile')" class="btn-ghost transition" title="Profile"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></button>
+            <button data-onclick="openProfileScreen()" class="btn-ghost transition" title="Full profile"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></button>
             <button data-onclick="openModal('about')" class="btn-ghost transition" title="About"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg></button>
-            <button data-onclick="openModal('settings')" class="btn-ghost transition" title="Shortcuts"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></button>
+            <button data-onclick="openModal('settings')" class="btn-ghost transition" title="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+            <button id="header-avatar-button" data-onclick="handleHeaderAvatarClick(event)" class="header-avatar-btn transition" title="Friends/account (Shift or Ctrl click to zoom)">
+                <img id="header-avatar-image" class="header-avatar-image" src="https://placehold.co/80x80/0B2D45/3EE39E?text=IT" alt="account avatar">
+            </button>
         </div>
     </header>
 
-    <div class="w-full max-w-4xl flex justify-center mb-8">
-        <div class="config-bar">
+    <div class="w-full max-w-4xl flex justify-start sm:justify-center mb-4 sm:mb-8 px-2 sm:px-0">
+        <div class="config-bar mobile-config-bar">
             <div class="mode-group">
                 <div class="nav-link active" id="nav-search" data-onclick="trySwitchTab('search')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>search</div>
                 <div class="nav-link" id="nav-presets" data-onclick="trySwitchTab('presets')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>presets</div>
@@ -317,15 +460,40 @@
         </div>
     </div>
 
+    <div id="artist-songs-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" data-onclick="if(event.target === this) closeArtistSongsModal()">
+        <div class="bg-surface p-6 rounded-lg shadow-2xl max-w-2xl w-full mx-4 border border-sub max-h-[88vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-4">
+                <h3 id="artist-songs-title" class="text-main font-bold text-xl">Artist songs</h3>
+                <button data-onclick="closeArtistSongsModal()" class="text-sub hover:text-base text-sm">Close</button>
+            </div>
+            <div id="artist-songs-status" class="text-sub text-sm mb-3">Type an artist name and click browse.</div>
+            <div id="artist-songs-list" class="artist-songs-list">
+                <div class="auth-recent-empty">No songs loaded.</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="avatar-preview-overlay" class="fixed inset-0 z-50 hidden flex items-center justify-center fade-in avatar-preview-overlay" data-onclick="if(event.target === this) closeAvatarPreview()">
+        <div class="avatar-preview-card">
+            <button data-onclick="closeAvatarPreview()" class="avatar-preview-close">Close</button>
+            <img id="avatar-preview-image" class="avatar-preview-image" src="https://placehold.co/320x320/0B2D45/3EE39E?text=IT" alt="Avatar preview">
+            <div id="avatar-preview-name" class="avatar-preview-name">User avatar</div>
+        </div>
+    </div>
+
     <main class="flex-1 w-full max-w-4xl relative flex flex-col justify-start items-center p-4 min-h-[400px]">
         <!-- Setup Views and Game Area (Same as before) -->
         <div id="setup-area" class="w-full fade-in">
             <div id="view-search" class="w-full flex flex-col gap-6">
-                <div class="flex gap-4">
-                    <input type="text" id="input-artist" placeholder="Artist" class="flex-1 custom-input p-2 outline-none" data-onkeydown="if(event.key === 'Enter') fetchLyrics()">
-                    <input type="text" id="input-title" placeholder="Song Title" class="flex-1 custom-input p-2 outline-none" data-onkeydown="if(event.key === 'Enter') fetchLyrics()">
-                    <button data-onclick="fetchLyrics()" id="btn-fetch-action" class="btn-primary px-6 py-2 rounded font-bold transition flex items-center gap-2">
-                        <span id="search-btn-text">Search</span>
+                <div class="search-controls flex flex-col sm:flex-row gap-3 sm:gap-4">
+                    <div class="flex-1 relative">
+                        <input type="text" id="input-artist" placeholder="Artist / Band" class="w-full custom-input p-2 outline-none" data-onkeydown="if(event.key === 'Enter') loadArtistCatalog()">
+                        <div id="artist-suggestions" class="search-suggest hidden"></div>
+                    </div>
+                    <input type="hidden" id="input-title">
+                    <div id="title-suggestions" class="search-suggest hidden"></div>
+                    <button data-onclick="loadArtistCatalog()" id="btn-fetch-action" class="btn-primary w-full sm:w-auto px-6 py-2 rounded font-bold transition flex items-center justify-center gap-2">
+                        <span id="search-btn-text">Load band</span>
                         <div id="search-loader" class="loader hidden"></div>
                     </button>
                 </div>
@@ -336,6 +504,21 @@
                 <div id="search-error-container" class="hidden mt-4 p-4 bg-surface rounded text-center border border-error">
                     <p id="search-error" class="text-error text-sm font-bold mb-2"></p>
                     <a id="google-fallback-link" href="#" target="_blank" class="text-xs text-base underline hover:text-white">Search on Google</a>
+                </div>
+                <div id="artist-catalog" class="hidden artist-catalog-wrap">
+                    <div class="artist-catalog-head">
+                        <div>
+                            <div class="text-sub text-xs uppercase">Artist loaded</div>
+                            <div id="artist-catalog-name" class="artist-catalog-name">-</div>
+                            <div id="artist-catalog-meta" class="artist-catalog-meta">Load a band first, then choose a song.</div>
+                        </div>
+                    </div>
+                    <div class="artist-catalog-filter-row">
+                        <input id="artist-song-filter" type="text" class="auth-input" placeholder="Search songs in this band catalog...">
+                    </div>
+                    <div id="artist-catalog-list" class="artist-songs-list">
+                        <div class="auth-recent-empty">Load a band to see songs.</div>
+                    </div>
                 </div>
             </div>
 

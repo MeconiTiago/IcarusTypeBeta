@@ -306,6 +306,29 @@
         .header-toggle-btn { color: var(--sub-color); transition: all 0.2s; padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
         .header-toggle-btn:hover { color: var(--text-color); background: var(--sub-alt-color); }
         .header-toggle-btn.active { color: var(--main-color); }
+        .header-avatar-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 999px;
+            border: 2px solid rgba(125, 125, 125, 0.35);
+            background: rgba(0, 0, 0, 0.2);
+            padding: 0;
+            cursor: pointer;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .header-avatar-btn:hover {
+            border-color: rgba(62, 227, 158, 0.6);
+            box-shadow: 0 0 0 2px rgba(62, 227, 158, 0.25);
+        }
+        .header-avatar-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
 
         .video-pip-panel {
             position: fixed;
@@ -360,6 +383,124 @@
         .custom-input { background: transparent; border-bottom: 2px solid var(--sub-color); color: var(--text-color); transition: all 0.2s; }
         .custom-input:focus { border-color: var(--main-color); }
         .custom-input::placeholder { color: var(--sub-color); opacity: 0.7; }
+        .search-suggest {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            right: 0;
+            border: 1px solid rgba(125, 125, 125, 0.25);
+            background: rgba(4, 14, 24, 0.98);
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+            max-height: 240px;
+            overflow-y: auto;
+            z-index: 35;
+        }
+        .search-suggest-item {
+            width: 100%;
+            border: 0;
+            background: transparent;
+            color: var(--text-color);
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 0.82rem;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(125, 125, 125, 0.14);
+        }
+        .search-suggest-item:last-child {
+            border-bottom: 0;
+        }
+        .search-suggest-item:hover {
+            background: rgba(62, 227, 158, 0.12);
+            color: var(--main-color);
+        }
+        .artist-songs-list {
+            display: grid;
+            gap: 8px;
+            max-height: 58vh;
+            overflow-y: auto;
+        }
+        .artist-catalog-wrap {
+            border: 1px solid rgba(125, 125, 125, 0.24);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 12px;
+            display: grid;
+            gap: 10px;
+        }
+        .artist-catalog-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .artist-catalog-name {
+            color: var(--text-color);
+            font-size: 1.25rem;
+            font-weight: 700;
+            line-height: 1.1;
+            margin-top: 2px;
+        }
+        .artist-catalog-meta {
+            color: var(--sub-color);
+            font-size: 0.76rem;
+            margin-top: 4px;
+        }
+        .artist-catalog-filter-row {
+            display: block;
+        }
+        .artist-song-item {
+            width: 100%;
+            border: 1px solid rgba(125, 125, 125, 0.22);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--text-color);
+            text-align: left;
+            padding: 10px 12px;
+            cursor: pointer;
+            display: grid;
+            gap: 2px;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+        .artist-song-item:hover {
+            border-color: rgba(62, 227, 158, 0.5);
+            background: rgba(62, 227, 158, 0.1);
+        }
+        .artist-song-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text-color);
+        }
+        .artist-song-meta {
+            font-size: 0.72rem;
+            color: var(--sub-color);
+        }
+        .artist-album-section {
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.16);
+            padding: 10px;
+            display: grid;
+            gap: 8px;
+        }
+        .artist-album-title {
+            color: var(--main-color);
+            font-size: 0.82rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            font-weight: 700;
+            border-bottom: 1px solid rgba(125, 125, 125, 0.16);
+            padding-bottom: 6px;
+        }
+        .artist-album-title span {
+            color: var(--sub-color);
+            font-weight: 500;
+            margin-left: 4px;
+        }
+        .artist-album-songs {
+            display: grid;
+            gap: 6px;
+        }
 
         /* Preview Mode Fix */
         .preview-mode #words-wrapper { pointer-events: auto !important; user-select: text !important; overflow-y: auto !important; mask-image: none !important; -webkit-mask-image: none !important; background: rgba(0,0,0,0.15); border-radius: 8px; }
@@ -449,6 +590,49 @@
             flex-direction: column;
             gap: 10px;
         }
+        .auth-social-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .auth-social-btn {
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--text-color);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .auth-social-btn:hover {
+            border-color: var(--main-color);
+            color: var(--main-color);
+        }
+        .auth-social-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-color: rgba(125, 125, 125, 0.2);
+            color: var(--sub-color);
+        }
+        .auth-divider {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--sub-color);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 2px;
+        }
+        .auth-divider::before,
+        .auth-divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: rgba(125, 125, 125, 0.2);
+        }
         .auth-field-group {
             display: flex;
             flex-direction: column;
@@ -509,6 +693,154 @@
             background: rgba(0, 0, 0, 0.2);
             border-radius: 10px;
             padding: 14px;
+        }
+        .auth-profile-top {
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 12px;
+            align-items: center;
+        }
+        .auth-profile-edit-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 8px;
+        }
+        .auth-profile-edit-panel {
+            margin-top: 8px;
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            border-radius: 8px;
+            padding: 10px;
+            display: grid;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.15);
+        }
+        .auth-file-input {
+            display: none;
+        }
+        .auth-file-row {
+            display: grid;
+            grid-template-columns: 128px 1fr;
+            gap: 10px;
+            align-items: center;
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            border-radius: 8px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .auth-file-trigger {
+            border: 1px solid rgba(62, 227, 158, 0.35);
+            background: rgba(62, 227, 158, 0.12);
+            color: var(--main-color);
+            font-size: 0.72rem;
+            border-radius: 6px;
+            padding: 8px 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 700;
+            width: 100%;
+        }
+        .auth-file-trigger:hover {
+            border-color: rgba(62, 227, 158, 0.7);
+            background: rgba(62, 227, 158, 0.2);
+        }
+        .auth-file-name {
+            color: var(--sub-color);
+            font-size: 0.72rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .auth-edit-actions {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            align-items: center;
+        }
+        .auth-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(62, 227, 158, 0.35);
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .auth-avatar-clickable {
+            cursor: zoom-in;
+        }
+        .avatar-preview-overlay {
+            background: rgba(0, 0, 0, 0.78);
+            backdrop-filter: blur(6px);
+            padding: 20px;
+        }
+        .avatar-preview-card {
+            border: 1px solid rgba(125, 125, 125, 0.28);
+            background: rgba(4, 14, 24, 0.96);
+            border-radius: 12px;
+            padding: 14px;
+            max-width: min(92vw, 420px);
+            width: 100%;
+            display: grid;
+            gap: 10px;
+            justify-items: center;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        }
+        .avatar-preview-close {
+            justify-self: end;
+            border: 1px solid rgba(125, 125, 125, 0.3);
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--sub-color);
+            border-radius: 6px;
+            font-size: 0.72rem;
+            padding: 5px 9px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .avatar-preview-close:hover {
+            color: var(--text-color);
+            border-color: rgba(62, 227, 158, 0.45);
+        }
+        .avatar-preview-image {
+            width: min(78vw, 320px);
+            height: min(78vw, 320px);
+            border-radius: 12px;
+            object-fit: cover;
+            border: 2px solid rgba(62, 227, 158, 0.45);
+            background: rgba(0, 0, 0, 0.28);
+        }
+        .avatar-preview-name {
+            color: var(--text-color);
+            font-size: 0.82rem;
+            text-align: center;
+        }
+        .auth-level {
+            color: var(--main-color);
+            font-size: 0.75rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        .auth-bio-input {
+            resize: vertical;
+            min-height: 56px;
+        }
+        .auth-achievements {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .auth-achievement {
+            border: 1px solid rgba(62, 227, 158, 0.35);
+            color: var(--main-color);
+            background: rgba(62, 227, 158, 0.1);
+            border-radius: 999px;
+            padding: 3px 8px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
         }
         .auth-actions {
             display: grid;
@@ -581,6 +913,291 @@
             text-align: center;
             padding: 10px 4px;
         }
+        .auth-history-wrap {
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 8px;
+            display: grid;
+            gap: 8px;
+        }
+        #auth-history-chart {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 6px;
+        }
+        .auth-history-summary {
+            color: var(--sub-color);
+            font-size: 0.75rem;
+        }
+        .auth-friends-wrap {
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 8px;
+            display: grid;
+            gap: 8px;
+        }
+        .auth-friend-add-row {
+            display: grid;
+            grid-template-columns: 1fr 90px;
+            gap: 8px;
+        }
+        .auth-friend-add-row .auth-submit-btn {
+            padding: 11px 8px;
+            font-size: 0.8rem;
+        }
+        .auth-subtitle {
+            color: var(--sub-color);
+            font-size: 0.7rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+        .auth-friend-list {
+            display: grid;
+            gap: 6px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        .auth-friend-item {
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            border-radius: 6px;
+            padding: 8px;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 8px;
+        }
+        .auth-friend-avatar-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            border: 1px solid rgba(125, 125, 125, 0.26);
+            background: rgba(0, 0, 0, 0.2);
+            padding: 0;
+            overflow: hidden;
+            cursor: zoom-in;
+        }
+        .auth-friend-avatar-btn:hover {
+            border-color: rgba(62, 227, 158, 0.55);
+        }
+        .auth-friend-avatar-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .auth-friend-name {
+            color: var(--text-color);
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+        .auth-friend-meta {
+            color: var(--sub-color);
+            font-size: 0.7rem;
+        }
+        .auth-friend-actions {
+            display: inline-flex;
+            gap: 6px;
+        }
+        .auth-friend-btn {
+            border: 1px solid rgba(125, 125, 125, 0.25);
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--text-color);
+            font-size: 0.7rem;
+            border-radius: 5px;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+        .auth-friend-btn.accept {
+            border-color: rgba(62, 227, 158, 0.5);
+            color: var(--main-color);
+        }
+        .auth-friend-btn.reject {
+            border-color: rgba(255, 89, 89, 0.4);
+            color: #ff8f8f;
+        }
+        .auth-favorites-wrap {
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 8px;
+            display: grid;
+            gap: 8px;
+        }
+        .auth-favorite-list {
+            display: grid;
+            gap: 6px;
+            max-height: 170px;
+            overflow-y: auto;
+        }
+        .auth-favorite-item {
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            border-radius: 6px;
+            padding: 8px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            align-items: center;
+        }
+        .auth-favorite-title {
+            color: var(--text-color);
+            font-size: 0.8rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .auth-favorite-meta {
+            color: var(--sub-color);
+            font-size: 0.7rem;
+        }
+        .profile-hub-overlay {
+            background: radial-gradient(circle at 20% 10%, rgba(62, 227, 158, 0.12), transparent 40%), rgba(3, 10, 16, 0.92);
+            backdrop-filter: blur(6px);
+            overflow-y: auto;
+            padding: 28px 14px;
+        }
+        .profile-hub-shell {
+            max-width: 1080px;
+            margin: 0 auto;
+            border: 1px solid rgba(125, 125, 125, 0.25);
+            border-radius: 14px;
+            padding: 18px;
+            background: linear-gradient(180deg, rgba(9, 27, 41, 0.95), rgba(5, 16, 26, 0.96));
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+        }
+        .profile-hub-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        .profile-hub-kicker {
+            color: var(--sub-color);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .profile-hub-title {
+            color: var(--text-color);
+            font-size: 1.8rem;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+        .profile-hub-hero {
+            display: grid;
+            grid-template-columns: 96px 1fr;
+            gap: 14px;
+            align-items: center;
+            border: 1px solid rgba(125, 125, 125, 0.18);
+            border-radius: 10px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.18);
+        }
+        .profile-hub-avatar {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(62, 227, 158, 0.45);
+        }
+        .profile-hub-level {
+            color: var(--main-color);
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+        .profile-hub-email {
+            color: var(--sub-color);
+            font-size: 0.84rem;
+            margin-top: 2px;
+        }
+        .profile-hub-bio {
+            color: var(--text-color);
+            font-size: 0.9rem;
+            margin-top: 6px;
+            line-height: 1.35;
+        }
+        .profile-hub-stats-grid {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        .profile-hub-stat {
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            border-radius: 8px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            display: grid;
+            gap: 4px;
+            text-align: center;
+        }
+        .profile-hub-stat span {
+            color: var(--sub-color);
+            text-transform: uppercase;
+            font-size: 0.68rem;
+            letter-spacing: 0.05em;
+        }
+        .profile-hub-stat strong {
+            color: var(--text-color);
+            font-size: 1.2rem;
+        }
+        .profile-hub-main-grid {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .profile-hub-card {
+            border: 1px solid rgba(125, 125, 125, 0.22);
+            border-radius: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            min-height: 168px;
+        }
+        .profile-hub-card h3 {
+            color: var(--sub-color);
+            font-size: 0.74rem;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .profile-hub-card canvas {
+            width: 100%;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.18);
+        }
+        .profile-hub-achievements {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .profile-hub-list {
+            display: grid;
+            gap: 6px;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+        .profile-hub-card-wide {
+            grid-column: span 2;
+        }
+        @media (max-width: 900px) {
+            .profile-hub-stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .profile-hub-main-grid {
+                grid-template-columns: 1fr;
+            }
+            .profile-hub-card-wide {
+                grid-column: auto;
+            }
+            .auth-file-row {
+                grid-template-columns: 1fr;
+            }
+        }
         .auth-delete-btn {
             width: 100%;
             border: 1px solid rgba(255, 89, 89, 0.35);
@@ -632,6 +1249,125 @@
             opacity: 0.6;
             transition: opacity 0.3s;
             pointer-events: none; /* Disable clicking */
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding-bottom: 1rem;
+            }
+            header {
+                display: flex;
+                flex-direction: row !important;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 10px;
+                flex-wrap: nowrap;
+            }
+            #toast-container {
+                right: 12px;
+                left: 12px;
+                bottom: 12px;
+            }
+            .header-brand {
+                width: auto;
+                min-width: 0;
+                justify-content: flex-start;
+                padding-right: 0;
+                margin-left: 0;
+            }
+            .header-actions {
+                width: auto;
+                max-width: 56%;
+                align-self: flex-start;
+                justify-content: flex-start;
+                gap: 8px;
+                padding: 0;
+                border-radius: 0;
+                background: transparent;
+                border: 0;
+                overflow: visible;
+                flex-shrink: 0;
+            }
+            .mobile-config-bar {
+                width: fit-content;
+                max-width: calc(100vw - 16px);
+                margin-right: auto;
+                margin-left: auto;
+            }
+            .config-bar {
+                height: auto;
+                min-height: 0;
+                width: fit-content;
+                max-width: calc(100vw - 16px);
+                padding: 8px 10px;
+                gap: 8px;
+                margin-bottom: 1rem;
+                justify-content: flex-start;
+                display: grid;
+                grid-template-columns: 1fr;
+                border-radius: 10px;
+            }
+            .config-bar .separator {
+                display: none;
+            }
+            .config-bar .mode-group {
+                gap: 10px;
+                width: fit-content;
+                max-width: calc(100vw - 40px);
+                overflow: visible;
+                flex-wrap: wrap;
+                padding: 2px 2px 4px;
+                white-space: normal;
+            }
+            .config-bar .mode-group:first-of-type {
+                border-bottom: 1px solid rgba(125, 125, 125, 0.2);
+                padding-bottom: 8px;
+                margin-bottom: 2px;
+            }
+            .nav-link {
+                font-size: 0.72rem;
+                gap: 0.35rem;
+                flex-shrink: 0;
+            }
+            .nav-icon {
+                width: 15px;
+                height: 15px;
+            }
+            .header-avatar-btn {
+                width: 44px;
+                height: 44px;
+                flex-shrink: 0;
+            }
+            .btn-ghost {
+                padding: 3px;
+            }
+            .artist-catalog-name {
+                font-size: 1.08rem;
+            }
+            .artist-catalog-meta {
+                font-size: 0.72rem;
+            }
+            .artist-songs-list {
+                max-height: 44vh;
+            }
+            header .text-2xl {
+                font-size: 1.35rem;
+                line-height: 1.05;
+                white-space: nowrap;
+            }
+            header .text-\[10px\] {
+                font-size: 0.64rem;
+                letter-spacing: 0.03em;
+            }
+            .search-controls {
+                width: 100%;
+                align-items: stretch;
+            }
+            .search-controls #btn-fetch-action {
+                width: min(220px, 70vw);
+                align-self: center;
+                margin-top: 6px;
+            }
         }
         /* Always highlight on key press to serve as guide */
         

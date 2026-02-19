@@ -281,6 +281,10 @@ bindLegacyInlineHandlers();
             history: [],
             missedWords: new Set(),
             searchCache: new Map(),
+            artistSongsCache: new Map(),
+            artistTermSearchCache: new Map(),
+            artistCatalogSongs: [],
+            artistCatalogName: '',
             isFetching: false,
             pendingNav: null,
             abortController: null,
@@ -342,6 +346,14 @@ bindLegacyInlineHandlers();
             viewCustom: document.getElementById('view-custom'),
             artistInput: document.getElementById('input-artist'),
             titleInput: document.getElementById('input-title'),
+            artistSuggestions: document.getElementById('artist-suggestions'),
+            titleSuggestions: document.getElementById('title-suggestions'),
+            browseArtistBtn: document.getElementById('btn-browse-artist'),
+            artistCatalog: document.getElementById('artist-catalog'),
+            artistCatalogName: document.getElementById('artist-catalog-name'),
+            artistCatalogMeta: document.getElementById('artist-catalog-meta'),
+            artistSongFilter: document.getElementById('artist-song-filter'),
+            artistCatalogList: document.getElementById('artist-catalog-list'),
             customText: document.getElementById('custom-text-area'),
             customTrans: document.getElementById('custom-translation-area'),
             customTransContainer: document.getElementById('custom-translation-container'),
@@ -361,6 +373,13 @@ bindLegacyInlineHandlers();
             modal: document.getElementById('modal-overlay'),
             restartModal: document.getElementById('restart-modal-overlay'),
             practiceModal: document.getElementById('practice-modal-overlay'),
+            artistSongsModal: document.getElementById('artist-songs-modal-overlay'),
+            artistSongsTitle: document.getElementById('artist-songs-title'),
+            artistSongsStatus: document.getElementById('artist-songs-status'),
+            artistSongsList: document.getElementById('artist-songs-list'),
+            avatarPreviewOverlay: document.getElementById('avatar-preview-overlay'),
+            avatarPreviewImage: document.getElementById('avatar-preview-image'),
+            avatarPreviewName: document.getElementById('avatar-preview-name'),
             practiceContainer: document.getElementById('practice-container'),
             practiceProgress: document.getElementById('practice-progress'),
             searchStatus: document.getElementById('search-status-text'),
@@ -370,6 +389,8 @@ bindLegacyInlineHandlers();
             searchError: document.getElementById('search-error'),
             googleFallbackLink: document.getElementById('google-fallback-link'),
             toastContainer: document.getElementById('toast-container'),
+            headerAvatarButton: document.getElementById('header-avatar-button'),
+            headerAvatarImage: document.getElementById('header-avatar-image'),
             videoPanel: document.getElementById('video-pip-panel'),
             videoFrame: document.getElementById('video-pip-frame'),
             videoSearchLink: document.getElementById('video-search-link'),
@@ -389,12 +410,49 @@ bindLegacyInlineHandlers();
             authRegisterPasswordVerify: document.getElementById('auth-register-password-verify'),
             authUserName: document.getElementById('auth-user-name'),
             authUserEmail: document.getElementById('auth-user-email'),
+            authUserAvatar: document.getElementById('auth-user-avatar'),
+            authProfileEditPanel: document.getElementById('auth-profile-edit-panel'),
+            authNonEditSections: document.getElementById('auth-nonedit-sections'),
+            authAvatarFile: document.getElementById('auth-avatar-file'),
+            authAvatarFileName: document.getElementById('auth-avatar-file-name'),
+            authUserBio: document.getElementById('auth-user-bio'),
+            authUserLevel: document.getElementById('auth-user-level'),
+            authAchievements: document.getElementById('auth-achievements'),
+            authStatsSection: document.getElementById('auth-stats-section'),
             authDeletePassword: document.getElementById('auth-delete-password'),
             authStatGames: document.getElementById('auth-stat-games'),
             authStatBestWpm: document.getElementById('auth-stat-best-wpm'),
             authStatAvgWpm: document.getElementById('auth-stat-avg-wpm'),
             authStatAvgAcc: document.getElementById('auth-stat-avg-acc'),
-            authRecentResults: document.getElementById('auth-recent-results')
+            authRecentResults: document.getElementById('auth-recent-results'),
+            authRecentSection: document.getElementById('auth-recent-section'),
+            authHistorySong: document.getElementById('auth-history-song'),
+            authHistoryChart: document.getElementById('auth-history-chart'),
+            authHistorySummary: document.getElementById('auth-history-summary'),
+            authHistorySection: document.getElementById('auth-history-section'),
+            authFriendsSection: document.getElementById('auth-friends-section'),
+            authFriendUsername: document.getElementById('auth-friend-username'),
+            authFriendRequests: document.getElementById('auth-friend-requests'),
+            authFriendCompare: document.getElementById('auth-friend-compare'),
+            authFavoritesSection: document.getElementById('auth-favorites-section'),
+            authDangerSection: document.getElementById('auth-danger-section'),
+            authActionsSection: document.getElementById('auth-actions-section'),
+            authFavoritesList: document.getElementById('auth-favorites-list'),
+            profileHubOverlay: document.getElementById('profile-hub-overlay'),
+            profileHubName: document.getElementById('profile-hub-name'),
+            profileHubAvatar: document.getElementById('profile-hub-avatar'),
+            profileHubLevel: document.getElementById('profile-hub-level'),
+            profileHubEmail: document.getElementById('profile-hub-email'),
+            profileHubBio: document.getElementById('profile-hub-bio'),
+            profileHubGames: document.getElementById('profile-hub-games'),
+            profileHubBest: document.getElementById('profile-hub-best'),
+            profileHubAvgWpm: document.getElementById('profile-hub-avgwpm'),
+            profileHubAvgAcc: document.getElementById('profile-hub-avgacc'),
+            profileHubChart: document.getElementById('profile-hub-chart'),
+            profileHubRecent: document.getElementById('profile-hub-recent'),
+            profileHubFavorites: document.getElementById('profile-hub-favorites'),
+            profileHubFriends: document.getElementById('profile-hub-friends'),
+            profileHubAchievements: document.getElementById('profile-hub-achievements')
         };
 
         function initSpeech() { window.speechSynthesis.getVoices(); }
@@ -426,16 +484,108 @@ bindLegacyInlineHandlers();
                 auth: {
                     persistSession: false,
                     autoRefreshToken: true,
-                    detectSessionInUrl: false
+                    detectSessionInUrl: true
                 }
             })
             : null;
         let authCurrentUser = null;
         let authIdleTimer = null;
         const authAttempts = { login: [], register: [] };
+        let authGameResultsCache = [];
+        let authSongGroupsCache = [];
+        let authStatsSummary = { games: 0, bestWpm: 0, avgWpm: 0, avgAcc: 0 };
+        let authFriendsCache = [];
+        let authFriendRequestsCache = [];
+        let authFavoritesCache = [];
+        let authPendingAvatarFile = null;
+        let authAvatarPreviewUrl = '';
+        let authStoredAvatarUrl = '';
+        let authAccountViewMode = 'full';
+        let artistSuggestTimer = null;
+        let titleSuggestTimer = null;
+        let artistCatalogFilterTimer = null;
+        let artistCatalogFilterSeq = 0;
 
         function normalizeEmail(email) {
             return (email || '').trim().toLowerCase();
+        }
+
+        function escapeHtml(text) {
+            return String(text || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function sanitizeAvatarUrl(url) {
+            const raw = String(url || '').trim();
+            if (!raw) return '';
+            try {
+                const u = new URL(raw);
+                if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+                return u.toString();
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function toggleProfileEditor(forceState) {
+            if (!elements.authProfileEditPanel) return;
+            const open = forceState !== undefined
+                ? !!forceState
+                : elements.authProfileEditPanel.classList.contains('hidden');
+            elements.authProfileEditPanel.classList.toggle('hidden', !open);
+            if (elements.authNonEditSections) {
+                elements.authNonEditSections.classList.toggle('hidden', open);
+            }
+            if (!open) {
+                if (authPendingAvatarFile) {
+                    const fallback = sanitizeAvatarUrl(authStoredAvatarUrl || '');
+                    if (elements.authUserAvatar) {
+                        elements.authUserAvatar.src = fallback || 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
+                    }
+                }
+                authPendingAvatarFile = null;
+                if (elements.authAvatarFile) elements.authAvatarFile.value = '';
+                if (elements.authAvatarFileName) elements.authAvatarFileName.textContent = 'No file selected';
+                if (authAvatarPreviewUrl) {
+                    URL.revokeObjectURL(authAvatarPreviewUrl);
+                    authAvatarPreviewUrl = '';
+                }
+            }
+        }
+
+        function setAccountViewMode(mode = 'full') {
+            authAccountViewMode = mode === 'friends' ? 'friends' : 'full';
+            const friendsMode = authAccountViewMode === 'friends';
+            elements.authStatsSection?.classList.toggle('hidden', friendsMode);
+            elements.authRecentSection?.classList.toggle('hidden', friendsMode);
+            elements.authHistorySection?.classList.toggle('hidden', friendsMode);
+            elements.authFavoritesSection?.classList.toggle('hidden', friendsMode);
+            elements.authDangerSection?.classList.toggle('hidden', friendsMode);
+            elements.authActionsSection?.classList.toggle('hidden', friendsMode);
+            elements.authAchievements?.classList.toggle('hidden', friendsMode);
+        }
+
+        function triggerAvatarPicker() {
+            elements.authAvatarFile?.click();
+        }
+
+        async function uploadAvatarFile(userId, file) {
+            if (!supabase || !file || !userId) return '';
+            const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext || 'png'}`;
+            const upload = await supabase.storage.from('avatars').upload(path, file, {
+                cacheControl: '3600',
+                upsert: false
+            });
+            if (upload.error) {
+                throw upload.error;
+            }
+            const pub = supabase.storage.from('avatars').getPublicUrl(path);
+            return pub?.data?.publicUrl || '';
         }
 
         function validatePasswordStrength(password) {
@@ -550,7 +700,7 @@ bindLegacyInlineHandlers();
             if (!supabase || !userId) return null;
             const { data } = await supabase
                 .from('profiles')
-                .select('username,email')
+                .select('username,email,avatar_url,bio')
                 .eq('id', userId)
                 .maybeSingle();
             return data || null;
@@ -567,14 +717,418 @@ bindLegacyInlineHandlers();
             });
         }
 
+        function computeProfileLevel(summary) {
+            const baseXp = (summary.games * 30) + (summary.bestWpm * 2) + summary.avgAcc;
+            const level = Math.max(1, Math.floor(baseXp / 350) + 1);
+            return level;
+        }
+
+        function computeAchievements(summary) {
+            const out = [];
+            if (summary.games >= 1) out.push('First Steps');
+            if (summary.games >= 25) out.push('Dedicated');
+            if (summary.bestWpm >= 60) out.push('Fast Fingers');
+            if (summary.bestWpm >= 100) out.push('Speed Demon');
+            if (summary.avgAcc >= 95 && summary.games >= 10) out.push('Precision');
+            if (summary.games >= 50 && summary.avgWpm >= 70) out.push('Marathon Typist');
+            return out;
+        }
+
+        function renderAchievements(summary) {
+            if (!elements.authAchievements) return;
+            const badges = computeAchievements(summary);
+            if (badges.length === 0) {
+                elements.authAchievements.innerHTML = '<div class="auth-recent-empty">No achievements yet.</div>';
+                return;
+            }
+            elements.authAchievements.innerHTML = badges.map((b) => `<span class="auth-achievement">${escapeHtml(b)}</span>`).join('');
+        }
+
+        async function saveProfileDetails() {
+            if (!ensureSupabaseReady()) return;
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user) {
+                showToast('You need to be logged in.', 'error');
+                return;
+            }
+            let avatarUrl = sanitizeAvatarUrl(authStoredAvatarUrl || '');
+            if (authPendingAvatarFile) {
+                try {
+                    avatarUrl = await uploadAvatarFile(user.id, authPendingAvatarFile);
+                } catch (e) {
+                    showToast('Could not upload avatar image.', 'error');
+                    return;
+                }
+            }
+            const bio = (elements.authUserBio?.value || '').trim();
+            const updates = {
+                id: user.id,
+                email: user.email,
+                username: elements.authUserName?.textContent || user.user_metadata?.username || user.email?.split('@')[0] || 'user',
+                avatar_url: avatarUrl || null,
+                bio: bio || null
+            };
+            const { error } = await supabase.from('profiles').upsert(updates);
+            if (error) {
+                showToast('Could not save profile.', 'error');
+                return;
+            }
+            if (elements.authUserAvatar) {
+                elements.authUserAvatar.src = avatarUrl || 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
+            }
+            if (elements.headerAvatarImage) {
+                elements.headerAvatarImage.src = avatarUrl || 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
+            }
+            authStoredAvatarUrl = avatarUrl || '';
+            authPendingAvatarFile = null;
+            if (elements.authAvatarFile) elements.authAvatarFile.value = '';
+            if (authAvatarPreviewUrl) {
+                URL.revokeObjectURL(authAvatarPreviewUrl);
+                authAvatarPreviewUrl = '';
+            }
+            toggleProfileEditor(false);
+            renderProfileHub();
+            showToast('Profile updated.', 'info');
+        }
+
+        async function loadFavoriteSongs(userId) {
+            if (!supabase || !userId || !elements.authFavoritesList) return;
+            const { data, error } = await supabase
+                .from('user_favorites')
+                .select('id,song_title,artist,created_at')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(200);
+            authFavoritesCache = data || [];
+            if (error || !data || data.length === 0) {
+                elements.authFavoritesList.innerHTML = '<div class="auth-recent-empty">No favorites yet.</div>';
+                renderProfileHub();
+                return;
+            }
+            elements.authFavoritesList.innerHTML = data.map((f) => {
+                const title = escapeHtml(f.song_title || 'Unknown Song');
+                const artist = escapeHtml(f.artist || 'Unknown Artist');
+                const when = f.created_at ? new Date(f.created_at).toLocaleDateString() : '';
+                return `<div class="auth-favorite-item">
+                          <div>
+                            <div class="auth-favorite-title">${artist} - ${title}</div>
+                            <div class="auth-favorite-meta">${when}</div>
+                          </div>
+                          <button class="auth-friend-btn reject" data-onclick="removeFavoriteSong(${f.id})">Remove</button>
+                        </div>`;
+            }).join('');
+            renderProfileHub();
+        }
+
+        async function addCurrentSongToFavorites() {
+            if (!ensureSupabaseReady()) return;
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user) {
+                showToast('You need to be logged in.', 'error');
+                return;
+            }
+            const songTitle = (state.songTitle || '').trim();
+            const artist = (state.artist || '').trim();
+            if (!songTitle || !artist) {
+                showToast('Load a song first.', 'error');
+                return;
+            }
+            const { error } = await supabase
+                .from('user_favorites')
+                .upsert({
+                    user_id: user.id,
+                    song_title: songTitle,
+                    artist
+                }, { onConflict: 'user_id,song_title,artist', ignoreDuplicates: true });
+            if (error) {
+                showToast('Could not add favorite.', 'error');
+                return;
+            }
+            showToast('Song added to favorites.', 'info');
+            await loadFavoriteSongs(user.id);
+        }
+
+        async function removeFavoriteSong(favoriteId) {
+            if (!ensureSupabaseReady()) return;
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user) return;
+            const { error } = await supabase
+                .from('user_favorites')
+                .delete()
+                .eq('id', favoriteId)
+                .eq('user_id', user.id);
+            if (error) {
+                showToast('Could not remove favorite.', 'error');
+                return;
+            }
+            await loadFavoriteSongs(user.id);
+        }
+
+        async function loginWithProvider(provider) {
+            if (!ensureSupabaseReady()) return;
+            const supported = ['google', 'github'];
+            if (!supported.includes(provider)) {
+                showToast('Unsupported provider.', 'error');
+                return;
+            }
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider,
+                options: {
+                    redirectTo: `${window.location.origin}${window.location.pathname}`
+                }
+            });
+            if (error) {
+                showToast('Social login could not be started.', 'error');
+            }
+        }
+
+        function groupResultsBySong(rows) {
+            const map = new Map();
+            (rows || []).forEach((row) => {
+                const artist = row.artist || 'Unknown Artist';
+                const title = row.song_title || 'Custom Lyrics';
+                const key = `${artist}|||${title}`;
+                if (!map.has(key)) {
+                    map.set(key, { key, artist, title, rows: [] });
+                }
+                map.get(key).rows.push(row);
+            });
+            return Array.from(map.values()).sort((a, b) => b.rows.length - a.rows.length || a.title.localeCompare(b.title));
+        }
+
+        function populateSongHistorySelector(songGroups) {
+            if (!elements.authHistorySong) return;
+            const current = elements.authHistorySong.value;
+            const options = ['<option value="">Select a song</option>']
+                .concat(songGroups.map((g) => `<option value="${escapeHtml(g.key)}">${escapeHtml(g.artist)} - ${escapeHtml(g.title)} (${g.rows.length})</option>`));
+            elements.authHistorySong.innerHTML = options.join('');
+            const keep = songGroups.some((g) => g.key === current);
+            elements.authHistorySong.value = keep ? current : (songGroups[0]?.key || '');
+        }
+
+        function drawSongHistoryChart(group) {
+            const canvas = elements.authHistoryChart;
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            const dpr = window.devicePixelRatio || 1;
+            const cssW = Math.max(260, Math.round(canvas.clientWidth || 320));
+            const cssH = Math.max(120, Math.round(canvas.clientHeight || 120));
+            canvas.width = Math.round(cssW * dpr);
+            canvas.height = Math.round(cssH * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            ctx.clearRect(0, 0, cssW, cssH);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+            ctx.fillRect(0, 0, cssW, cssH);
+
+            if (!group || !group.rows || group.rows.length === 0) {
+                ctx.fillStyle = 'rgba(120, 140, 155, 0.9)';
+                ctx.font = '12px Roboto Mono, monospace';
+                ctx.fillText('No data yet', 10, 24);
+                return;
+            }
+
+            const rows = [...group.rows].reverse();
+            const padding = 18;
+            const width = cssW - padding * 2;
+            const height = cssH - padding * 2;
+            const maxWpm = Math.max(10, ...rows.map((r) => Number(r.wpm) || 0));
+
+            ctx.strokeStyle = 'rgba(125, 145, 160, 0.35)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = padding + (height * i / 4);
+                ctx.beginPath();
+                ctx.moveTo(padding, y);
+                ctx.lineTo(padding + width, y);
+                ctx.stroke();
+            }
+
+            const n = rows.length;
+            const stepX = n > 1 ? width / (n - 1) : 0;
+            ctx.strokeStyle = '#3EE39E';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            rows.forEach((row, idx) => {
+                const wpm = Number(row.wpm) || 0;
+                const x = padding + (idx * stepX);
+                const y = padding + height - (wpm / maxWpm) * height;
+                if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            ctx.fillStyle = '#3EE39E';
+            rows.forEach((row, idx) => {
+                const wpm = Number(row.wpm) || 0;
+                const x = padding + (idx * stepX);
+                const y = padding + height - (wpm / maxWpm) * height;
+                ctx.beginPath();
+                ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function renderSongHistoryDetails() {
+            if (!elements.authHistorySummary) return;
+            const selected = elements.authHistorySong?.value || '';
+            const group = authSongGroupsCache.find((g) => g.key === selected);
+            drawSongHistoryChart(group);
+            if (!group || group.rows.length === 0) {
+                elements.authHistorySummary.textContent = 'Finish more tests to see detailed history by song.';
+                return;
+            }
+            const games = group.rows.length;
+            const avgWpm = Math.round(group.rows.reduce((s, r) => s + (Number(r.wpm) || 0), 0) / games);
+            const bestWpm = Math.max(...group.rows.map((r) => Number(r.wpm) || 0));
+            const avgAcc = Math.round(group.rows.reduce((s, r) => s + (Number(r.accuracy) || 0), 0) / games);
+            elements.authHistorySummary.textContent = `${group.artist} - ${group.title} | ${games} runs | avg ${avgWpm} WPM | best ${bestWpm} WPM | avg acc ${avgAcc}%`;
+        }
+
+        function buildFriendAvatarButton(username, avatarUrl) {
+            const name = String(username || 'U').trim() || 'U';
+            const initial = escapeHtml(name.charAt(0).toUpperCase());
+            const safeUrl = sanitizeAvatarUrl(avatarUrl || '');
+            const src = safeUrl || `https://placehold.co/80x80/0B2D45/3EE39E?text=${encodeURIComponent(initial)}`;
+            const encodedSrc = encodeURIComponent(src);
+            const encodedName = encodeURIComponent(name);
+            return `<button type="button" class="auth-friend-avatar-btn" data-avatar-src="${encodedSrc}" data-avatar-name="${encodedName}" title="View avatar">
+                      <img class="auth-friend-avatar-img" src="${src}" alt="${escapeHtml(name)} avatar">
+                    </button>`;
+        }
+
+        function bindFriendAvatarPreview(container) {
+            if (!container) return;
+            container.querySelectorAll('.auth-friend-avatar-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const src = decodeURIComponent(btn.getAttribute('data-avatar-src') || '');
+                    const name = decodeURIComponent(btn.getAttribute('data-avatar-name') || 'User avatar');
+                    openAvatarPreview(src, name);
+                });
+            });
+        }
+
+        async function loadFriendsPanel() {
+            if (!supabase || !authCurrentUser) return;
+            const [reqRes, friendsRes] = await Promise.all([
+                supabase.rpc('get_my_friend_requests'),
+                supabase.rpc('get_my_friends_with_stats')
+            ]);
+
+            const reqRows = reqRes.data || [];
+            const friendRows = friendsRes.data || [];
+            authFriendRequestsCache = reqRows;
+            authFriendsCache = friendRows;
+
+            if (elements.authFriendRequests) {
+                if (reqRows.length === 0) {
+                    elements.authFriendRequests.innerHTML = '<div class="auth-recent-empty">No requests.</div>';
+                } else {
+                    elements.authFriendRequests.innerHTML = reqRows.map((r) => {
+                        const username = escapeHtml(r.username);
+                        const direction = escapeHtml(r.direction);
+                        const status = escapeHtml(r.status);
+                        const actions = r.direction === 'incoming' && r.status === 'pending'
+                            ? `<div class="auth-friend-actions">
+                                 <button class="auth-friend-btn accept" data-onclick="respondFriendRequest(${r.request_id}, true)">Accept</button>
+                                 <button class="auth-friend-btn reject" data-onclick="respondFriendRequest(${r.request_id}, false)">Reject</button>
+                               </div>`
+                            : `<div class="auth-friend-meta">${direction} - ${status}</div>`;
+                        const avatar = buildFriendAvatarButton(r.username, r.avatar_url);
+                        return `<div class="auth-friend-item">
+                                  ${avatar}
+                                  <div>
+                                    <div class="auth-friend-name">${username}</div>
+                                    <div class="auth-friend-meta">${direction} - ${status}</div>
+                                  </div>
+                                  ${actions}
+                                </div>`;
+                    }).join('');
+                    bindFriendAvatarPreview(elements.authFriendRequests);
+                }
+            }
+
+            if (elements.authFriendCompare) {
+                if (friendRows.length === 0) {
+                    elements.authFriendCompare.innerHTML = '<div class="auth-recent-empty">No friends added yet.</div>';
+                } else {
+                    const selfAvg = Number(elements.authStatAvgWpm?.textContent || 0);
+                    elements.authFriendCompare.innerHTML = friendRows.map((f) => {
+                        const diff = (Number(f.avg_wpm) || 0) - selfAvg;
+                        const diffText = `${diff > 0 ? '+' : ''}${diff} vs you`;
+                        const username = escapeHtml(f.username);
+                        const avatar = buildFriendAvatarButton(f.username, f.avatar_url);
+                        return `<div class="auth-friend-item">
+                                  ${avatar}
+                                  <div>
+                                    <div class="auth-friend-name">${username}</div>
+                                    <div class="auth-friend-meta">${f.games} games | avg ${f.avg_wpm} | best ${f.best_wpm} | acc ${f.avg_acc}%</div>
+                                  </div>
+                                  <div class="auth-recent-score">${escapeHtml(diffText)}</div>
+                                </div>`;
+                    }).join('');
+                    bindFriendAvatarPreview(elements.authFriendCompare);
+                }
+            }
+            renderProfileHub();
+        }
+
+        async function sendFriendRequest() {
+            if (!ensureSupabaseReady()) return;
+            const identifier = (elements.authFriendUsername?.value || '').trim();
+            if (!identifier) {
+                showToast('Enter email or username.', 'error');
+                return;
+            }
+            const { data, error } = await supabase.rpc('create_friend_request_by_username', {
+                target_username: identifier
+            });
+            if (error) {
+                showToast('Could not send friend request.', 'error');
+                return;
+            }
+            if (elements.authFriendUsername) elements.authFriendUsername.value = '';
+            showToast(data || 'Friend request processed.', 'info');
+            await loadFriendsPanel();
+        }
+
+        async function respondFriendRequest(requestId, acceptRequest) {
+            if (!ensureSupabaseReady()) return;
+            const { error } = await supabase.rpc('respond_friend_request', {
+                req_id: requestId,
+                accept_request: !!acceptRequest
+            });
+            if (error) {
+                showToast('Could not update request.', 'error');
+                return;
+            }
+            showToast(acceptRequest ? 'Friend request accepted.' : 'Friend request rejected.', 'info');
+            await loadFriendsPanel();
+        }
+
         function resetAuthDashboardUI() {
             if (elements.authStatGames) elements.authStatGames.textContent = '0';
             if (elements.authStatBestWpm) elements.authStatBestWpm.textContent = '0';
             if (elements.authStatAvgWpm) elements.authStatAvgWpm.textContent = '0';
             if (elements.authStatAvgAcc) elements.authStatAvgAcc.textContent = '0%';
+            authStatsSummary = { games: 0, bestWpm: 0, avgWpm: 0, avgAcc: 0 };
             if (elements.authRecentResults) {
                 elements.authRecentResults.innerHTML = '<div class="auth-recent-empty">No saved games yet.</div>';
             }
+            if (elements.authUserLevel) elements.authUserLevel.textContent = 'Level 1';
+            if (elements.authAchievements) elements.authAchievements.innerHTML = '<div class="auth-recent-empty">No achievements yet.</div>';
+            authGameResultsCache = [];
+            authSongGroupsCache = [];
+            if (elements.authHistorySong) elements.authHistorySong.innerHTML = '<option value="">Select a song</option>';
+            if (elements.authHistorySummary) elements.authHistorySummary.textContent = 'Finish more tests to see detailed history by song.';
+            drawSongHistoryChart(null);
+            if (elements.authFriendRequests) elements.authFriendRequests.innerHTML = '<div class="auth-recent-empty">No requests.</div>';
+            if (elements.authFriendCompare) elements.authFriendCompare.innerHTML = '<div class="auth-recent-empty">No friends added yet.</div>';
+            if (elements.authFavoritesList) elements.authFavoritesList.innerHTML = '<div class="auth-recent-empty">No favorites yet.</div>';
+            authFriendsCache = [];
+            authFriendRequestsCache = [];
+            authFavoritesCache = [];
+            renderProfileHub();
         }
 
         function renderRecentResults(rows) {
@@ -583,12 +1137,6 @@ bindLegacyInlineHandlers();
                 elements.authRecentResults.innerHTML = '<div class="auth-recent-empty">No saved games yet.</div>';
                 return;
             }
-            const escapeHtml = (text) => String(text || '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
             const html = rows.slice(0, 8).map((row) => {
                 const title = (row.song_title && row.artist)
                     ? `${row.artist} - ${row.song_title}`
@@ -606,6 +1154,196 @@ bindLegacyInlineHandlers();
                 `;
             }).join('');
             elements.authRecentResults.innerHTML = html;
+        }
+
+        function drawProfileHubChart(rows) {
+            const canvas = elements.profileHubChart;
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            const dataRows = (rows || []).slice(0, 20).reverse();
+
+            const dpr = window.devicePixelRatio || 1;
+            const cssW = Math.max(260, Math.round(canvas.clientWidth || 320));
+            const cssH = Math.max(130, Math.round(canvas.clientHeight || 140));
+            canvas.width = Math.round(cssW * dpr);
+            canvas.height = Math.round(cssH * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, cssW, cssH);
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+            ctx.fillRect(0, 0, cssW, cssH);
+
+            if (dataRows.length < 2) {
+                ctx.fillStyle = 'rgba(120, 140, 155, 0.9)';
+                ctx.font = '12px Roboto Mono, monospace';
+                ctx.fillText('Complete tests to build your curve', 10, 24);
+                return;
+            }
+
+            const padding = 16;
+            const width = cssW - padding * 2;
+            const height = cssH - padding * 2;
+            const maxVal = Math.max(10, ...dataRows.map((r) => Number(r.wpm) || 0));
+
+            ctx.strokeStyle = 'rgba(120, 140, 155, 0.32)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = padding + (height * i / 4);
+                ctx.beginPath();
+                ctx.moveTo(padding, y);
+                ctx.lineTo(padding + width, y);
+                ctx.stroke();
+            }
+
+            const stepX = width / (dataRows.length - 1);
+            ctx.strokeStyle = '#3EE39E';
+            ctx.lineWidth = 2.2;
+            ctx.beginPath();
+            dataRows.forEach((row, idx) => {
+                const wpm = Number(row.wpm) || 0;
+                const x = padding + (stepX * idx);
+                const y = padding + height - ((wpm / maxVal) * height);
+                if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+        }
+
+        function renderProfileHub() {
+            if (!elements.profileHubOverlay || elements.profileHubOverlay.classList.contains('hidden')) return;
+            const username = elements.authUserName?.textContent || 'user';
+            const email = elements.authUserEmail?.textContent || '';
+            const avatar = elements.authUserAvatar?.src || 'https://placehold.co/96x96/0B2D45/3EE39E?text=IT';
+            const bio = (elements.authUserBio?.value || '').trim() || 'No bio yet.';
+            const level = computeProfileLevel(authStatsSummary);
+            const achievements = computeAchievements(authStatsSummary);
+
+            if (elements.profileHubName) elements.profileHubName.textContent = username;
+            if (elements.profileHubAvatar) elements.profileHubAvatar.src = avatar;
+            if (elements.profileHubLevel) elements.profileHubLevel.textContent = `Level ${level}`;
+            if (elements.profileHubEmail) elements.profileHubEmail.textContent = email;
+            if (elements.profileHubBio) elements.profileHubBio.textContent = bio;
+            if (elements.profileHubGames) elements.profileHubGames.textContent = String(authStatsSummary.games || 0);
+            if (elements.profileHubBest) elements.profileHubBest.textContent = String(authStatsSummary.bestWpm || 0);
+            if (elements.profileHubAvgWpm) elements.profileHubAvgWpm.textContent = String(authStatsSummary.avgWpm || 0);
+            if (elements.profileHubAvgAcc) elements.profileHubAvgAcc.textContent = `${authStatsSummary.avgAcc || 0}%`;
+
+            if (elements.profileHubAchievements) {
+                if (achievements.length === 0) {
+                    elements.profileHubAchievements.innerHTML = '<div class="auth-recent-empty">No achievements yet.</div>';
+                } else {
+                    elements.profileHubAchievements.innerHTML = achievements.map((a) => `<span class="auth-achievement">${escapeHtml(a)}</span>`).join('');
+                }
+            }
+
+            if (elements.profileHubRecent) {
+                if (!authGameResultsCache.length) {
+                    elements.profileHubRecent.innerHTML = '<div class="auth-recent-empty">No saved games yet.</div>';
+                } else {
+                    elements.profileHubRecent.innerHTML = authGameResultsCache.slice(0, 12).map((r) => {
+                        const title = escapeHtml((r.artist && r.song_title) ? `${r.artist} - ${r.song_title}` : (r.song_title || r.artist || 'Custom lyrics'));
+                        const mode = escapeHtml((r.mode || 'normal').toUpperCase());
+                        return `<div class="auth-recent-item">
+                                  <div>
+                                    <div class="auth-recent-title">${title}</div>
+                                    <div class="auth-recent-meta">${mode}</div>
+                                  </div>
+                                  <div class="auth-recent-score">${r.wpm || 0} WPM - ${r.accuracy || 0}%</div>
+                                </div>`;
+                    }).join('');
+                }
+            }
+
+            if (elements.profileHubFavorites) {
+                if (!authFavoritesCache.length) {
+                    elements.profileHubFavorites.innerHTML = '<div class="auth-recent-empty">No favorites yet.</div>';
+                } else {
+                    elements.profileHubFavorites.innerHTML = authFavoritesCache.slice(0, 18).map((f) => {
+                        const title = escapeHtml(f.song_title || 'Unknown Song');
+                        const artist = escapeHtml(f.artist || 'Unknown Artist');
+                        return `<div class="auth-favorite-item">
+                                  <div>
+                                    <div class="auth-favorite-title">${artist} - ${title}</div>
+                                  </div>
+                                </div>`;
+                    }).join('');
+                }
+            }
+
+            if (elements.profileHubFriends) {
+                if (!authFriendsCache.length) {
+                    elements.profileHubFriends.innerHTML = '<div class="auth-recent-empty">No friends added yet.</div>';
+                } else {
+                    const myAvg = authStatsSummary.avgWpm || 0;
+                    elements.profileHubFriends.innerHTML = authFriendsCache.map((f) => {
+                        const diff = (Number(f.avg_wpm) || 0) - myAvg;
+                        const diffText = `${diff > 0 ? '+' : ''}${diff} vs you`;
+                        const avatar = buildFriendAvatarButton(f.username, f.avatar_url);
+                        return `<div class="auth-friend-item">
+                                  ${avatar}
+                                  <div>
+                                    <div class="auth-friend-name">${escapeHtml(f.username)}</div>
+                                    <div class="auth-friend-meta">${f.games} games | avg ${f.avg_wpm} | best ${f.best_wpm} | acc ${f.avg_acc}%</div>
+                                  </div>
+                                  <div class="auth-recent-score">${escapeHtml(diffText)}</div>
+                                </div>`;
+                    }).join('');
+                    bindFriendAvatarPreview(elements.profileHubFriends);
+                }
+            }
+
+            drawProfileHubChart(authGameResultsCache);
+        }
+
+        async function openProfileHub() {
+            if (!ensureSupabaseReady()) return;
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user) {
+                showToast('You need to be logged in.', 'error');
+                return;
+            }
+            await refreshAuthUI();
+            if (elements.profileHubOverlay) {
+                elements.profileHubOverlay.classList.remove('hidden');
+                renderProfileHub();
+            }
+        }
+
+        async function openProfileScreen() {
+            if (!ensureSupabaseReady()) return;
+            setAccountViewMode('full');
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user) {
+                openModal('profile');
+                switchAuthTab('login');
+                showToast('Login to open your profile.', 'info');
+                return;
+            }
+            await openProfileHub();
+        }
+
+        async function openAccountSettings() {
+            await openFriendsPanel();
+        }
+
+        async function openFriendsPanel() {
+            setAccountViewMode('friends');
+            openModal('profile');
+            await refreshAuthUI();
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user) {
+                switchAuthTab('login');
+                showToast('Login to add friends.', 'info');
+                return;
+            }
+            closeProfileHub();
+            toggleProfileEditor(false);
+            elements.authFriendsSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setTimeout(() => elements.authFriendUsername?.focus(), 120);
+        }
+
+        function closeProfileHub() {
+            if (elements.profileHubOverlay) elements.profileHubOverlay.classList.add('hidden');
         }
 
         async function loadUserGameStats(userId) {
@@ -626,12 +1364,20 @@ bindLegacyInlineHandlers();
             const bestWpm = games > 0 ? Math.max(...data.map((r) => Number(r.wpm) || 0)) : 0;
             const avgWpm = games > 0 ? Math.round(data.reduce((sum, r) => sum + (Number(r.wpm) || 0), 0) / games) : 0;
             const avgAcc = games > 0 ? Math.round(data.reduce((sum, r) => sum + (Number(r.accuracy) || 0), 0) / games) : 0;
+            authStatsSummary = { games, bestWpm, avgWpm, avgAcc };
 
             if (elements.authStatGames) elements.authStatGames.textContent = String(games);
             if (elements.authStatBestWpm) elements.authStatBestWpm.textContent = String(bestWpm);
             if (elements.authStatAvgWpm) elements.authStatAvgWpm.textContent = String(avgWpm);
             if (elements.authStatAvgAcc) elements.authStatAvgAcc.textContent = `${avgAcc}%`;
+            if (elements.authUserLevel) elements.authUserLevel.textContent = `Level ${computeProfileLevel(authStatsSummary)}`;
+            renderAchievements(authStatsSummary);
+            authGameResultsCache = data;
+            authSongGroupsCache = groupResultsBySong(data);
+            populateSongHistorySelector(authSongGroupsCache);
+            renderSongHistoryDetails();
             renderRecentResults(data);
+            renderProfileHub();
         }
 
         async function saveGameResultToCloud(result) {
@@ -676,6 +1422,16 @@ bindLegacyInlineHandlers();
             if (elements.authRegisterPassword) elements.authRegisterPassword.value = '';
             if (elements.authRegisterPasswordVerify) elements.authRegisterPasswordVerify.value = '';
             if (elements.authDeletePassword) elements.authDeletePassword.value = '';
+            if (elements.authFriendUsername) elements.authFriendUsername.value = '';
+            if (elements.authUserBio) elements.authUserBio.value = '';
+            if (elements.authAvatarFile) elements.authAvatarFile.value = '';
+            if (elements.authAvatarFileName) elements.authAvatarFileName.textContent = 'No file selected';
+            authPendingAvatarFile = null;
+            authStoredAvatarUrl = '';
+            if (authAvatarPreviewUrl) {
+                URL.revokeObjectURL(authAvatarPreviewUrl);
+                authAvatarPreviewUrl = '';
+            }
         }
 
         function switchAuthTab(tab) {
@@ -697,15 +1453,36 @@ bindLegacyInlineHandlers();
                 const profile = await getCurrentProfile(user.id);
                 const username = profile?.username || user.user_metadata?.username || user.email?.split('@')[0] || 'user';
                 const email = profile?.email || user.email || '';
+                const avatarUrl = sanitizeAvatarUrl(profile?.avatar_url || '');
+                const bio = profile?.bio || '';
                 if (elements.authUserName) elements.authUserName.textContent = username;
                 if (elements.authUserEmail) elements.authUserEmail.textContent = email;
+                if (elements.authUserBio) elements.authUserBio.value = bio;
+                if (elements.authUserAvatar) elements.authUserAvatar.src = avatarUrl || 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
+                if (elements.headerAvatarImage) elements.headerAvatarImage.src = avatarUrl || 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
+                authStoredAvatarUrl = avatarUrl || '';
                 if (elements.authDeletePassword) elements.authDeletePassword.value = '';
+                if (elements.authAvatarFile) elements.authAvatarFile.value = '';
+                if (elements.authAvatarFileName) elements.authAvatarFileName.textContent = 'No file selected';
+                authPendingAvatarFile = null;
+                if (authAvatarPreviewUrl) {
+                    URL.revokeObjectURL(authAvatarPreviewUrl);
+                    authAvatarPreviewUrl = '';
+                }
+                toggleProfileEditor(false);
                 await loadUserGameStats(user.id);
+                await loadFriendsPanel();
+                await loadFavoriteSongs(user.id);
+                renderProfileHub();
             } else {
                 resetAuthDashboardUI();
                 if (elements.authRememberMe) elements.authRememberMe.checked = shouldPersistSession();
                 switchAuthTab(authTab);
+                closeProfileHub();
+                authStoredAvatarUrl = '';
+                if (elements.headerAvatarImage) elements.headerAvatarImage.src = 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
             }
+            setAccountViewMode(authAccountViewMode);
         }
 
         async function registerAccount() {
@@ -769,13 +1546,28 @@ bindLegacyInlineHandlers();
                 showToast('Too many login attempts. Try again in a minute.', 'error');
                 return;
             }
-            const email = normalizeEmail(elements.authLoginEmail?.value || '');
+            const rawIdentifier = (elements.authLoginEmail?.value || '').trim();
+            const identifier = normalizeEmail(rawIdentifier);
             const password = elements.authLoginPassword?.value || '';
             const remember = !!elements.authRememberMe?.checked;
 
-            if (!email || !password) {
-                showToast('Enter email and password.', 'error');
+            if (!identifier || !password) {
+                showToast('Enter email/username and password.', 'error');
                 return;
+            }
+
+            let email = identifier;
+            if (!identifier.includes('@')) {
+                const resolved = await supabase.rpc('get_login_email', {
+                    login_identifier: identifier
+                });
+                const resolvedEmail = normalizeEmail(resolved?.data || '');
+                if (!resolvedEmail) {
+                    recordAuthAttempt('login', false);
+                    showToast('Login failed. Check your credentials.', 'error');
+                    return;
+                }
+                email = resolvedEmail;
             }
 
             const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -1482,11 +2274,443 @@ bindLegacyInlineHandlers();
             }
         }
 
+        function normalizeLookupText(value) {
+            return String(value || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9\s]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function hideSearchSuggestions() {
+            elements.artistSuggestions?.classList.add('hidden');
+            elements.titleSuggestions?.classList.add('hidden');
+        }
+
+        function renderSearchSuggestions(container, items, onSelect) {
+            if (!container) return;
+            if (!items || items.length === 0) {
+                container.classList.add('hidden');
+                container.innerHTML = '';
+                return;
+            }
+            container.innerHTML = items.map((item) =>
+                `<button class="search-suggest-item" type="button">${escapeHtml(item.label || item.value || '')}</button>`
+            ).join('');
+            const buttons = container.querySelectorAll('.search-suggest-item');
+            buttons.forEach((btn, idx) => {
+                btn.addEventListener('click', () => onSelect(items[idx]));
+            });
+            container.classList.remove('hidden');
+        }
+
+        async function fetchLrcLibSearchRaw(query) {
+            try {
+                const params = new URLSearchParams({ q: query });
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5600);
+                const res = await fetch(`https://lrclib.net/api/search?${params}`, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                if (!res.ok) return [];
+                const data = await res.json();
+                return Array.isArray(data) ? data : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        async function fetchItunesSongsByArtist(artistName) {
+            try {
+                const q = encodeURIComponent((artistName || '').trim());
+                const url = `https://itunes.apple.com/search?term=${q}&entity=song&limit=120`;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2800);
+                const res = await fetch(url, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                if (!res.ok) return [];
+                const data = await res.json();
+                const rows = Array.isArray(data?.results) ? data.results : [];
+                return rows.map((r) => ({
+                    trackName: r?.trackName || '',
+                    artistName: r?.artistName || '',
+                    albumName: r?.collectionName || ''
+                }));
+            } catch (e) {
+                return [];
+            }
+        }
+
+        async function fetchItunesSongsByQuery(queryText) {
+            try {
+                const q = encodeURIComponent((queryText || '').trim());
+                const url = `https://itunes.apple.com/search?term=${q}&entity=song&limit=120`;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2800);
+                const res = await fetch(url, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                if (!res.ok) return [];
+                const data = await res.json();
+                const rows = Array.isArray(data?.results) ? data.results : [];
+                return rows.map((r) => ({
+                    trackName: r?.trackName || '',
+                    artistName: r?.artistName || '',
+                    albumName: r?.collectionName || ''
+                }));
+            } catch (e) {
+                return [];
+            }
+        }
+
+        async function fetchLrcLibExactArtistTrack(artist, track) {
+            try {
+                const params = new URLSearchParams({
+                    artist_name: String(artist || '').trim(),
+                    track_name: String(track || '').trim()
+                });
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5600);
+                const res = await fetch(`https://lrclib.net/api/get?${params}`, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                if (!res.ok) return [];
+                const row = await res.json();
+                if (!row || typeof row !== 'object') return [];
+                return [row];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function artistMatchesLoosely(rowArtistNorm, targetArtistNorm) {
+            if (!rowArtistNorm || !targetArtistNorm) return false;
+            if (rowArtistNorm.includes(targetArtistNorm) || targetArtistNorm.includes(rowArtistNorm)) return true;
+            const targetTokens = targetArtistNorm.split(' ').filter(Boolean);
+            if (!targetTokens.length) return false;
+            return targetTokens.every((t) => rowArtistNorm.includes(t));
+        }
+
+        async function fetchItunesArtistSuggestions(query) {
+            try {
+                const q = encodeURIComponent((query || '').trim());
+                const url = `https://itunes.apple.com/search?term=${q}&entity=musicArtist&limit=12`;
+                const res = await fetch(url);
+                if (!res.ok) return [];
+                const data = await res.json();
+                const rows = Array.isArray(data?.results) ? data.results : [];
+                return rows
+                    .map((r) => (r?.artistName || '').trim())
+                    .filter(Boolean);
+            } catch (e) {
+                return [];
+            }
+        }
+
+        async function loadArtistSuggestions() {
+            const artist = (elements.artistInput?.value || '').trim();
+            if (artist.length < 2) {
+                elements.artistSuggestions?.classList.add('hidden');
+                return;
+            }
+            try {
+                const rows = await fetchLrcLibSearchRaw(artist);
+                const seen = new Set();
+                const normArtist = normalizeLookupText(artist);
+                const suggestions = [];
+                rows.forEach((row) => {
+                    const name = (row?.artistName || '').trim();
+                    if (!name) return;
+                    const key = normalizeLookupText(name);
+                    if (!key || seen.has(key)) return;
+                    if (!key.includes(normArtist)) return;
+                    seen.add(key);
+                    suggestions.push({ value: name, label: name });
+                });
+                if (suggestions.length < 5) {
+                    const itunes = await fetchItunesArtistSuggestions(artist);
+                    itunes.forEach((name) => {
+                        const key = normalizeLookupText(name);
+                        if (!key || seen.has(key) || !key.includes(normArtist)) return;
+                        seen.add(key);
+                        suggestions.push({ value: name, label: name });
+                    });
+                }
+                renderSearchSuggestions(elements.artistSuggestions, suggestions.slice(0, 8), (item) => {
+                    if (elements.artistInput) elements.artistInput.value = item.value;
+                    elements.artistSuggestions?.classList.add('hidden');
+                    elements.titleInput?.focus();
+                    if ((elements.titleInput?.value || '').trim().length >= 1) {
+                        loadTitleSuggestions();
+                    }
+                });
+            } catch (e) {
+                elements.artistSuggestions?.classList.add('hidden');
+            }
+        }
+
+        async function loadTitleSuggestions() {
+            const artist = (elements.artistInput?.value || '').trim();
+            const titlePart = (elements.titleInput?.value || '').trim();
+            if (artist.length < 2 || titlePart.length < 1) {
+                elements.titleSuggestions?.classList.add('hidden');
+                return;
+            }
+            try {
+                const rows = await fetchLrcLibSearchRaw(`${artist} ${titlePart}`.trim());
+                const targetArtist = normalizeLookupText(artist);
+                const targetTitle = normalizeLookupText(titlePart);
+                const seen = new Set();
+                const suggestions = [];
+                rows.forEach((row) => {
+                    const track = (row?.trackName || '').trim();
+                    const artistName = (row?.artistName || '').trim();
+                    if (!track || !artistName) return;
+                    const artistNorm = normalizeLookupText(artistName);
+                    const trackNorm = normalizeLookupText(track);
+                    if (!artistNorm.includes(targetArtist)) return;
+                    if (!trackNorm.includes(targetTitle)) return;
+                    if (seen.has(trackNorm)) return;
+                    seen.add(trackNorm);
+                    suggestions.push({ value: track, label: `${track} - ${artistName}` });
+                });
+                renderSearchSuggestions(elements.titleSuggestions, suggestions.slice(0, 10), (item) => {
+                    if (elements.titleInput) elements.titleInput.value = item.value;
+                    elements.titleSuggestions?.classList.add('hidden');
+                });
+            } catch (e) {
+                elements.titleSuggestions?.classList.add('hidden');
+            }
+        }
+
+        async function getArtistSongs(artistName) {
+            const raw = (artistName || '').trim();
+            if (!raw) return [];
+            const cacheKey = normalizeLookupText(raw);
+            if (state.artistSongsCache.has(cacheKey)) return state.artistSongsCache.get(cacheKey);
+            const [lrRows, itRows] = await Promise.all([
+                fetchLrcLibSearchRaw(raw),
+                fetchItunesSongsByArtist(raw)
+            ]);
+            const rows = [...lrRows, ...itRows];
+            const normArtist = normalizeLookupText(raw);
+            const map = new Map();
+            rows.forEach((row) => {
+                const track = (row?.trackName || '').trim();
+                const artist = (row?.artistName || '').trim();
+                const album = (row?.albumName || row?.album || '').trim();
+                if (!track || !artist) return;
+                const artistNorm = normalizeLookupText(artist);
+                if (!artistNorm.includes(normArtist)) return;
+                const key = `${normalizeLookupText(track)}|||${normalizeLookupText(artist)}`;
+                if (!key || map.has(key)) return;
+                map.set(key, { title: track, artist, album });
+            });
+            const songs = Array.from(map.values()).sort((a, b) => a.title.localeCompare(b.title));
+            state.artistSongsCache.set(cacheKey, songs);
+            return songs;
+        }
+
+        async function findArtistSongsByTerm(artistName, term) {
+            const artist = (artistName || '').trim();
+            const termText = (term || '').trim();
+            if (!artist || termText.length < 2) return [];
+            const cacheKey = `${normalizeLookupText(artist)}|||${normalizeLookupText(termText)}`;
+            if (state.artistTermSearchCache.has(cacheKey)) {
+                return state.artistTermSearchCache.get(cacheKey);
+            }
+            const targetArtist = normalizeLookupText(artist);
+            const targetTerm = normalizeLookupText(termText);
+            const [lrRows, lrExactRows, lrTermOnlyRows, itRows] = await Promise.all([
+                fetchLrcLibSearchRaw(`${artist} ${termText}`),
+                fetchLrcLibExactArtistTrack(artist, termText),
+                fetchLrcLibSearchRaw(termText),
+                fetchItunesSongsByQuery(`${artist} ${termText}`)
+            ]);
+            const merged = [...lrRows, ...lrExactRows, ...lrTermOnlyRows, ...itRows];
+            const map = new Map();
+            merged.forEach((row) => {
+                const track = (row?.trackName || '').trim();
+                const rowArtist = (row?.artistName || '').trim();
+                const album = (row?.albumName || row?.album || '').trim();
+                if (!track || !rowArtist) return;
+                const artistNorm = normalizeLookupText(rowArtist);
+                const trackNorm = normalizeLookupText(track);
+                if (!artistMatchesLoosely(artistNorm, targetArtist)) return;
+                if (!trackNorm.includes(targetTerm)) return;
+                const key = `${trackNorm}|||${artistNorm}`;
+                if (map.has(key)) return;
+                map.set(key, { title: track, artist: rowArtist, album });
+            });
+            const out = Array.from(map.values());
+            state.artistTermSearchCache.set(cacheKey, out);
+            return out;
+        }
+
+        async function renderArtistCatalogList(filterText = '', includeLiveMatches = false) {
+            if (!elements.artistCatalogList) return;
+            const q = normalizeLookupText(filterText || '');
+            let songs = (state.artistCatalogSongs || []).filter((song) => {
+                if (!q) return true;
+                const title = normalizeLookupText(song.title);
+                const album = normalizeLookupText(song.album || '');
+                return title.includes(q) || album.includes(q);
+            });
+
+            const seq = ++artistCatalogFilterSeq;
+            if (includeLiveMatches && q.length >= 2) {
+                elements.artistCatalogList.innerHTML = '<div class="auth-recent-empty">Searching more songs...</div>';
+                const live = await findArtistSongsByTerm(state.artistCatalogName || elements.artistInput?.value || '', filterText);
+                if (seq !== artistCatalogFilterSeq) return;
+                if (live.length) {
+                    const byKey = new Map();
+                    songs.forEach((song) => {
+                        const key = `${normalizeLookupText(song.title)}|||${normalizeLookupText(song.artist)}`;
+                        byKey.set(key, song);
+                    });
+                    live.forEach((song) => {
+                        const key = `${normalizeLookupText(song.title)}|||${normalizeLookupText(song.artist)}`;
+                        if (!byKey.has(key)) byKey.set(key, song);
+                    });
+                    songs = Array.from(byKey.values());
+                }
+            }
+
+            if (!songs.length) {
+                const artist = escapeHtml(state.artistCatalogName || elements.artistInput?.value || '');
+                const term = escapeHtml(filterText || '');
+                elements.artistCatalogList.innerHTML = `
+                    <div class="auth-recent-empty">No songs match this filter.</div>
+                    ${term ? `<button type="button" class="auth-friend-btn mx-auto" id="artist-direct-search-btn">Try direct search: ${artist} - ${term}</button>` : ''}
+                `;
+                const directBtn = document.getElementById('artist-direct-search-btn');
+                if (directBtn) {
+                    directBtn.addEventListener('click', async () => {
+                        if (elements.titleInput) elements.titleInput.value = filterText;
+                        await fetchLyrics();
+                    });
+                }
+                return;
+            }
+            const groups = new Map();
+            songs.forEach((song) => {
+                const albumKey = (song.album || 'Singles / Unknown Album').trim() || 'Singles / Unknown Album';
+                if (!groups.has(albumKey)) groups.set(albumKey, []);
+                groups.get(albumKey).push(song);
+            });
+
+            const albumNames = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b));
+            const html = albumNames.map((albumName) => {
+                const albumSongs = groups.get(albumName) || [];
+                const songsHtml = albumSongs
+                    .sort((a, b) => a.title.localeCompare(b.title))
+                    .map((song) => `
+                        <button type="button" class="artist-song-item" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
+                            <span class="artist-song-title">${escapeHtml(song.title)}</span>
+                            <span class="artist-song-meta">${escapeHtml(song.artist)}</span>
+                        </button>
+                    `).join('');
+                return `
+                    <section class="artist-album-section">
+                        <div class="artist-album-title">${escapeHtml(albumName)} <span>(${albumSongs.length})</span></div>
+                        <div class="artist-album-songs">${songsHtml}</div>
+                    </section>
+                `;
+            }).join('');
+
+            elements.artistCatalogList.innerHTML = html;
+            elements.artistCatalogList.querySelectorAll('.artist-song-item').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const title = btn.getAttribute('data-song-title') || '';
+                    const artist = btn.getAttribute('data-song-artist') || (elements.artistInput?.value || '').trim();
+                    await selectSongFromCatalog(title, artist);
+                });
+            });
+        }
+
+        async function selectSongFromCatalog(title, artist) {
+            if (!title || !artist) return;
+            if (elements.artistInput) elements.artistInput.value = artist;
+            if (elements.titleInput) elements.titleInput.value = title;
+            await fetchLyrics();
+        }
+
+        async function loadArtistCatalog() {
+            const artist = (elements.artistInput?.value || '').trim();
+            if (artist.length < 2) {
+                showToast('Type at least 2 letters of the band name.', 'error');
+                return;
+            }
+            state.artistTermSearchCache.clear();
+            hideSearchSuggestions();
+            if (elements.artistCatalog) elements.artistCatalog.classList.remove('hidden');
+            if (elements.artistCatalogName) elements.artistCatalogName.textContent = artist;
+            if (elements.artistCatalogMeta) elements.artistCatalogMeta.textContent = 'Loading songs...';
+            if (elements.artistCatalogList) elements.artistCatalogList.innerHTML = '<div class="auth-recent-empty">Loading...</div>';
+            if (elements.artistSongFilter) elements.artistSongFilter.value = '';
+            if (elements.titleInput) elements.titleInput.value = '';
+
+            updateFetchUI(true, 10, 'Loading artist catalog...');
+            try {
+                const songs = await getArtistSongs(artist);
+                state.artistCatalogSongs = songs;
+                state.artistCatalogName = artist;
+                if (!songs.length) {
+                    if (elements.artistCatalogMeta) elements.artistCatalogMeta.textContent = 'No songs found for this artist in current sources.';
+                    if (elements.artistCatalogList) elements.artistCatalogList.innerHTML = '<div class="auth-recent-empty">Try another artist spelling.</div>';
+                    return;
+                }
+                const albums = new Set(songs.map((s) => (s.album || '').trim()).filter(Boolean));
+                if (elements.artistCatalogName) elements.artistCatalogName.textContent = songs[0].artist || artist;
+                if (elements.artistCatalogMeta) {
+                    elements.artistCatalogMeta.textContent = `${songs.length} songs found${albums.size ? ` - ${albums.size} albums` : ''}. Select one to start.`;
+                }
+                await renderArtistCatalogList('');
+            } catch (e) {
+                if (elements.artistCatalogMeta) elements.artistCatalogMeta.textContent = 'Could not load this artist now.';
+                if (elements.artistCatalogList) elements.artistCatalogList.innerHTML = '<div class="auth-recent-empty">Try again in a few seconds.</div>';
+            } finally {
+                updateFetchUI(false);
+            }
+        }
+
+        async function openArtistSongsModal() {
+            await loadArtistCatalog();
+        }
+
+        function closeArtistSongsModal() {
+            elements.artistSongsModal?.classList.add('hidden');
+        }
+
+        function openAvatarPreview(src = '', label = '') {
+            if (!elements.avatarPreviewOverlay || !elements.avatarPreviewImage || !elements.avatarPreviewName) return;
+            const fallback = 'https://placehold.co/320x320/0B2D45/3EE39E?text=IT';
+            const imageSrc = String(src || '').trim() || elements.authUserAvatar?.src || fallback;
+            const imageLabel = String(label || '').trim() || elements.authUserName?.textContent || 'User avatar';
+            elements.avatarPreviewImage.src = imageSrc;
+            elements.avatarPreviewName.textContent = imageLabel;
+            elements.avatarPreviewOverlay.classList.remove('hidden');
+        }
+
+        function closeAvatarPreview() {
+            elements.avatarPreviewOverlay?.classList.add('hidden');
+        }
+
+        async function handleHeaderAvatarClick(event) {
+            if (event && (event.shiftKey || event.ctrlKey || event.metaKey)) {
+                const src = elements.headerAvatarImage?.src || '';
+                const name = elements.authUserName?.textContent || 'User avatar';
+                openAvatarPreview(src, name);
+                return;
+            }
+            await openFriendsPanel();
+        }
+
         async function fetchLyrics() {
             if (state.isFetching) return;
+            hideSearchSuggestions();
             const artist = elements.artistInput.value.trim();
             const title = elements.titleInput.value.trim();
-            if (!artist || !title) { showToast("Enter both artist and title", "error"); return; }
+            if (!artist || !title) { showToast("Load a band and select one song first.", "error"); return; }
             elements.searchErrorContainer.classList.add('hidden');
             state.isFetching = true;
             updateFetchUI(true, 5, "Connecting to database...");
@@ -1534,17 +2758,25 @@ bindLegacyInlineHandlers();
                 `${artistClean} ${titleClean}`.trim()
             ])];
 
-            let allResults = [];
-            for (const q of queries) {
-                const params = new URLSearchParams({ q });
-                const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000));
-                const res = await Promise.race([ fetch(`https://lrclib.net/api/search?${params}`, { signal }), timeout ]);
-                if (!res.ok) continue;
-                const data = await res.json();
-                if (Array.isArray(data) && data.length > 0) {
-                    allResults = allResults.concat(data);
+            const searchCalls = queries.map(async (q) => {
+                try {
+                    const params = new URLSearchParams({ q });
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 4200);
+                    if (signal) {
+                        signal.addEventListener('abort', () => controller.abort(), { once: true });
+                    }
+                    const res = await fetch(`https://lrclib.net/api/search?${params}`, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    if (!res.ok) return [];
+                    const data = await res.json();
+                    return Array.isArray(data) ? data : [];
+                } catch (e) {
+                    return [];
                 }
-            }
+            });
+            const settled = await Promise.all(searchCalls);
+            const allResults = settled.flat();
 
             if (allResults.length === 0) throw new Error("No results");
 
@@ -2366,6 +3598,7 @@ bindLegacyInlineHandlers();
             trySwitchTab,
             switchTab,
             setGameMode,
+            loadArtistCatalog,
             fetchLyrics,
             loadPreset,
             startCustomGame,
@@ -2377,13 +3610,105 @@ bindLegacyInlineHandlers();
             speakWord,
             toggleVideoPanel,
             switchAuthTab,
+            loginWithProvider,
             registerAccount,
             loginAccount,
             logoutAccount,
             deleteAccount,
+            sendFriendRequest,
+            respondFriendRequest,
+            saveProfileDetails,
+            addCurrentSongToFavorites,
+            removeFavoriteSong,
+            toggleProfileEditor,
+            triggerAvatarPicker,
+            openProfileHub,
+            closeProfileHub,
+            openProfileScreen,
+            openFriendsPanel,
+            openAccountSettings,
+            handleHeaderAvatarClick,
+            openArtistSongsModal,
+            closeArtistSongsModal,
+            openAvatarPreview,
+            closeAvatarPreview,
         });
 
         elements.input.addEventListener('input', (e) => handleInput(elements.input.value));
+        if (elements.artistInput) {
+            elements.artistInput.addEventListener('input', () => {
+                if (artistSuggestTimer) clearTimeout(artistSuggestTimer);
+                artistSuggestTimer = setTimeout(() => loadArtistSuggestions(), 220);
+            });
+            elements.artistInput.addEventListener('focus', () => {
+                if ((elements.artistInput.value || '').trim().length >= 2) {
+                    loadArtistSuggestions();
+                }
+            });
+        }
+        if (elements.titleInput) {
+            elements.titleInput.addEventListener('input', () => {
+                if (titleSuggestTimer) clearTimeout(titleSuggestTimer);
+                titleSuggestTimer = setTimeout(() => loadTitleSuggestions(), 220);
+            });
+            elements.titleInput.addEventListener('focus', () => {
+                if ((elements.titleInput.value || '').trim().length >= 1 && (elements.artistInput?.value || '').trim().length >= 2) {
+                    loadTitleSuggestions();
+                }
+            });
+        }
+        if (elements.artistSongFilter) {
+            elements.artistSongFilter.addEventListener('input', () => {
+                if (artistCatalogFilterTimer) clearTimeout(artistCatalogFilterTimer);
+                artistCatalogFilterTimer = setTimeout(() => {
+                    renderArtistCatalogList(elements.artistSongFilter.value || '', true);
+                }, 220);
+            });
+        }
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+            const insideArtist = elements.artistInput?.parentElement?.contains(target);
+            const insideTitle = elements.titleInput?.parentElement?.contains(target);
+            if (!insideArtist) elements.artistSuggestions?.classList.add('hidden');
+            if (!insideTitle) elements.titleSuggestions?.classList.add('hidden');
+        });
+        if (elements.authAvatarFile) {
+            elements.authAvatarFile.addEventListener('change', (e) => {
+                const file = e.target.files?.[0] || null;
+                if (!file) {
+                    authPendingAvatarFile = null;
+                    if (elements.authAvatarFileName) elements.authAvatarFileName.textContent = 'No file selected';
+                    return;
+                }
+                if (!file.type.startsWith('image/')) {
+                    showToast('Please select an image file.', 'error');
+                    e.target.value = '';
+                    authPendingAvatarFile = null;
+                    if (elements.authAvatarFileName) elements.authAvatarFileName.textContent = 'No file selected';
+                    return;
+                }
+                const maxBytes = 2 * 1024 * 1024;
+                if (file.size > maxBytes) {
+                    showToast('Image must be up to 2MB.', 'error');
+                    e.target.value = '';
+                    authPendingAvatarFile = null;
+                    if (elements.authAvatarFileName) elements.authAvatarFileName.textContent = 'No file selected';
+                    return;
+                }
+                authPendingAvatarFile = file;
+                if (elements.authAvatarFileName) elements.authAvatarFileName.textContent = file.name;
+                if (authAvatarPreviewUrl) {
+                    URL.revokeObjectURL(authAvatarPreviewUrl);
+                }
+                authAvatarPreviewUrl = URL.createObjectURL(file);
+                if (elements.authUserAvatar) {
+                    elements.authUserAvatar.src = authAvatarPreviewUrl;
+                }
+            });
+        }
+        if (elements.authHistorySong) {
+            elements.authHistorySong.addEventListener('change', () => renderSongHistoryDetails());
+        }
         window.addEventListener('resize', () => { if(state.isPlaying) updateCaretPosition(); });
         elements.gameArea.addEventListener('click', () => { if(!state.isPreviewMode) focusTypingInput(); });
         if (elements.videoFrame) {
