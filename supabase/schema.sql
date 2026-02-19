@@ -447,6 +447,9 @@ for delete
 to authenticated
 using (auth.uid() = user_id);
 
+grant select, insert, delete on table public.user_favorites to authenticated;
+grant usage, select on sequence public.user_favorites_id_seq to authenticated;
+
 -- Avatar storage bucket (public read, owner write/delete)
 insert into storage.buckets (id, name, public)
 values ('avatars', 'avatars', true)
@@ -492,3 +495,137 @@ using (
   bucket_id = 'avatars'
   and auth.uid()::text = (storage.foldername(name))[1]
 );
+
+-- Shared result cards (score links)
+create table if not exists public.shared_results (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  song_title text,
+  artist text,
+  mode text not null default 'normal' check (mode in ('normal', 'cloze', 'rhythm')),
+  wpm integer not null default 0,
+  accuracy integer not null default 0 check (accuracy between 0 and 100),
+  raw integer not null default 0,
+  consistency integer not null default 0 check (consistency between 0 and 100),
+  duration_seconds integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_shared_results_created_at
+on public.shared_results(created_at desc);
+
+create index if not exists idx_shared_results_user_created_at
+on public.shared_results(user_id, created_at desc);
+
+alter table public.shared_results enable row level security;
+
+drop policy if exists "shared_results_select_auth" on public.shared_results;
+create policy "shared_results_select_auth"
+on public.shared_results
+for select
+to authenticated
+using (true);
+
+drop policy if exists "shared_results_insert_own" on public.shared_results;
+create policy "shared_results_insert_own"
+on public.shared_results
+for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop function if exists public.create_shared_result(text, text, text, integer, integer, integer, integer, integer);
+create or replace function public.create_shared_result(
+  p_song_title text,
+  p_artist text,
+  p_mode text,
+  p_wpm integer,
+  p_accuracy integer,
+  p_raw integer,
+  p_consistency integer,
+  p_duration_seconds integer
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+
+  insert into public.shared_results (
+    user_id,
+    song_title,
+    artist,
+    mode,
+    wpm,
+    accuracy,
+    raw,
+    consistency,
+    duration_seconds
+  ) values (
+    auth.uid(),
+    p_song_title,
+    p_artist,
+    coalesce(p_mode, 'normal'),
+    coalesce(p_wpm, 0),
+    coalesce(p_accuracy, 0),
+    coalesce(p_raw, 0),
+    coalesce(p_consistency, 0),
+    coalesce(p_duration_seconds, 0)
+  )
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+revoke all on function public.create_shared_result(text, text, text, integer, integer, integer, integer, integer) from public;
+grant execute on function public.create_shared_result(text, text, text, integer, integer, integer, integer, integer) to authenticated;
+
+drop function if exists public.get_shared_result(uuid);
+create or replace function public.get_shared_result(p_share_id uuid)
+returns table (
+  id uuid,
+  owner_id uuid,
+  owner_username text,
+  owner_avatar_url text,
+  song_title text,
+  artist text,
+  mode text,
+  wpm integer,
+  accuracy integer,
+  raw integer,
+  consistency integer,
+  duration_seconds integer,
+  created_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select
+    sr.id,
+    sr.user_id as owner_id,
+    coalesce(p.username, 'unknown') as owner_username,
+    p.avatar_url as owner_avatar_url,
+    sr.song_title,
+    sr.artist,
+    sr.mode,
+    sr.wpm,
+    sr.accuracy,
+    sr.raw,
+    sr.consistency,
+    sr.duration_seconds,
+    sr.created_at
+  from public.shared_results sr
+  left join public.profiles p on p.id = sr.user_id
+  where sr.id = p_share_id
+  limit 1;
+$$;
+
+revoke all on function public.get_shared_result(uuid) from public;
+grant execute on function public.get_shared_result(uuid) to anon, authenticated;

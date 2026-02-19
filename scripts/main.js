@@ -5,6 +5,7 @@ import { createAudioApi } from './features/audio.js';
 import { toggleDyslexicMode as toggleDyslexicModeImpl } from './features/accessibility.js';
 import { THEMES } from './config/themes.js';
 import { presets } from './config/presets.js';
+import { PUBLIC_APP_URL } from './config/app.js';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config/supabase.js';
 
@@ -312,6 +313,7 @@ bindLegacyInlineHandlers();
             youtubeCandidateIndex: 0,
             wpmHistory: [],
             previousRun: null,
+            lastResultShare: null,
             practiceQueue: [],
             currentPracticeIndex: 0,
             isCustomGame: false,
@@ -323,6 +325,7 @@ bindLegacyInlineHandlers();
             setupArea: document.getElementById('setup-area'),
             gameArea: document.getElementById('game-area'),
             resultsArea: document.getElementById('results-area'),
+            sharedResultArea: document.getElementById('shared-result-area'),
             wordsContainer: document.getElementById('words'),
             wordsWrapper: document.getElementById('words-wrapper'),
             input: document.getElementById('typing-input'),
@@ -344,6 +347,7 @@ bindLegacyInlineHandlers();
             viewSearch: document.getElementById('view-search'),
             viewPresets: document.getElementById('view-presets'),
             viewCustom: document.getElementById('view-custom'),
+            favoritesTabList: document.getElementById('favorites-tab-list'),
             artistInput: document.getElementById('input-artist'),
             titleInput: document.getElementById('input-title'),
             artistSuggestions: document.getElementById('artist-suggestions'),
@@ -452,7 +456,16 @@ bindLegacyInlineHandlers();
             profileHubRecent: document.getElementById('profile-hub-recent'),
             profileHubFavorites: document.getElementById('profile-hub-favorites'),
             profileHubFriends: document.getElementById('profile-hub-friends'),
-            profileHubAchievements: document.getElementById('profile-hub-achievements')
+            profileHubAchievements: document.getElementById('profile-hub-achievements'),
+            profileHubCompareSelect: document.getElementById('profile-hub-compare-select'),
+            profileHubCompareGrid: document.getElementById('profile-hub-compare-grid'),
+            sharedResultUser: document.getElementById('shared-result-user'),
+            sharedResultSong: document.getElementById('shared-result-song'),
+            sharedResultMeta: document.getElementById('shared-result-meta'),
+            sharedResultWpm: document.getElementById('shared-result-wpm'),
+            sharedResultAcc: document.getElementById('shared-result-acc'),
+            sharedResultRaw: document.getElementById('shared-result-raw'),
+            sharedResultConsistency: document.getElementById('shared-result-consistency')
         };
 
         function initSpeech() { window.speechSynthesis.getVoices(); }
@@ -501,8 +514,13 @@ bindLegacyInlineHandlers();
         let authAvatarPreviewUrl = '';
         let authStoredAvatarUrl = '';
         let authAccountViewMode = 'full';
+        let profileHubContext = { type: 'self', friend: null, source: 'self' };
+        let profileHubCompareFriendKey = '';
+        let pendingSharedResultId = '';
         let artistSuggestTimer = null;
         let titleSuggestTimer = null;
+        let artistSuggestSeq = 0;
+        let titleSuggestSeq = 0;
         let artistCatalogFilterTimer = null;
         let artistCatalogFilterSeq = 0;
 
@@ -800,8 +818,12 @@ bindLegacyInlineHandlers();
                 .order('created_at', { ascending: false })
                 .limit(200);
             authFavoritesCache = data || [];
+            if (error) {
+                showToast(`Could not load favorites (${error.message || 'unknown error'}).`, 'error');
+            }
             if (error || !data || data.length === 0) {
                 elements.authFavoritesList.innerHTML = '<div class="auth-recent-empty">No favorites yet.</div>';
+                renderSetupFavoritesTab();
                 renderProfileHub();
                 return;
             }
@@ -817,35 +839,123 @@ bindLegacyInlineHandlers();
                           <button class="auth-friend-btn reject" data-onclick="removeFavoriteSong(${f.id})">Remove</button>
                         </div>`;
             }).join('');
+            renderSetupFavoritesTab();
             renderProfileHub();
         }
 
-        async function addCurrentSongToFavorites() {
-            if (!ensureSupabaseReady()) return;
+        function buildFavoriteSongKey(artist, songTitle) {
+            return `${normalizeLookupText(artist)}|||${normalizeLookupText(songTitle)}`;
+        }
+
+        function isSongFavorited(artist, songTitle) {
+            const target = buildFavoriteSongKey(artist, songTitle);
+            return (authFavoritesCache || []).some((f) => buildFavoriteSongKey(f.artist, f.song_title) === target);
+        }
+
+        async function addSongToFavorites(artist, songTitle, silent = false) {
+            if (!ensureSupabaseReady()) return false;
             const user = authCurrentUser || await syncCurrentUser();
             if (!user) {
-                showToast('You need to be logged in.', 'error');
+                if (!silent) showToast('Login to save favorites.', 'info');
+                return false;
+            }
+            const safeArtist = String(artist || '').trim();
+            const safeSong = String(songTitle || '').trim();
+            if (!safeSong || !safeArtist) {
+                if (!silent) showToast('Invalid song data.', 'error');
+                return false;
+            }
+            if (isSongFavorited(safeArtist, safeSong)) {
+                if (!silent) showToast('Song already in favorites.', 'info');
+                return true;
+            }
+
+            const { data: existing, error: existingError } = await supabase
+                .from('user_favorites')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('song_title', safeSong)
+                .eq('artist', safeArtist)
+                .maybeSingle();
+            if (existingError) {
+                if (!silent) showToast(`Could not validate favorite (${existingError.message || 'unknown error'}).`, 'error');
+                return false;
+            }
+
+            if (existing?.id) {
+                if (!silent) showToast('Song already in favorites.', 'info');
+                await loadFavoriteSongs(user.id);
+                return true;
+            }
+
+            const { error } = await supabase
+                .from('user_favorites')
+                .insert({
+                    user_id: user.id,
+                    song_title: safeSong,
+                    artist: safeArtist
+                });
+            if (error) {
+                if (String(error.code || '') === '23505') {
+                    if (!silent) showToast('Song already in favorites.', 'info');
+                    await loadFavoriteSongs(user.id);
+                    return true;
+                }
+                if (!silent) showToast(`Could not add favorite (${error.message || 'unknown error'}).`, 'error');
+                return false;
+            }
+
+            await loadFavoriteSongs(user.id);
+            if (!silent) showToast('Song added to favorites.', 'info');
+            return true;
+        }
+
+        function renderSetupFavoritesTab() {
+            if (!elements.favoritesTabList) return;
+            const isLoggedIn = !!authCurrentUser;
+            if (!isLoggedIn) {
+                elements.favoritesTabList.innerHTML = `<div class="auth-recent-empty">Login to see your saved favorites and play them instantly.</div>`;
                 return;
             }
+            if (!authFavoritesCache.length) {
+                elements.favoritesTabList.innerHTML = `<div class="auth-recent-empty">No favorites yet. Load a song and click "Add current song" in your account.</div>`;
+                return;
+            }
+            elements.favoritesTabList.innerHTML = authFavoritesCache.slice(0, 80).map((f) => {
+                const title = escapeHtml(f.song_title || 'Unknown Song');
+                const artist = escapeHtml(f.artist || 'Unknown Artist');
+                const when = f.created_at ? new Date(f.created_at).toLocaleDateString() : '';
+                const encodedArtist = encodeURIComponent(f.artist || '');
+                const encodedTitle = encodeURIComponent(f.song_title || '');
+                return `<button class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn"
+                                data-onclick="playFavoriteFromSetup('${encodedArtist}','${encodedTitle}')">
+                          <div class="text-base group-hover:text-main font-bold">${artist} - ${title}</div>
+                          <div class="text-xs text-sub">${when ? `saved ${when}` : 'saved song'}</div>
+                        </button>`;
+            }).join('');
+        }
+
+        async function playFavoriteFromSetup(encodedArtist, encodedTitle) {
+            const artist = decodeURIComponent(String(encodedArtist || '')).trim();
+            const title = decodeURIComponent(String(encodedTitle || '')).trim();
+            if (!artist || !title) {
+                showToast('Invalid favorite song.', 'error');
+                return;
+            }
+            if (elements.artistInput) elements.artistInput.value = artist;
+            if (elements.titleInput) elements.titleInput.value = title;
+            switchTab('search');
+            await fetchLyrics();
+        }
+
+        async function addCurrentSongToFavorites() {
             const songTitle = (state.songTitle || '').trim();
             const artist = (state.artist || '').trim();
             if (!songTitle || !artist) {
                 showToast('Load a song first.', 'error');
                 return;
             }
-            const { error } = await supabase
-                .from('user_favorites')
-                .upsert({
-                    user_id: user.id,
-                    song_title: songTitle,
-                    artist
-                }, { onConflict: 'user_id,song_title,artist', ignoreDuplicates: true });
-            if (error) {
-                showToast('Could not add favorite.', 'error');
-                return;
-            }
-            showToast('Song added to favorites.', 'info');
-            await loadFavoriteSongs(user.id);
+            await addSongToFavorites(artist, songTitle);
         }
 
         async function removeFavoriteSong(favoriteId) {
@@ -862,6 +972,17 @@ bindLegacyInlineHandlers();
                 return;
             }
             await loadFavoriteSongs(user.id);
+        }
+
+        async function addFavoriteFromCatalog(encodedArtist, encodedTitle) {
+            const artist = decodeURIComponent(String(encodedArtist || '')).trim();
+            const title = decodeURIComponent(String(encodedTitle || '')).trim();
+            if (!artist || !title) {
+                showToast('Invalid song data.', 'error');
+                return;
+            }
+            await addSongToFavorites(artist, title);
+            await renderArtistCatalogList(elements.artistSongFilter?.value || '', false);
         }
 
         async function loginWithProvider(provider) {
@@ -1008,6 +1129,127 @@ bindLegacyInlineHandlers();
             });
         }
 
+        function openFriendProfileFromList(encodedUsername, source = 'friends') {
+            const username = decodeURIComponent(String(encodedUsername || '')).trim();
+            if (!username) return;
+            const key = normalizeLookupText(username);
+            const friend = authFriendsCache.find((f) => normalizeLookupText(f.username) === key);
+            const req = authFriendRequestsCache.find((r) => normalizeLookupText(r.username) === key);
+            const selected = friend || req;
+            if (!selected) {
+                showToast('Could not load this profile now.', 'error');
+                return;
+            }
+            profileHubContext = { type: 'friend', friend: selected, source };
+            profileHubCompareFriendKey = key;
+            if (elements.profileHubOverlay) {
+                elements.profileHubOverlay.classList.remove('hidden');
+                renderProfileHub();
+            }
+        }
+
+        function readFriendSummaryStats(friend) {
+            const toMaybeNumber = (value) => {
+                if (value === null || value === undefined || value === '') return null;
+                const n = Number(value);
+                return Number.isFinite(n) ? n : null;
+            };
+            const stats = {
+                games: toMaybeNumber(friend?.games),
+                bestWpm: toMaybeNumber(friend?.best_wpm ?? friend?.bestWpm),
+                avgWpm: toMaybeNumber(friend?.avg_wpm ?? friend?.avgWpm),
+                avgAcc: toMaybeNumber(friend?.avg_acc ?? friend?.avgAcc)
+            };
+            const hasSummary = ['games', 'best_wpm', 'avg_wpm', 'avg_acc', 'bestWpm', 'avgWpm', 'avgAcc']
+                .some((k) => friend && friend[k] !== undefined && friend[k] !== null);
+            return { stats, hasSummary };
+        }
+
+        function getSelfSummaryStats() {
+            const parseTextNumber = (value) => {
+                const n = Number(String(value || '').replace(/[^0-9.-]/g, ''));
+                return Number.isFinite(n) ? n : 0;
+            };
+            return {
+                games: Number(authStatsSummary?.games) || parseTextNumber(elements.authStatGames?.textContent),
+                bestWpm: Number(authStatsSummary?.bestWpm) || parseTextNumber(elements.authStatBestWpm?.textContent),
+                avgWpm: Number(authStatsSummary?.avgWpm) || parseTextNumber(elements.authStatAvgWpm?.textContent),
+                avgAcc: Number(authStatsSummary?.avgAcc) || parseTextNumber(elements.authStatAvgAcc?.textContent)
+            };
+        }
+
+        function renderProfileHubComparison(selfStats, preferredFriend = null) {
+            if (!elements.profileHubCompareSelect || !elements.profileHubCompareGrid) return;
+            const friends = Array.isArray(authFriendsCache) ? authFriendsCache : [];
+            const preferredKey = normalizeLookupText(preferredFriend?.username || '');
+            const preferredInFriends = preferredKey
+                ? friends.some((f) => normalizeLookupText(f.username) === preferredKey)
+                : false;
+            const isFriendContext = profileHubContext.type === 'friend' && !!preferredFriend;
+            const candidates = isFriendContext
+                ? [preferredFriend]
+                : ((!preferredFriend || preferredInFriends) ? friends : [preferredFriend, ...friends]);
+
+            if (!candidates.length) {
+                elements.profileHubCompareSelect.innerHTML = '<option value="">No friends to compare</option>';
+                elements.profileHubCompareSelect.disabled = true;
+                elements.profileHubCompareGrid.innerHTML = '<div class="auth-recent-empty">Add friends to compare your profile stats here.</div>';
+                return;
+            }
+
+            const targetKey = profileHubCompareFriendKey || preferredKey || normalizeLookupText(candidates[0]?.username || '');
+            profileHubCompareFriendKey = targetKey;
+
+            elements.profileHubCompareSelect.disabled = isFriendContext;
+            elements.profileHubCompareSelect.innerHTML = candidates.map((friend) => {
+                const key = normalizeLookupText(friend?.username || '');
+                const selected = key === targetKey ? ' selected' : '';
+                return `<option value="${escapeHtml(key)}"${selected}>${escapeHtml(friend?.username || 'friend')}</option>`;
+            }).join('');
+
+            const selectedFriend = candidates.find((f) => normalizeLookupText(f.username || '') === profileHubCompareFriendKey) || candidates[0];
+            const selectedName = String(selectedFriend?.username || 'friend');
+            const { stats: friendStats } = readFriendSummaryStats(selectedFriend);
+
+            const self = {
+                games: Number(selfStats?.games) || 0,
+                bestWpm: Number(selfStats?.bestWpm) || 0,
+                avgWpm: Number(selfStats?.avgWpm) || 0,
+                avgAcc: Number(selfStats?.avgAcc) || 0
+            };
+            const selfLabel = String(elements.authUserName?.textContent || 'You').trim();
+            const metrics = [
+                { label: 'Games', self: self.games, friend: friendStats.games, suffix: '' },
+                { label: 'Best WPM', self: self.bestWpm, friend: friendStats.bestWpm, suffix: '' },
+                { label: 'Avg WPM', self: self.avgWpm, friend: friendStats.avgWpm, suffix: '' },
+                { label: 'Avg Acc', self: self.avgAcc, friend: friendStats.avgAcc, suffix: '%' }
+            ];
+
+            const rows = metrics.map((metric) => {
+                const hasFriendValue = metric.friend !== null && metric.friend !== undefined;
+                const diff = hasFriendValue ? (metric.friend - metric.self) : null;
+                const diffClass = diff === null ? 'even' : (diff > 0 ? 'up' : (diff < 0 ? 'down' : 'even'));
+                const friendText = hasFriendValue ? `${metric.friend}${metric.suffix}` : 'N/A';
+                const diffText = diff === null ? 'N/A' : `${diff > 0 ? '+' : ''}${diff}${metric.suffix}`;
+                return `<div class="profile-hub-compare-row">
+                          <div class="profile-hub-compare-metric">${metric.label}</div>
+                          <div class="profile-hub-compare-you">${metric.self}${metric.suffix}</div>
+                          <div class="profile-hub-compare-friend">${friendText}</div>
+                          <div class="profile-hub-compare-diff ${diffClass}">${diffText}</div>
+                        </div>`;
+            }).join('');
+
+            elements.profileHubCompareGrid.innerHTML = `
+                <div class="profile-hub-compare-row head">
+                    <div class="profile-hub-compare-metric">Metric</div>
+                    <div class="profile-hub-compare-you">${escapeHtml(selfLabel)}</div>
+                    <div class="profile-hub-compare-friend">${escapeHtml(selectedName)}</div>
+                    <div class="profile-hub-compare-diff">Diff</div>
+                </div>
+                ${rows}
+            `;
+        }
+
         async function loadFriendsPanel() {
             if (!supabase || !authCurrentUser) return;
             const [reqRes, friendsRes] = await Promise.all([
@@ -1015,7 +1257,8 @@ bindLegacyInlineHandlers();
                 supabase.rpc('get_my_friends_with_stats')
             ]);
 
-            const reqRows = reqRes.data || [];
+            const reqRowsAll = reqRes.data || [];
+            const reqRows = reqRowsAll.filter((r) => String(r?.status || '').toLowerCase() === 'pending');
             const friendRows = friendsRes.data || [];
             authFriendRequestsCache = reqRows;
             authFriendsCache = friendRows;
@@ -1026,14 +1269,19 @@ bindLegacyInlineHandlers();
                 } else {
                     elements.authFriendRequests.innerHTML = reqRows.map((r) => {
                         const username = escapeHtml(r.username);
+                        const encodedUsername = encodeURIComponent(r.username || '');
                         const direction = escapeHtml(r.direction);
                         const status = escapeHtml(r.status);
                         const actions = r.direction === 'incoming' && r.status === 'pending'
                             ? `<div class="auth-friend-actions">
                                  <button class="auth-friend-btn accept" data-onclick="respondFriendRequest(${r.request_id}, true)">Accept</button>
                                  <button class="auth-friend-btn reject" data-onclick="respondFriendRequest(${r.request_id}, false)">Reject</button>
+                                 <button class="auth-friend-btn" data-onclick="openFriendProfileFromList('${encodedUsername}','requests')">View profile</button>
                                </div>`
-                            : `<div class="auth-friend-meta">${direction} - ${status}</div>`;
+                            : `<div class="auth-friend-actions">
+                                 <div class="auth-friend-meta">${direction} - ${status}</div>
+                                 <button class="auth-friend-btn" data-onclick="openFriendProfileFromList('${encodedUsername}','requests')">View profile</button>
+                               </div>`;
                         const avatar = buildFriendAvatarButton(r.username, r.avatar_url);
                         return `<div class="auth-friend-item">
                                   ${avatar}
@@ -1057,6 +1305,7 @@ bindLegacyInlineHandlers();
                         const diff = (Number(f.avg_wpm) || 0) - selfAvg;
                         const diffText = `${diff > 0 ? '+' : ''}${diff} vs you`;
                         const username = escapeHtml(f.username);
+                        const encodedUsername = encodeURIComponent(f.username || '');
                         const avatar = buildFriendAvatarButton(f.username, f.avatar_url);
                         return `<div class="auth-friend-item">
                                   ${avatar}
@@ -1064,7 +1313,10 @@ bindLegacyInlineHandlers();
                                     <div class="auth-friend-name">${username}</div>
                                     <div class="auth-friend-meta">${f.games} games | avg ${f.avg_wpm} | best ${f.best_wpm} | acc ${f.avg_acc}%</div>
                                   </div>
-                                  <div class="auth-recent-score">${escapeHtml(diffText)}</div>
+                                  <div class="auth-friend-actions">
+                                    <div class="auth-recent-score">${escapeHtml(diffText)}</div>
+                                    <button class="auth-friend-btn" data-onclick="openFriendProfileFromList('${encodedUsername}','compare')">View profile</button>
+                                  </div>
                                 </div>`;
                     }).join('');
                     bindFriendAvatarPreview(elements.authFriendCompare);
@@ -1128,6 +1380,7 @@ bindLegacyInlineHandlers();
             authFriendsCache = [];
             authFriendRequestsCache = [];
             authFavoritesCache = [];
+            renderSetupFavoritesTab();
             renderProfileHub();
         }
 
@@ -1211,6 +1464,61 @@ bindLegacyInlineHandlers();
 
         function renderProfileHub() {
             if (!elements.profileHubOverlay || elements.profileHubOverlay.classList.contains('hidden')) return;
+            if (profileHubContext.type === 'friend' && profileHubContext.friend) {
+                const f = profileHubContext.friend;
+                const friendLookupKey = normalizeLookupText(f.username || '');
+                const friendFromCompare = authFriendsCache.find((x) => normalizeLookupText(x.username || '') === friendLookupKey);
+                const summarySource = friendFromCompare || f;
+                const friendSummary = readFriendSummaryStats(summarySource).stats;
+                const stats = {
+                    games: Number(friendSummary.games ?? 0) || 0,
+                    bestWpm: Number(friendSummary.bestWpm ?? 0) || 0,
+                    avgWpm: Number(friendSummary.avgWpm ?? 0) || 0,
+                    avgAcc: Number(friendSummary.avgAcc ?? 0) || 0
+                };
+                const username = String(f.username || 'friend');
+                const avatar = sanitizeAvatarUrl(f.avatar_url || '') || 'https://placehold.co/96x96/0B2D45/3EE39E?text=IT';
+                const level = computeProfileLevel(stats);
+                const achievements = computeAchievements(stats);
+                const source = profileHubContext.source === 'requests'
+                    ? `${f.direction || 'request'} - ${f.status || 'pending'}`
+                    : 'Friend profile';
+
+                if (elements.profileHubName) elements.profileHubName.textContent = username;
+                if (elements.profileHubAvatar) elements.profileHubAvatar.src = avatar;
+                if (elements.profileHubLevel) elements.profileHubLevel.textContent = `Level ${level}`;
+                if (elements.profileHubEmail) elements.profileHubEmail.textContent = source;
+                if (elements.profileHubBio) elements.profileHubBio.textContent = 'Public summary from your social panel.';
+                if (elements.profileHubGames) elements.profileHubGames.textContent = String(stats.games);
+                if (elements.profileHubBest) elements.profileHubBest.textContent = String(stats.bestWpm);
+                if (elements.profileHubAvgWpm) elements.profileHubAvgWpm.textContent = String(stats.avgWpm);
+                if (elements.profileHubAvgAcc) elements.profileHubAvgAcc.textContent = `${stats.avgAcc}%`;
+
+                if (elements.profileHubAchievements) {
+                    if (achievements.length === 0) {
+                        elements.profileHubAchievements.innerHTML = '<div class="auth-recent-empty">No achievements yet.</div>';
+                    } else {
+                        elements.profileHubAchievements.innerHTML = achievements.map((a) => `<span class="auth-achievement">${escapeHtml(a)}</span>`).join('');
+                    }
+                }
+                if (elements.profileHubRecent) elements.profileHubRecent.innerHTML = '<div class="auth-recent-empty">Detailed run history is private.</div>';
+                if (elements.profileHubFavorites) elements.profileHubFavorites.innerHTML = '<div class="auth-recent-empty">Favorites are private.</div>';
+                if (elements.profileHubFriends) {
+                    const encodedUsername = encodeURIComponent(username);
+                    elements.profileHubFriends.innerHTML = `<div class="auth-friend-item">
+                        ${buildFriendAvatarButton(username, f.avatar_url)}
+                        <div>
+                          <div class="auth-friend-name">${escapeHtml(username)}</div>
+                          <div class="auth-friend-meta">${escapeHtml(source)}</div>
+                        </div>
+                        <button class="auth-friend-btn" data-onclick="openFriendProfileFromList('${encodedUsername}','compare')">Refresh</button>
+                    </div>`;
+                    bindFriendAvatarPreview(elements.profileHubFriends);
+                }
+                renderProfileHubComparison(getSelfSummaryStats(), f);
+                drawProfileHubChart([]);
+                return;
+            }
             const username = elements.authUserName?.textContent || 'user';
             const email = elements.authUserEmail?.textContent || '';
             const avatar = elements.authUserAvatar?.src || 'https://placehold.co/96x96/0B2D45/3EE39E?text=IT';
@@ -1279,19 +1587,24 @@ bindLegacyInlineHandlers();
                         const diff = (Number(f.avg_wpm) || 0) - myAvg;
                         const diffText = `${diff > 0 ? '+' : ''}${diff} vs you`;
                         const avatar = buildFriendAvatarButton(f.username, f.avatar_url);
+                        const encodedUsername = encodeURIComponent(f.username || '');
                         return `<div class="auth-friend-item">
                                   ${avatar}
                                   <div>
                                     <div class="auth-friend-name">${escapeHtml(f.username)}</div>
                                     <div class="auth-friend-meta">${f.games} games | avg ${f.avg_wpm} | best ${f.best_wpm} | acc ${f.avg_acc}%</div>
                                   </div>
-                                  <div class="auth-recent-score">${escapeHtml(diffText)}</div>
+                                  <div class="auth-friend-actions">
+                                    <div class="auth-recent-score">${escapeHtml(diffText)}</div>
+                                    <button class="auth-friend-btn" data-onclick="openFriendProfileFromList('${encodedUsername}','hub')">View profile</button>
+                                  </div>
                                 </div>`;
                     }).join('');
                     bindFriendAvatarPreview(elements.profileHubFriends);
                 }
             }
 
+            renderProfileHubComparison(getSelfSummaryStats());
             drawProfileHubChart(authGameResultsCache);
         }
 
@@ -1303,6 +1616,7 @@ bindLegacyInlineHandlers();
                 return;
             }
             await refreshAuthUI();
+            profileHubContext = { type: 'self', friend: null, source: 'self' };
             if (elements.profileHubOverlay) {
                 elements.profileHubOverlay.classList.remove('hidden');
                 renderProfileHub();
@@ -1344,6 +1658,8 @@ bindLegacyInlineHandlers();
 
         function closeProfileHub() {
             if (elements.profileHubOverlay) elements.profileHubOverlay.classList.add('hidden');
+            profileHubContext = { type: 'self', friend: null, source: 'self' };
+            profileHubCompareFriendKey = '';
         }
 
         async function loadUserGameStats(userId) {
@@ -1473,7 +1789,9 @@ bindLegacyInlineHandlers();
                 await loadUserGameStats(user.id);
                 await loadFriendsPanel();
                 await loadFavoriteSongs(user.id);
+                renderSetupFavoritesTab();
                 renderProfileHub();
+                await maybeOpenSharedResultFromLink();
             } else {
                 resetAuthDashboardUI();
                 if (elements.authRememberMe) elements.authRememberMe.checked = shouldPersistSession();
@@ -1481,6 +1799,7 @@ bindLegacyInlineHandlers();
                 closeProfileHub();
                 authStoredAvatarUrl = '';
                 if (elements.headerAvatarImage) elements.headerAvatarImage.src = 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
+                renderSetupFavoritesTab();
             }
             setAccountViewMode(authAccountViewMode);
         }
@@ -2264,6 +2583,7 @@ bindLegacyInlineHandlers();
             state.previousRun = null; 
             elements.gameArea.classList.add('hidden');
             elements.resultsArea.classList.add('hidden');
+            elements.sharedResultArea?.classList.add('hidden');
             elements.setupArea.classList.remove('hidden');
             elements.input.blur();
             toggleVideoPanel(false);
@@ -2274,6 +2594,7 @@ bindLegacyInlineHandlers();
             const loader = document.getElementById('search-loader');
             const fetchBtn = document.getElementById('btn-fetch-action');
             if (isFetching) {
+                hideSearchSuggestions();
                 btnText.classList.add('hidden');
                 loader.classList.remove('hidden');
                 fetchBtn.classList.add('opacity-70', 'cursor-not-allowed');
@@ -2302,6 +2623,68 @@ bindLegacyInlineHandlers();
                 .trim();
         }
 
+        function stripFeaturing(value) {
+            return String(value || '')
+                .replace(/\s*[\(\[]?\s*(ft|feat|featuring)\.?\s+.*?[\)\]]?\s*$/i, '')
+                .trim();
+        }
+
+        function stripTrailingMeta(value) {
+            return String(value || '')
+                .replace(/\s*-\s*(live|acoustic|remaster(ed)?|radio edit|version|bonus track).*$/i, '')
+                .replace(/\s*[\(\[]\s*(live|acoustic|remaster(ed)?|radio edit|version|bonus track).*?[\)\]]\s*$/i, '')
+                .trim();
+        }
+
+        function encodePathSegment(value) {
+            return encodeURIComponent(String(value || '').trim());
+        }
+
+        function scoreLrcLibMatch(item, targetArtistNorm, targetTitleNorm) {
+            const artistNorm = normalizeLookupText(item?.artistName || '');
+            const titleNorm = normalizeLookupText(item?.trackName || '');
+            if (!artistNorm || !titleNorm) return -1;
+            let score = 0;
+            if (artistNorm === targetArtistNorm) score += 80;
+            else if (artistMatchesLoosely(artistNorm, targetArtistNorm)) score += 45;
+
+            if (titleNorm === targetTitleNorm) score += 120;
+            else if (titleNorm.includes(targetTitleNorm) || targetTitleNorm.includes(titleNorm)) score += 70;
+
+            const targetTokens = targetTitleNorm.split(' ').filter(Boolean);
+            const hitTokens = targetTokens.filter((token) => titleNorm.includes(token)).length;
+            score += hitTokens * 8;
+
+            if (rowHasLyrics(item)) score += 40;
+            return score;
+        }
+
+        async function fetchJsonWithRetry(url, options = {}, timeoutMs = 7000, retries = 1) {
+            let lastError = null;
+            for (let attempt = 0; attempt <= retries; attempt++) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                const upstream = options.signal;
+                const abortForwarder = () => controller.abort();
+                try {
+                    if (upstream) upstream.addEventListener('abort', abortForwarder, { once: true });
+                    const res = await fetch(url, { ...options, signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return await res.json();
+                } catch (err) {
+                    clearTimeout(timeoutId);
+                    lastError = err;
+                    if (attempt < retries) {
+                        await new Promise((r) => setTimeout(r, 180 * (attempt + 1)));
+                    }
+                } finally {
+                    if (upstream) upstream.removeEventListener('abort', abortForwarder);
+                }
+            }
+            throw lastError || new Error('Request failed');
+        }
+
         function rowHasLyrics(row) {
             return Boolean((row?.plainLyrics || '').trim() || (row?.syncedLyrics || '').trim());
         }
@@ -2309,6 +2692,12 @@ bindLegacyInlineHandlers();
         function hideSearchSuggestions() {
             elements.artistSuggestions?.classList.add('hidden');
             elements.titleSuggestions?.classList.add('hidden');
+        }
+
+        function invalidateSearchSuggestions() {
+            artistSuggestSeq++;
+            titleSuggestSeq++;
+            hideSearchSuggestions();
         }
 
         function renderSearchSuggestions(container, items, onSelect) {
@@ -2429,6 +2818,11 @@ bindLegacyInlineHandlers();
         }
 
         async function loadArtistSuggestions() {
+            if (state.isFetching) {
+                hideSearchSuggestions();
+                return;
+            }
+            const requestSeq = ++artistSuggestSeq;
             const artist = (elements.artistInput?.value || '').trim();
             if (artist.length < 2) {
                 elements.artistSuggestions?.classList.add('hidden');
@@ -2436,6 +2830,7 @@ bindLegacyInlineHandlers();
             }
             try {
                 const rows = await fetchLrcLibSearchRaw(artist);
+                if (state.isFetching || requestSeq !== artistSuggestSeq) return;
                 const seen = new Set();
                 const normArtist = normalizeLookupText(artist);
                 const suggestions = [];
@@ -2450,6 +2845,7 @@ bindLegacyInlineHandlers();
                 });
                 if (suggestions.length < 5) {
                     const itunes = await fetchItunesArtistSuggestions(artist);
+                    if (state.isFetching || requestSeq !== artistSuggestSeq) return;
                     itunes.forEach((name) => {
                         const key = normalizeLookupText(name);
                         if (!key || seen.has(key) || !key.includes(normArtist)) return;
@@ -2457,6 +2853,7 @@ bindLegacyInlineHandlers();
                         suggestions.push({ value: name, label: name });
                     });
                 }
+                if (requestSeq !== artistSuggestSeq) return;
                 renderSearchSuggestions(elements.artistSuggestions, suggestions.slice(0, 8), (item) => {
                     if (elements.artistInput) elements.artistInput.value = item.value;
                     elements.artistSuggestions?.classList.add('hidden');
@@ -2471,6 +2868,11 @@ bindLegacyInlineHandlers();
         }
 
         async function loadTitleSuggestions() {
+            if (state.isFetching) {
+                hideSearchSuggestions();
+                return;
+            }
+            const requestSeq = ++titleSuggestSeq;
             const artist = (elements.artistInput?.value || '').trim();
             const titlePart = (elements.titleInput?.value || '').trim();
             if (artist.length < 2 || titlePart.length < 1) {
@@ -2479,6 +2881,7 @@ bindLegacyInlineHandlers();
             }
             try {
                 const rows = await fetchLrcLibSearchRaw(`${artist} ${titlePart}`.trim());
+                if (state.isFetching || requestSeq !== titleSuggestSeq) return;
                 const targetArtist = normalizeLookupText(artist);
                 const targetTitle = normalizeLookupText(titlePart);
                 const seen = new Set();
@@ -2495,6 +2898,7 @@ bindLegacyInlineHandlers();
                     seen.add(trackNorm);
                     suggestions.push({ value: track, label: `${track} - ${artistName}` });
                 });
+                if (requestSeq !== titleSuggestSeq) return;
                 renderSearchSuggestions(elements.titleSuggestions, suggestions.slice(0, 10), (item) => {
                     if (elements.titleInput) elements.titleInput.value = item.value;
                     elements.titleSuggestions?.classList.add('hidden');
@@ -2642,10 +3046,20 @@ bindLegacyInlineHandlers();
                 const songsHtml = albumSongs
                     .sort((a, b) => a.title.localeCompare(b.title))
                     .map((song) => `
-                        <button type="button" class="artist-song-item" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
-                            <span class="artist-song-title">${escapeHtml(song.title)}</span>
-                            <span class="artist-song-meta">${escapeHtml(song.artist)}</span>
-                        </button>
+                        <div class="artist-song-item">
+                            <button type="button" class="artist-song-main" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
+                                <span class="artist-song-title">${escapeHtml(song.title)}</span>
+                                <span class="artist-song-meta">${escapeHtml(song.artist)}</span>
+                            </button>
+                            <button type="button"
+                                    class="artist-song-fav${isSongFavorited(song.artist, song.title) ? ' active' : ''}"
+                                    title="${isSongFavorited(song.artist, song.title) ? 'Already in favorites' : 'Add to favorites'}"
+                                    data-song-title="${escapeHtml(song.title)}"
+                                    data-song-artist="${escapeHtml(song.artist)}"
+                                    data-onclick="addFavoriteFromCatalog('${encodeURIComponent(song.artist)}','${encodeURIComponent(song.title)}')">
+                                &#9733;
+                            </button>
+                        </div>
                     `).join('');
                 return `
                     <section class="artist-album-section">
@@ -2656,7 +3070,7 @@ bindLegacyInlineHandlers();
             }).join('');
 
             elements.artistCatalogList.innerHTML = html;
-            elements.artistCatalogList.querySelectorAll('.artist-song-item').forEach((btn) => {
+            elements.artistCatalogList.querySelectorAll('.artist-song-main').forEach((btn) => {
                 btn.addEventListener('click', async () => {
                     const title = btn.getAttribute('data-song-title') || '';
                     const artist = btn.getAttribute('data-song-artist') || (elements.artistInput?.value || '').trim();
@@ -2694,7 +3108,7 @@ bindLegacyInlineHandlers();
                 return;
             }
             state.artistTermSearchCache.clear();
-            hideSearchSuggestions();
+            invalidateSearchSuggestions();
             if (elements.artistCatalog) elements.artistCatalog.classList.remove('hidden');
             if (elements.artistCatalogName) elements.artistCatalogName.textContent = artist;
             if (elements.artistCatalogMeta) elements.artistCatalogMeta.textContent = 'Loading songs...';
@@ -2744,6 +3158,12 @@ bindLegacyInlineHandlers();
             elements.avatarPreviewOverlay.classList.remove('hidden');
         }
 
+        function openProfileHubAvatarPreview() {
+            const src = elements.profileHubAvatar?.src || '';
+            const label = elements.profileHubName?.textContent || 'User avatar';
+            openAvatarPreview(src, label);
+        }
+
         function closeAvatarPreview() {
             elements.avatarPreviewOverlay?.classList.add('hidden');
         }
@@ -2760,7 +3180,7 @@ bindLegacyInlineHandlers();
 
         async function fetchLyrics() {
             if (state.isFetching) return;
-            hideSearchSuggestions();
+            invalidateSearchSuggestions();
             const artist = elements.artistInput.value.trim();
             const title = elements.titleInput.value.trim();
             if (!artist || !title) { showToast("Load a band and select one song first.", "error"); return; }
@@ -2804,8 +3224,8 @@ bindLegacyInlineHandlers();
         }
 
         async function fetchFromLrcLib(artist, title, signal) {
-            const artistClean = artist.replace(/\s+(ft|feat)\.?\s+.*$/i, '').trim();
-            const titleClean = title.replace(/\s*[\(\[]?\s*(ft|feat)\.?.*?[\)\]]?\s*$/i, '').trim();
+            const artistClean = stripTrailingMeta(stripFeaturing(artist));
+            const titleClean = stripTrailingMeta(stripFeaturing(title));
             // First try exact endpoint, then fallback to broader search.
             const exactPairs = [
                 { a: artist, t: title },
@@ -2817,20 +3237,11 @@ bindLegacyInlineHandlers();
                         artist_name: pair.a,
                         track_name: pair.t
                     });
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 4200);
-                    if (signal) {
-                        signal.addEventListener('abort', () => controller.abort(), { once: true });
-                    }
-                    const res = await fetch(`https://lrclib.net/api/get?${params}`, { signal: controller.signal });
-                    clearTimeout(timeoutId);
-                    if (res.ok) {
-                        const row = await res.json();
-                        const synced = (row?.syncedLyrics || '').trim();
-                        const plain = (row?.plainLyrics || '').trim();
-                        const lyrics = plain || syncedToPlainLyrics(synced);
-                        if (lyrics) return { lyrics, syncedLyrics: synced };
-                    }
+                    const row = await fetchJsonWithRetry(`https://lrclib.net/api/get?${params}`, { signal }, 7600, 1);
+                    const synced = (row?.syncedLyrics || '').trim();
+                    const plain = (row?.plainLyrics || '').trim();
+                    const lyrics = plain || syncedToPlainLyrics(synced);
+                    if (lyrics) return { lyrics, syncedLyrics: synced };
                 } catch (e) {}
             }
 
@@ -2838,21 +3249,14 @@ bindLegacyInlineHandlers();
                 `${artist} ${title}`.trim(),
                 `${artistClean} ${titleClean}`.trim(),
                 `${titleClean} ${artistClean}`.trim(),
-                titleClean
+                titleClean,
+                `${artistClean} ${stripTrailingMeta(titleClean)}`.trim()
             ])];
 
             const searchCalls = queries.map(async (q) => {
                 try {
                     const params = new URLSearchParams({ q });
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 4200);
-                    if (signal) {
-                        signal.addEventListener('abort', () => controller.abort(), { once: true });
-                    }
-                    const res = await fetch(`https://lrclib.net/api/search?${params}`, { signal: controller.signal });
-                    clearTimeout(timeoutId);
-                    if (!res.ok) return [];
-                    const data = await res.json();
+                    const data = await fetchJsonWithRetry(`https://lrclib.net/api/search?${params}`, { signal }, 7600, 1);
                     return Array.isArray(data) ? data : [];
                 } catch (e) {
                     return [];
@@ -2865,21 +3269,11 @@ bindLegacyInlineHandlers();
 
             const targetArtist = normalizeLookupText(artistClean);
             const targetTitle = normalizeLookupText(titleClean);
-            const hasLyrics = (item) => Boolean(item?.plainLyrics || item?.syncedLyrics);
-            let bestMatch = allResults.find(item =>
-                hasLyrics(item) &&
-                normalizeLookupText(item.artistName || '').includes(targetArtist) &&
-                normalizeLookupText(item.trackName || '').includes(targetTitle)
-            );
-            if (!bestMatch) {
-                bestMatch = allResults.find((item) => {
-                    if (!hasLyrics(item)) return false;
-                    const rowArtist = normalizeLookupText(item.artistName || '');
-                    const rowTrack = normalizeLookupText(item.trackName || '');
-                    return rowArtist === targetArtist || rowTrack === targetTitle;
-                });
-            }
-            if (!bestMatch) bestMatch = allResults.find(item => hasLyrics(item));
+            const sorted = allResults
+                .filter((item) => rowHasLyrics(item))
+                .map((item) => ({ item, score: scoreLrcLibMatch(item, targetArtist, targetTitle) }))
+                .sort((a, b) => b.score - a.score);
+            const bestMatch = sorted[0]?.item || null;
             if (!bestMatch) throw new Error("No lyrics");
 
             const synced = bestMatch.syncedLyrics || '';
@@ -2891,12 +3285,29 @@ bindLegacyInlineHandlers();
         }
 
         async function fetchFromLyricsOvh(artist, title, signal) {
-            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 6000));
-            const res = await Promise.race([ fetch(`https://api.lyrics.ovh/v1/${artist}/${title}`, { signal }), timeout ]);
-            if(!res.ok) throw new Error("Status " + res.status);
-            const data = await res.json();
-            if(!data.lyrics) throw new Error("No lyrics");
-            return data.lyrics;
+            const artistCandidates = [...new Set([
+                artist,
+                stripFeaturing(artist),
+                stripTrailingMeta(stripFeaturing(artist))
+            ].map((v) => String(v || '').trim()).filter(Boolean))];
+            const titleCandidates = [...new Set([
+                title,
+                stripFeaturing(title),
+                stripTrailingMeta(stripFeaturing(title))
+            ].map((v) => String(v || '').trim()).filter(Boolean))];
+
+            for (const a of artistCandidates) {
+                for (const t of titleCandidates) {
+                    try {
+                        const url = `https://api.lyrics.ovh/v1/${encodePathSegment(a)}/${encodePathSegment(t)}`;
+                        const data = await fetchJsonWithRetry(url, { signal }, 7600, 1);
+                        if (data?.lyrics && String(data.lyrics).trim()) {
+                            return data.lyrics;
+                        }
+                    } catch (e) {}
+                }
+            }
+            throw new Error("No lyrics");
         }
 
         async function handleLyricsSuccess(lyricsRaw, title, artist, signal, syncedLyricsRaw = '') {
@@ -3368,6 +3779,182 @@ bindLegacyInlineHandlers();
             const sign = ms > 0 ? '+' : '';
             return `${sign}${formatRaceTime(ms)}`;
         }
+
+        function getShareAppUrl() {
+            const configured = String(PUBLIC_APP_URL || '').trim();
+            try {
+                const url = new URL(window.location.href);
+                const isLocalHost = /^(localhost|127(?:\.\d{1,3}){3})$/i.test(url.hostname);
+                if (isLocalHost) return configured;
+                url.hash = '';
+                url.search = '';
+                return url.toString();
+            } catch (_e) {
+                return configured;
+            }
+        }
+
+        function buildShareResultUrl(shareId) {
+            const id = String(shareId || '').trim();
+            if (!id) return '';
+            const base = getShareAppUrl();
+            if (!base) return '';
+            try {
+                const url = new URL(base);
+                url.searchParams.set('share', id);
+                return url.toString();
+            } catch (_e) {
+                return '';
+            }
+        }
+
+        function parseShareIdFromLocation() {
+            try {
+                const url = new URL(window.location.href);
+                const share = String(url.searchParams.get('share') || '').trim();
+                if (!share) return '';
+                return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(share)
+                    ? share
+                    : '';
+            } catch (_e) {
+                return '';
+            }
+        }
+
+        function clearShareParamFromUrl() {
+            try {
+                const url = new URL(window.location.href);
+                if (!url.searchParams.has('share')) return;
+                url.searchParams.delete('share');
+                const next = `${url.pathname}${url.search}${url.hash}`;
+                window.history.replaceState({}, '', next);
+            } catch (_e) {
+                // no-op
+            }
+        }
+
+        function buildShareResultText(payload) {
+            if (!payload) return '';
+            const modeLabel = String(payload.mode || 'normal').toUpperCase();
+            const songLabel = payload.songTitle
+                ? `${payload.songTitle}${payload.artist ? ` - ${payload.artist}` : ''}`
+                : 'Custom lyrics';
+            const appUrl = payload.shareUrl || payload.appUrl || getShareAppUrl();
+            const lines = [
+                'I just finished a run on Icarus Type',
+                `${songLabel}`,
+                `Mode: ${modeLabel}`,
+                `WPM: ${payload.wpm} | Acc: ${payload.accuracy}% | Time: ${payload.durationSeconds}s`,
+                `Raw: ${payload.raw} | Consistency: ${payload.consistency}%`
+            ];
+            if (appUrl) lines.push(appUrl);
+            return lines.join('\n');
+        }
+
+        function closeSharedResultModal() {
+            elements.sharedResultArea?.classList.add('hidden');
+            goHome();
+            clearShareParamFromUrl();
+        }
+
+        function openSharedResultModal(shared) {
+            if (!elements.sharedResultArea) return;
+            const owner = shared?.owner_username || 'player';
+            const song = shared?.song_title
+                ? `${shared.song_title}${shared.artist ? ` - ${shared.artist}` : ''}`
+                : 'Custom lyrics';
+            const mode = String(shared?.mode || 'normal').toUpperCase();
+            const createdAt = shared?.created_at ? new Date(shared.created_at).toLocaleString() : '';
+            if (elements.sharedResultUser) elements.sharedResultUser.textContent = owner;
+            if (elements.sharedResultSong) elements.sharedResultSong.textContent = song;
+            if (elements.sharedResultMeta) elements.sharedResultMeta.textContent = `${mode}${createdAt ? ` - ${createdAt}` : ''}`;
+            if (elements.sharedResultWpm) elements.sharedResultWpm.textContent = String(shared?.wpm ?? 0);
+            if (elements.sharedResultAcc) elements.sharedResultAcc.textContent = `${shared?.accuracy ?? 0}%`;
+            if (elements.sharedResultRaw) elements.sharedResultRaw.textContent = String(shared?.raw ?? 0);
+            if (elements.sharedResultConsistency) elements.sharedResultConsistency.textContent = `${shared?.consistency ?? 0}%`;
+            elements.setupArea?.classList.add('hidden');
+            elements.gameArea?.classList.add('hidden');
+            elements.resultsArea?.classList.add('hidden');
+            elements.sharedResultArea.classList.remove('hidden');
+        }
+
+        async function maybeOpenSharedResultFromLink() {
+            if (!pendingSharedResultId || !supabase) return;
+            const shareId = pendingSharedResultId;
+            pendingSharedResultId = '';
+            const { data, error } = await supabase.rpc('get_shared_result', {
+                p_share_id: shareId
+            });
+            if (error || !data || !data.length) {
+                showToast('Shared score not found.', 'error');
+                clearShareParamFromUrl();
+                return;
+            }
+            openSharedResultModal(data[0]);
+        }
+
+        async function shareLastResult() {
+            const payload = state.lastResultShare;
+            if (!payload) {
+                showToast('Finish a test first to share your score.', 'error');
+                return;
+            }
+            let shareUrl = payload.shareUrl || '';
+            if (!shareUrl && supabase) {
+                const user = authCurrentUser || await syncCurrentUser();
+                if (user) {
+                    const { data, error } = await supabase.rpc('create_shared_result', {
+                        p_song_title: payload.songTitle || null,
+                        p_artist: payload.artist || null,
+                        p_mode: payload.mode || 'normal',
+                        p_wpm: payload.wpm || 0,
+                        p_accuracy: payload.accuracy || 0,
+                        p_raw: payload.raw || 0,
+                        p_consistency: payload.consistency || 0,
+                        p_duration_seconds: payload.durationSeconds || 0
+                    });
+                    if (!error && data) {
+                        shareUrl = buildShareResultUrl(data);
+                        state.lastResultShare.shareId = data;
+                        state.lastResultShare.shareUrl = shareUrl;
+                    }
+                }
+            }
+            const finalPayload = {
+                ...payload,
+                shareUrl
+            };
+            const text = buildShareResultText(finalPayload);
+            const appUrl = finalPayload.shareUrl || finalPayload.appUrl || getShareAppUrl();
+            const title = 'Icarus Type Score';
+
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title,
+                        text,
+                        url: appUrl || undefined
+                    });
+                    showToast('Score shared.', 'info');
+                    return;
+                } catch (e) {
+                    if (e && e.name === 'AbortError') return;
+                }
+            }
+
+            if (navigator.clipboard?.writeText) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    showToast('Score copied to clipboard.', 'info');
+                    if (!appUrl) showToast('Set scripts/config/app.js PUBLIC_APP_URL to include a public link.', 'info');
+                    return;
+                } catch (_e) {
+                    // fallback below
+                }
+            }
+
+            window.prompt('Copy your score card:', text);
+        }
         
         function finishGame() { 
             state.endTime = new Date();
@@ -3398,6 +3985,7 @@ bindLegacyInlineHandlers();
             const netWpm = Math.round(((totalCharsTyped / 5) / minutes));
             const totalKeypresses = totalCharsTyped + state.incorrectChars + state.extraChars;
             const accuracy = totalKeypresses > 0 ? Math.round((totalCharsTyped / totalKeypresses) * 100) : 0;
+            const rawWpm = Math.round(netWpm * (accuracy / 100)) || 0;
 
             const currentMode = state.isRhythmMode ? 'rhythm' : (state.isClozeMode ? 'cloze' : 'normal');
             saveGameResultToCloud({
@@ -3417,7 +4005,7 @@ bindLegacyInlineHandlers();
             // Update Results UI
             elements.resWpmBig.textContent = netWpm;
             elements.resAccBig.textContent = `${accuracy}%`;
-            elements.resRaw.textContent = Math.round(netWpm * (accuracy/100)) || 0; 
+            elements.resRaw.textContent = rawWpm; 
             elements.resCharTotal.textContent = totalCharsTyped;
             elements.resCharErr.textContent = state.incorrectChars + state.extraChars;
             elements.resTimeVal.textContent = `${Math.round(timeSeconds)}s`;
@@ -3447,6 +4035,19 @@ bindLegacyInlineHandlers();
             let consistency = 100;
             if(wpmMean > 0) { const cv = wpmStdDev / wpmMean; consistency = Math.max(0, Math.round(100 * (1 - cv))); }
             elements.resConsistency.textContent = `${consistency}%`;
+            state.lastResultShare = {
+                songTitle: state.songTitle || '',
+                artist: state.artist || '',
+                mode: currentMode,
+                wpm: netWpm,
+                accuracy,
+                raw: rawWpm,
+                consistency,
+                durationSeconds: Math.round(timeSeconds),
+                appUrl: getShareAppUrl(),
+                shareId: '',
+                shareUrl: ''
+            };
 
             elements.missedWordsList.innerHTML = '';
             if(state.missedWords.size > 0) {
@@ -3707,6 +4308,7 @@ bindLegacyInlineHandlers();
             deleteAccount,
             sendFriendRequest,
             respondFriendRequest,
+            openFriendProfileFromList,
             saveProfileDetails,
             addCurrentSongToFavorites,
             removeFavoriteSong,
@@ -3721,6 +4323,11 @@ bindLegacyInlineHandlers();
             openArtistSongsModal,
             closeArtistSongsModal,
             openAvatarPreview,
+            openProfileHubAvatarPreview,
+            shareLastResult,
+            playFavoriteFromSetup,
+            addFavoriteFromCatalog,
+            closeSharedResultModal,
             closeAvatarPreview,
         });
 
@@ -3799,6 +4406,12 @@ bindLegacyInlineHandlers();
         if (elements.authHistorySong) {
             elements.authHistorySong.addEventListener('change', () => renderSongHistoryDetails());
         }
+        if (elements.profileHubCompareSelect) {
+            elements.profileHubCompareSelect.addEventListener('change', () => {
+                profileHubCompareFriendKey = normalizeLookupText(elements.profileHubCompareSelect.value || '');
+                renderProfileHub();
+            });
+        }
         window.addEventListener('resize', () => { if(state.isPlaying) updateCaretPosition(); });
         elements.gameArea.addEventListener('click', () => { if(!state.isPreviewMode) focusTypingInput(); });
         if (elements.videoFrame) {
@@ -3813,6 +4426,7 @@ bindLegacyInlineHandlers();
             });
         }
         switchAuthTab('login');
+        pendingSharedResultId = parseShareIdFromLocation();
         bindAuthActivityWatchers();
         if (supabase) {
             supabase.auth.onAuthStateChange((_event, session) => {
@@ -3831,6 +4445,9 @@ bindLegacyInlineHandlers();
         (async () => {
             await bootstrapAuthSession();
             await refreshAuthUI();
+            await maybeOpenSharedResultFromLink();
         })();
+        renderSetupFavoritesTab();
         switchTab('search'); 
+
 

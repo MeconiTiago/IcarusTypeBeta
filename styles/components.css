@@ -455,17 +455,47 @@
             border: 1px solid rgba(125, 125, 125, 0.22);
             border-radius: 8px;
             background: rgba(0, 0, 0, 0.2);
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            align-items: center;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+        .artist-song-item:hover {
+            border-color: rgba(62, 227, 158, 0.5);
+            background: rgba(62, 227, 158, 0.1);
+        }
+        .artist-song-main {
+            border: 0;
+            background: transparent;
             color: var(--text-color);
             text-align: left;
             padding: 10px 12px;
             cursor: pointer;
             display: grid;
             gap: 2px;
-            transition: border-color 0.2s, background-color 0.2s;
+            width: 100%;
         }
-        .artist-song-item:hover {
-            border-color: rgba(62, 227, 158, 0.5);
-            background: rgba(62, 227, 158, 0.1);
+        .artist-song-fav {
+            border: 1px solid rgba(125, 125, 125, 0.25);
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--sub-color);
+            width: 34px;
+            height: 34px;
+            border-radius: 6px;
+            font-size: 15px;
+            line-height: 1;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        .artist-song-fav:hover {
+            border-color: rgba(62, 227, 158, 0.45);
+            color: var(--main-color);
+        }
+        .artist-song-fav.active {
+            border-color: rgba(62, 227, 158, 0.55);
+            color: var(--main-color);
+            background: rgba(62, 227, 158, 0.12);
         }
         .artist-song-title {
             font-size: 0.9rem;
@@ -1146,6 +1176,83 @@
             color: var(--text-color);
             font-size: 1.2rem;
         }
+        .profile-hub-compare {
+            margin-top: 12px;
+            border: 1px solid rgba(125, 125, 125, 0.22);
+            border-radius: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            display: grid;
+            gap: 8px;
+        }
+        .profile-hub-compare-head {
+            display: grid;
+            grid-template-columns: 1fr minmax(180px, 260px);
+            gap: 10px;
+            align-items: center;
+        }
+        .profile-hub-compare-head h3 {
+            color: var(--sub-color);
+            font-size: 0.74rem;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+        }
+        .profile-hub-compare-select {
+            margin: 0;
+            padding: 8px 10px;
+            height: auto;
+            min-height: 34px;
+        }
+        .profile-hub-compare-grid {
+            border: 1px solid rgba(125, 125, 125, 0.18);
+            border-radius: 8px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.14);
+        }
+        .profile-hub-compare-row {
+            display: grid;
+            grid-template-columns: 1.3fr repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            align-items: center;
+            padding: 8px 10px;
+            border-top: 1px solid rgba(125, 125, 125, 0.14);
+            font-size: 0.78rem;
+        }
+        .profile-hub-compare-row:first-child {
+            border-top: 0;
+        }
+        .profile-hub-compare-row.head {
+            background: rgba(0, 0, 0, 0.22);
+            color: var(--sub-color);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 0.66rem;
+            font-weight: 700;
+        }
+        .profile-hub-compare-metric {
+            color: var(--text-color);
+            font-weight: 700;
+        }
+        .profile-hub-compare-you,
+        .profile-hub-compare-friend {
+            color: var(--text-color);
+            text-align: center;
+            font-weight: 700;
+        }
+        .profile-hub-compare-diff {
+            text-align: center;
+            font-weight: 700;
+            color: var(--sub-color);
+        }
+        .profile-hub-compare-diff.up {
+            color: var(--main-color);
+        }
+        .profile-hub-compare-diff.down {
+            color: #ff8f8f;
+        }
+        .profile-hub-compare-diff.even {
+            color: var(--sub-color);
+        }
         .profile-hub-main-grid {
             margin-top: 12px;
             display: grid;
@@ -1189,11 +1296,20 @@
             .profile-hub-stats-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
+            .profile-hub-compare-head {
+                grid-template-columns: 1fr;
+            }
             .profile-hub-main-grid {
                 grid-template-columns: 1fr;
             }
             .profile-hub-card-wide {
                 grid-column: auto;
+            }
+            .profile-hub-compare-row {
+                grid-template-columns: 1.2fr repeat(3, minmax(0, 1fr));
+                font-size: 0.72rem;
+                gap: 6px;
+                padding: 7px 8px;
             }
             .auth-file-row {
                 grid-template-columns: 1fr;

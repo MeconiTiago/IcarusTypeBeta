@@ -19,7 +19,7 @@
 </head>
 <body class="h-screen flex flex-col items-center">
 
-    <input type="text" id="typing-input" class="hidden-input" autocomplete="off" capitalize="off" spellcheck="false">
+    <input type="text" id="typing-input" class="hidden-input" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
     <div id="toast-container"></div>
 
     <!-- Word Menu Popover -->
@@ -53,7 +53,7 @@
             <div class="text-base text-sm space-y-4 mb-6">
                 <p>Improve your English typing and vocabulary through music.</p>
                 <ul class="list-disc list-inside space-y-2 text-sub">
-                    <li><strong class="text-main">Type Lyrics:</strong> Find your favorite songs or use presets.</li>
+                    <li><strong class="text-main">Type Lyrics:</strong> Find your favorite songs or use your saved favorites.</li>
                     <li><strong class="text-main">Modes:</strong> 
                         <ul class="pl-6 mt-1 text-xs">
                             <li><strong>Normal:</strong> Type along with the lyrics.</li>
@@ -263,7 +263,7 @@
             </div>
 
             <div class="profile-hub-hero">
-                <img id="profile-hub-avatar" class="profile-hub-avatar auth-avatar-clickable" src="https://placehold.co/96x96/0B2D45/3EE39E?text=IT" alt="avatar" data-onclick="openAvatarPreview()">
+                <img id="profile-hub-avatar" class="profile-hub-avatar auth-avatar-clickable" src="https://placehold.co/96x96/0B2D45/3EE39E?text=IT" alt="avatar" data-onclick="openProfileHubAvatarPreview()">
                 <div class="profile-hub-meta">
                     <div id="profile-hub-level" class="profile-hub-level">Level 1</div>
                     <div id="profile-hub-email" class="profile-hub-email">email@example.com</div>
@@ -277,6 +277,18 @@
                 <div class="profile-hub-stat"><span>Avg WPM</span><strong id="profile-hub-avgwpm">0</strong></div>
                 <div class="profile-hub-stat"><span>Avg Acc</span><strong id="profile-hub-avgacc">0%</strong></div>
             </div>
+
+            <section class="profile-hub-compare">
+                <div class="profile-hub-compare-head">
+                    <h3>Compare With Friend</h3>
+                    <select id="profile-hub-compare-select" class="auth-input profile-hub-compare-select">
+                        <option value="">Select a friend</option>
+                    </select>
+                </div>
+                <div id="profile-hub-compare-grid" class="profile-hub-compare-grid">
+                    <div class="auth-recent-empty">Select a friend to compare stats in this panel.</div>
+                </div>
+            </section>
 
             <div class="profile-hub-main-grid">
                 <section class="profile-hub-card">
@@ -448,7 +460,7 @@
         <div class="config-bar mobile-config-bar">
             <div class="mode-group">
                 <div class="nav-link active" id="nav-search" data-onclick="trySwitchTab('search')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>search</div>
-                <div class="nav-link" id="nav-presets" data-onclick="trySwitchTab('presets')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>presets</div>
+                <div class="nav-link" id="nav-presets" data-onclick="trySwitchTab('presets')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>favorites</div>
                 <div class="nav-link" id="nav-custom" data-onclick="trySwitchTab('custom')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>custom</div>
             </div>
             <div class="separator"></div>
@@ -523,26 +535,9 @@
             </div>
 
             <div id="view-presets" class="w-full hidden grid grid-cols-2 gap-4">
-                <button data-onclick="loadPreset('test')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
-                    <div class="text-base group-hover:text-main font-bold">Test Song</div>
-                    <div class="text-xs text-sub">Debug (2 Lines)</div>
-                </button>
-                <button data-onclick="loadPreset('queen')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
-                    <div class="text-base group-hover:text-main font-bold">Bohemian Rhapsody</div>
-                    <div class="text-xs text-sub">Queen</div>
-                </button>
-                <button data-onclick="loadPreset('nirvana')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
-                    <div class="text-base group-hover:text-main font-bold">Smells Like Teen Spirit</div>
-                    <div class="text-xs text-sub">Nirvana</div>
-                </button>
-                <button data-onclick="loadPreset('adele')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
-                    <div class="text-base group-hover:text-main font-bold">Hello</div>
-                    <div class="text-xs text-sub">Adele</div>
-                </button>
-                <button data-onclick="loadPreset('imagine')" class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn">
-                    <div class="text-base group-hover:text-main font-bold">Imagine</div>
-                    <div class="text-xs text-sub">John Lennon</div>
-                </button>
+                <div id="favorites-tab-list" class="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="auth-recent-empty">Login to see your saved favorites.</div>
+                </div>
             </div>
 
             <div id="view-custom" class="w-full hidden flex flex-col gap-4">
@@ -690,6 +685,40 @@
             <div class="flex justify-center gap-12 mt-4">
                 <button data-onclick="switchTab('search'); goHome()" class="text-sub hover:text-base transition flex items-center gap-2"><svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg> Next Song</button>
                 <button data-onclick="resetGame(true)" class="text-main hover:text-success transition flex items-center gap-2"><svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 2v6h6M21.5 22v-6h-6"/><path d="M22 11.5A10 10 0 0 0 3.2 7.2M2 12.5a10 10 0 0 0 18.8 4.2"/></svg> Repeat Test</button>
+                <button disabled title="Coming soon" class="text-sub transition flex items-center gap-2 opacity-40 cursor-not-allowed"><svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg> Share Score (soon)</button>
+            </div>
+        </div>
+        <div id="shared-result-area" class="w-full hidden fade-in flex flex-col">
+            <div class="mb-6 w-full text-center">
+                <div class="text-sub text-sm uppercase tracking-widest mb-1">Shared Run</div>
+                <div id="shared-result-song" class="text-3xl font-bold text-main">-</div>
+                <div id="shared-result-meta" class="text-sub text-sm mt-2">-</div>
+                <div class="text-sub text-xs uppercase mt-3">Player</div>
+                <div id="shared-result-user" class="text-base font-bold">-</div>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 w-full">
+                <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">WPM</div>
+                    <div id="shared-result-wpm" class="dashboard-stat-value">0</div>
+                </div>
+                <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">ACC</div>
+                    <div id="shared-result-acc" class="dashboard-stat-value">0%</div>
+                </div>
+                <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">RAW</div>
+                    <div id="shared-result-raw" class="dashboard-stat-value">0</div>
+                </div>
+                <div class="bg-surface p-4 rounded text-center">
+                    <div class="dashboard-stat-title">CONSISTENCY</div>
+                    <div id="shared-result-consistency" class="dashboard-stat-value">0%</div>
+                </div>
+            </div>
+            <div class="flex justify-center gap-10 mt-2">
+                <button data-onclick="closeSharedResultModal()" class="text-sub hover:text-base transition flex items-center gap-2">
+                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+                    Back to app
+                </button>
             </div>
         </div>
         <div id="video-pip-panel" class="video-pip-panel hidden">
