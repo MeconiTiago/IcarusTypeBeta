@@ -176,6 +176,16 @@
             background-color: rgba(0, 0, 0, 0.85);
             backdrop-filter: blur(4px);
         }
+        #modal-overlay > div,
+        #restart-modal-overlay > div,
+        #about-modal-overlay > div,
+        #settings-modal-overlay > div,
+        #practice-modal-overlay > div,
+        #profile-modal-overlay > div,
+        #onboarding-overlay > div,
+        #artist-songs-modal-overlay > div {
+            border-color: rgba(62, 227, 158, 0.45);
+        }
         
         /* Transparent Overlay for Popover (Click outside to close) */
         #popover-overlay { background-color: transparent; }
@@ -384,6 +394,145 @@
         .custom-input { background: transparent; border-bottom: 2px solid var(--sub-color); color: var(--text-color); transition: all 0.2s; }
         .custom-input:focus { border-color: var(--main-color); }
         .custom-input::placeholder { color: var(--sub-color); opacity: 0.7; }
+        .custom-counter {
+            margin-top: 6px;
+            text-align: right;
+            font-size: 0.75rem;
+            color: var(--sub-color);
+        }
+        .custom-counter-warn {
+            color: var(--error-color);
+        }
+        .duel-room-box {
+            border: 1px solid rgba(62, 227, 158, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.18);
+        }
+        .duel-room-meta {
+            font-size: 0.8rem;
+            color: var(--main-color);
+            font-weight: 700;
+            word-break: break-all;
+        }
+        .duel-room-status {
+            font-size: 0.78rem;
+            color: var(--sub-color);
+            margin-top: 2px;
+        }
+        .duel-view-card {
+            border: 1px solid rgba(62, 227, 158, 0.3);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.18);
+            padding: 14px;
+        }
+        .duel-view-title {
+            color: var(--main-color);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 0.8rem;
+        }
+        .duel-view-desc {
+            margin-top: 6px;
+            color: var(--sub-color);
+            font-size: 0.85rem;
+        }
+        .duel-view-state {
+            margin-top: 10px;
+            color: var(--text-color);
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+        .duel-view-opponent {
+            margin-top: 4px;
+            color: var(--sub-color);
+            font-size: 0.8rem;
+        }
+        .duel-slots {
+            margin-top: 10px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .duel-slot {
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            border-radius: 8px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.16);
+        }
+        .duel-slot-label {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--sub-color);
+        }
+        .duel-slot-name {
+            margin-top: 4px;
+            font-size: 0.9rem;
+            color: var(--text-color);
+            font-weight: 700;
+            word-break: break-word;
+        }
+        .duel-view-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .duel-hud {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid rgba(62, 227, 158, 0.35);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .duel-pane-title {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--sub-color);
+            font-weight: 700;
+        }
+        .duel-pane-name {
+            font-size: 0.9rem;
+            color: var(--text-color);
+            font-weight: 700;
+        }
+        .duel-pane-meta {
+            font-size: 0.75rem;
+            color: var(--sub-color);
+            margin-top: 2px;
+        }
+        .duel-progress-track {
+            margin-top: 6px;
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(125, 125, 125, 0.2);
+            overflow: hidden;
+        }
+        .duel-progress-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(62, 227, 158, 0.6), rgba(62, 227, 158, 1));
+            transition: width 0.2s ease;
+        }
+        .duel-center {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 6px;
+        }
+        .duel-countdown-text {
+            font-size: 0.82rem;
+            color: var(--main-color);
+            font-weight: 700;
+            text-align: center;
+            white-space: nowrap;
+        }
         .search-suggest {
             position: absolute;
             top: calc(100% + 6px);
@@ -690,6 +839,34 @@
         .auth-input:focus {
             border-color: var(--main-color);
             box-shadow: 0 0 0 2px rgba(62, 227, 158, 0.15);
+        }
+        .auth-password-wrap {
+            position: relative;
+        }
+        .auth-input-with-toggle {
+            padding-right: 72px;
+        }
+        .auth-password-toggle {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+            color: var(--sub-color);
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            cursor: pointer;
+            line-height: 1;
+            min-width: 56px;
+        }
+        .auth-password-toggle:hover {
+            color: var(--main-color);
+            border-color: rgba(62, 227, 158, 0.35);
         }
         .auth-checkbox-row {
             display: inline-flex;

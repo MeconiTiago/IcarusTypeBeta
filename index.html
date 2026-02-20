@@ -96,7 +96,10 @@
                     </div>
                     <div class="auth-field-group">
                         <label class="auth-label" for="auth-login-password">Password</label>
-                        <input id="auth-login-password" type="password" class="auth-input" placeholder="Your password" autocomplete="current-password">
+                        <div class="auth-password-wrap">
+                            <input id="auth-login-password" type="password" class="auth-input auth-input-with-toggle" placeholder="Your password" autocomplete="current-password">
+                            <button type="button" class="auth-password-toggle" data-onclick="togglePasswordVisibility('auth-login-password', this)" aria-label="Show password" aria-pressed="false">Show</button>
+                        </div>
                     </div>
                     <label class="auth-checkbox-row">
                         <input id="auth-remember-me" type="checkbox">
@@ -120,11 +123,17 @@
                     </div>
                     <div class="auth-field-group">
                         <label class="auth-label" for="auth-register-password">Password</label>
-                        <input id="auth-register-password" type="password" class="auth-input" placeholder="Choose a password" autocomplete="new-password">
+                        <div class="auth-password-wrap">
+                            <input id="auth-register-password" type="password" class="auth-input auth-input-with-toggle" placeholder="Choose a password" autocomplete="new-password">
+                            <button type="button" class="auth-password-toggle" data-onclick="togglePasswordVisibility('auth-register-password', this)" aria-label="Show password" aria-pressed="false">Show</button>
+                        </div>
                     </div>
                     <div class="auth-field-group">
                         <label class="auth-label" for="auth-register-password-verify">Verify password</label>
-                        <input id="auth-register-password-verify" type="password" class="auth-input" placeholder="repeat password" autocomplete="new-password">
+                        <div class="auth-password-wrap">
+                            <input id="auth-register-password-verify" type="password" class="auth-input auth-input-with-toggle" placeholder="repeat password" autocomplete="new-password">
+                            <button type="button" class="auth-password-toggle" data-onclick="togglePasswordVisibility('auth-register-password-verify', this)" aria-label="Show password" aria-pressed="false">Show</button>
+                        </div>
                     </div>
                     <button class="auth-submit-btn mt-4" data-onclick="registerAccount()">Sign up</button>
                 </div>
@@ -224,6 +233,43 @@
                         <div class="auth-subtitle">Compare</div>
                         <div id="auth-friend-compare" class="auth-friend-list">
                             <div class="auth-recent-empty">No friends added yet.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="auth-duel-section" class="mt-4">
+                    <div class="text-sub text-xs uppercase mb-2">Duel rooms</div>
+                    <div class="auth-friends-wrap">
+                        <div class="auth-friend-add-row">
+                            <button class="auth-submit-btn" data-onclick="createDuelRoomFromCurrentSong()">Create room from current song</button>
+                        </div>
+                        <div class="auth-friend-add-row mt-2">
+                            <input id="duel-room-code-input" type="text" class="auth-input" placeholder="room id (uuid)">
+                            <button class="auth-submit-btn" data-onclick="joinDuelRoomByCode()">Join</button>
+                        </div>
+                        <div id="duel-room-box" class="duel-room-box mt-2 hidden">
+                            <div id="duel-room-meta" class="duel-room-meta">Room: -</div>
+                            <div id="duel-room-status" class="duel-room-status">Status: waiting</div>
+                            <div class="auth-friend-add-row mt-2">
+                                <input id="duel-invite-target" type="text" class="auth-input" placeholder="friend username/email">
+                                <button class="auth-submit-btn" data-onclick="invitePlayerToDuelRoom()">Invite</button>
+                            </div>
+                            <div class="auth-friend-add-row mt-2">
+                                <button class="auth-submit-btn" data-onclick="startDuelCountdown()">Start duel</button>
+                                <button class="auth-friend-btn reject" data-onclick="leaveCurrentDuelRoom()">Leave</button>
+                            </div>
+                            <div class="auth-subtitle mt-3">Room players</div>
+                            <div id="duel-room-members" class="auth-friend-list">
+                                <div class="auth-recent-empty">No players.</div>
+                            </div>
+                        </div>
+                        <div class="auth-subtitle mt-3">Invite from friends list</div>
+                        <div id="duel-friend-list" class="auth-friend-list">
+                            <div class="auth-recent-empty">No friends added yet.</div>
+                        </div>
+                        <div class="auth-subtitle mt-3">Incoming duel invites</div>
+                        <div id="duel-invite-list" class="auth-friend-list">
+                            <div class="auth-recent-empty">No duel invites.</div>
                         </div>
                     </div>
                 </div>
@@ -458,11 +504,12 @@
 
     <div class="w-full max-w-4xl flex justify-start sm:justify-center mb-4 sm:mb-8 px-2 sm:px-0">
         <div class="config-bar mobile-config-bar">
-            <div class="mode-group">
-                <div class="nav-link active" id="nav-search" data-onclick="trySwitchTab('search')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>search</div>
-                <div class="nav-link" id="nav-presets" data-onclick="trySwitchTab('presets')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>favorites</div>
-                <div class="nav-link" id="nav-custom" data-onclick="trySwitchTab('custom')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>custom</div>
-            </div>
+                <div class="mode-group">
+                    <div class="nav-link active" id="nav-search" data-onclick="trySwitchTab('search')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>search</div>
+                    <div class="nav-link" id="nav-presets" data-onclick="trySwitchTab('presets')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>favorites</div>
+                    <div class="nav-link" id="nav-custom" data-onclick="trySwitchTab('custom')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>custom</div>
+                    <div class="nav-link" id="nav-duel" data-onclick="trySwitchTab('duel')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M8 4l-3 8h5l-2 8 11-13h-6l2-3z"/></svg>duel</div>
+                </div>
             <div class="separator"></div>
             <div class="mode-group">
                 <div class="nav-link active" id="mode-normal" data-onclick="setGameMode('normal')">normal</div>
@@ -541,15 +588,70 @@
             </div>
 
             <div id="view-custom" class="w-full hidden flex flex-col gap-4">
-                <textarea id="custom-text-area" class="w-full h-32 bg-surface p-4 rounded text-base outline-none border border-transparent focus:border-main resize-none" placeholder="Paste lyrics here..."></textarea>
-                <div id="custom-translation-container" class="hidden">
-                    <textarea id="custom-translation-area" class="w-full h-32 bg-surface p-4 rounded text-base outline-none border border-transparent focus:border-main resize-none" placeholder="Paste translation here (optional)..."></textarea>
+                <div>
+                    <textarea id="custom-text-area" maxlength="4000" class="w-full h-32 bg-surface p-4 rounded text-base outline-none border border-transparent focus:border-main resize-none" placeholder="Paste lyrics here..."></textarea>
+                    <div id="custom-text-counter" class="custom-counter">0 / 4000</div>
                 </div>
+                <div id="custom-translation-container" class="hidden">
+                    <textarea id="custom-translation-area" maxlength="4000" class="w-full h-32 bg-surface p-4 rounded text-base outline-none border border-transparent focus:border-main resize-none" placeholder="Paste translation here (optional)..."></textarea>
+                    <div id="custom-translation-counter" class="custom-counter">0 / 4000</div>
+                </div>
+                <label class="auth-checkbox-row">
+                    <input id="custom-save-favorite" type="checkbox">
+                    <span>Save custom song to favorites (logged users)</span>
+                </label>
                 <button data-onclick="startCustomGame()" class="self-end btn-primary px-8 py-2 rounded font-bold transition">Start</button>
+            </div>
+            <div id="view-duel" class="w-full hidden flex flex-col gap-4">
+                <div class="duel-view-card">
+                    <div class="duel-view-title">Online Duel</div>
+                    <div class="duel-view-desc">Create a room in Account > Duel rooms. Owner chooses the song and starts the countdown.</div>
+                    <div id="duel-view-state" class="duel-view-state">Not in a duel room.</div>
+                    <div id="duel-view-opponent" class="duel-view-opponent"></div>
+                    <div class="duel-slots">
+                        <div class="duel-slot">
+                            <div class="duel-slot-label">Player 1</div>
+                            <div id="duel-slot-owner" class="duel-slot-name">-</div>
+                        </div>
+                        <div class="duel-slot">
+                            <div class="duel-slot-label">Player 2</div>
+                            <div id="duel-slot-opponent" class="duel-slot-name">Empty slot</div>
+                        </div>
+                    </div>
+                    <div class="auth-friend-add-row mt-2">
+                        <input id="duel-view-invite-target" type="text" class="auth-input" placeholder="friend username/email">
+                        <button class="auth-submit-btn" data-onclick="invitePlayerToDuelRoomFromView()">Invite</button>
+                    </div>
+                    <div class="auth-subtitle mt-3">Invite from friends</div>
+                    <div id="duel-view-friend-list" class="auth-friend-list">
+                        <div class="auth-recent-empty">No friends added yet.</div>
+                    </div>
+                    <div class="duel-view-actions">
+                        <button class="auth-submit-btn" data-onclick="openFriendsPanel()">Open account/friends</button>
+                        <button class="auth-friend-btn" data-onclick="leaveCurrentDuelRoom()">Leave room</button>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div id="game-area" class="w-full hidden relative flex flex-col">
+            <div id="duel-hud" class="duel-hud hidden">
+                <div class="duel-pane">
+                    <div class="duel-pane-title">You</div>
+                    <div id="duel-me-name" class="duel-pane-name">You</div>
+                    <div id="duel-me-progress-text" class="duel-pane-meta">0%</div>
+                    <div class="duel-progress-track"><div id="duel-me-progress-bar" class="duel-progress-fill"></div></div>
+                </div>
+                <div class="duel-center">
+                    <div id="duel-countdown-text" class="duel-countdown-text">Waiting...</div>
+                </div>
+                <div class="duel-pane">
+                    <div class="duel-pane-title">Opponent</div>
+                    <div id="duel-opponent-name" class="duel-pane-name">-</div>
+                    <div id="duel-opponent-progress-text" class="duel-pane-meta">0%</div>
+                    <div class="duel-progress-track"><div id="duel-opponent-progress-bar" class="duel-progress-fill"></div></div>
+                </div>
+            </div>
             <div class="stats-header">
                 <div class="flex flex-col justify-end">
                     <h2 id="current-song-title" class="text-3xl font-bold text-main leading-tight">Song Title</h2>

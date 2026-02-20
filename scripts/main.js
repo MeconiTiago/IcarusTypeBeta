@@ -17,6 +17,10 @@ window.saveGameResult = undefined;
 const KNOWN_YOUTUBE_VIDEO_IDS = {
     'neck deep|kali ma': ['aYpDYuoEA4U', 'uKw7oEvzL_Y']
 };
+const CUSTOM_LYRICS_MAX_CHARS = 4000;
+const CUSTOM_TRANSLATION_MAX_CHARS = 4000;
+const CUSTOM_TOTAL_MAX_CHARS = 6500;
+const DUEL_POLL_MS = 1200;
 
 function normalizeSongKey(artist, title) {
     const clean = (v) => (v || '')
@@ -317,6 +321,26 @@ bindLegacyInlineHandlers();
             practiceQueue: [],
             currentPracticeIndex: 0,
             isCustomGame: false,
+            currentLyricsRaw: '',
+            currentTranslationRaw: '',
+            duel: {
+                roomId: '',
+                status: 'idle',
+                ownerId: '',
+                ownerName: '',
+                songTitle: '',
+                artist: '',
+                lyrics: '',
+                translation: '',
+                startedAtMs: 0,
+                countdownSeconds: 5,
+                inRoom: false,
+                isOwner: false,
+                opponentId: '',
+                opponentName: '',
+                gameLaunched: false,
+                resultShown: false
+            },
             tooltipTimeout: null,
             isSoundEnabled: false 
         };
@@ -341,12 +365,14 @@ bindLegacyInlineHandlers();
             navSearch: document.getElementById('nav-search'),
             navPresets: document.getElementById('nav-presets'),
             navCustom: document.getElementById('nav-custom'),
+            navDuel: document.getElementById('nav-duel'),
             btnToggleEasy: document.getElementById('btn-toggle-easy'),
             btnToggleSpeak: document.getElementById('btn-toggle-speak'),
             btnToggleVideo: document.getElementById('btn-toggle-video'),
             viewSearch: document.getElementById('view-search'),
             viewPresets: document.getElementById('view-presets'),
             viewCustom: document.getElementById('view-custom'),
+            viewDuel: document.getElementById('view-duel'),
             favoritesTabList: document.getElementById('favorites-tab-list'),
             artistInput: document.getElementById('input-artist'),
             titleInput: document.getElementById('input-title'),
@@ -361,6 +387,15 @@ bindLegacyInlineHandlers();
             customText: document.getElementById('custom-text-area'),
             customTrans: document.getElementById('custom-translation-area'),
             customTransContainer: document.getElementById('custom-translation-container'),
+            customTextCounter: document.getElementById('custom-text-counter'),
+            customTransCounter: document.getElementById('custom-translation-counter'),
+            customSaveFavorite: document.getElementById('custom-save-favorite'),
+            duelViewState: document.getElementById('duel-view-state'),
+            duelViewOpponent: document.getElementById('duel-view-opponent'),
+            duelSlotOwner: document.getElementById('duel-slot-owner'),
+            duelSlotOpponent: document.getElementById('duel-slot-opponent'),
+            duelViewInviteTarget: document.getElementById('duel-view-invite-target'),
+            duelViewFriendList: document.getElementById('duel-view-friend-list'),
             missedWordsContainer: document.getElementById('missed-words-container'),
             missedWordsList: document.getElementById('missed-words-list'),
             resWpmBig: document.getElementById('res-wpm-big'),
@@ -435,9 +470,18 @@ bindLegacyInlineHandlers();
             authHistorySummary: document.getElementById('auth-history-summary'),
             authHistorySection: document.getElementById('auth-history-section'),
             authFriendsSection: document.getElementById('auth-friends-section'),
+            authDuelSection: document.getElementById('auth-duel-section'),
             authFriendUsername: document.getElementById('auth-friend-username'),
             authFriendRequests: document.getElementById('auth-friend-requests'),
             authFriendCompare: document.getElementById('auth-friend-compare'),
+            duelRoomCodeInput: document.getElementById('duel-room-code-input'),
+            duelInviteTarget: document.getElementById('duel-invite-target'),
+            duelRoomBox: document.getElementById('duel-room-box'),
+            duelRoomMeta: document.getElementById('duel-room-meta'),
+            duelRoomStatus: document.getElementById('duel-room-status'),
+            duelRoomMembers: document.getElementById('duel-room-members'),
+            duelFriendList: document.getElementById('duel-friend-list'),
+            duelInviteList: document.getElementById('duel-invite-list'),
             authFavoritesSection: document.getElementById('auth-favorites-section'),
             authDangerSection: document.getElementById('auth-danger-section'),
             authActionsSection: document.getElementById('auth-actions-section'),
@@ -465,7 +509,15 @@ bindLegacyInlineHandlers();
             sharedResultWpm: document.getElementById('shared-result-wpm'),
             sharedResultAcc: document.getElementById('shared-result-acc'),
             sharedResultRaw: document.getElementById('shared-result-raw'),
-            sharedResultConsistency: document.getElementById('shared-result-consistency')
+            sharedResultConsistency: document.getElementById('shared-result-consistency'),
+            duelHud: document.getElementById('duel-hud'),
+            duelMeName: document.getElementById('duel-me-name'),
+            duelMeProgressText: document.getElementById('duel-me-progress-text'),
+            duelMeProgressBar: document.getElementById('duel-me-progress-bar'),
+            duelOpponentName: document.getElementById('duel-opponent-name'),
+            duelOpponentProgressText: document.getElementById('duel-opponent-progress-text'),
+            duelOpponentProgressBar: document.getElementById('duel-opponent-progress-bar'),
+            duelCountdownText: document.getElementById('duel-countdown-text')
         };
 
         function initSpeech() { window.speechSynthesis.getVoices(); }
@@ -510,6 +562,7 @@ bindLegacyInlineHandlers();
         let authFriendsCache = [];
         let authFriendRequestsCache = [];
         let authFavoritesCache = [];
+        let favoritesSupportsCustomColumns = true;
         let authPendingAvatarFile = null;
         let authAvatarPreviewUrl = '';
         let authStoredAvatarUrl = '';
@@ -523,6 +576,8 @@ bindLegacyInlineHandlers();
         let titleSuggestSeq = 0;
         let artistCatalogFilterTimer = null;
         let artistCatalogFilterSeq = 0;
+        let duelPollTimer = null;
+        let duelLastProgressSentAt = 0;
 
         function normalizeEmail(email) {
             return (email || '').trim().toLowerCase();
@@ -547,6 +602,16 @@ bindLegacyInlineHandlers();
             } catch (e) {
                 return '';
             }
+        }
+
+        function isFavoritesColumnMissingError(error) {
+            const code = String(error?.code || '');
+            const message = String(error?.message || '');
+            return (
+                code === '42703' ||
+                code === 'PGRST204' ||
+                /custom_lyrics|custom_translation|source_type/i.test(message)
+            );
         }
 
         function toggleProfileEditor(forceState) {
@@ -811,12 +876,24 @@ bindLegacyInlineHandlers();
 
         async function loadFavoriteSongs(userId) {
             if (!supabase || !userId || !elements.authFavoritesList) return;
-            const { data, error } = await supabase
+            const selectColumns = favoritesSupportsCustomColumns
+                ? 'id,song_title,artist,created_at,source_type,custom_lyrics,custom_translation'
+                : 'id,song_title,artist,created_at';
+            let { data, error } = await supabase
                 .from('user_favorites')
-                .select('id,song_title,artist,created_at')
+                .select(selectColumns)
                 .eq('user_id', userId)
                 .order('created_at', { ascending: false })
                 .limit(200);
+            if (error && favoritesSupportsCustomColumns && isFavoritesColumnMissingError(error)) {
+                favoritesSupportsCustomColumns = false;
+                ({ data, error } = await supabase
+                    .from('user_favorites')
+                    .select('id,song_title,artist,created_at')
+                    .eq('user_id', userId)
+                    .order('created_at', { ascending: false })
+                    .limit(200));
+            }
             authFavoritesCache = data || [];
             if (error) {
                 showToast(`Could not load favorites (${error.message || 'unknown error'}).`, 'error');
@@ -831,10 +908,11 @@ bindLegacyInlineHandlers();
                 const title = escapeHtml(f.song_title || 'Unknown Song');
                 const artist = escapeHtml(f.artist || 'Unknown Artist');
                 const when = f.created_at ? new Date(f.created_at).toLocaleDateString() : '';
+                const badge = f.source_type === 'custom' ? '<span class="auth-favorite-meta">custom</span>' : '';
                 return `<div class="auth-favorite-item">
                           <div>
                             <div class="auth-favorite-title">${artist} - ${title}</div>
-                            <div class="auth-favorite-meta">${when}</div>
+                            <div class="auth-favorite-meta">${when} ${badge}</div>
                           </div>
                           <button class="auth-friend-btn reject" data-onclick="removeFavoriteSong(${f.id})">Remove</button>
                         </div>`;
@@ -847,12 +925,53 @@ bindLegacyInlineHandlers();
             return `${normalizeLookupText(artist)}|||${normalizeLookupText(songTitle)}`;
         }
 
+        function updateCustomInputCounters() {
+            const lyricsLen = (elements.customText?.value || '').trim().length;
+            const transLen = (elements.customTrans?.value || '').trim().length;
+            const totalLen = lyricsLen + transLen;
+
+            if (elements.customTextCounter) {
+                elements.customTextCounter.textContent = `${lyricsLen} / ${CUSTOM_LYRICS_MAX_CHARS}`;
+                elements.customTextCounter.classList.toggle('custom-counter-warn', lyricsLen > CUSTOM_LYRICS_MAX_CHARS);
+            }
+            if (elements.customTransCounter) {
+                elements.customTransCounter.textContent = `${transLen} / ${CUSTOM_TRANSLATION_MAX_CHARS}`;
+                elements.customTransCounter.classList.toggle('custom-counter-warn', transLen > CUSTOM_TRANSLATION_MAX_CHARS || totalLen > CUSTOM_TOTAL_MAX_CHARS);
+            }
+        }
+
+        function validateCustomInputLimits(text, trans) {
+            const lyricsLen = text.length;
+            const transLen = trans.length;
+            const totalLen = lyricsLen + transLen;
+            if (lyricsLen > CUSTOM_LYRICS_MAX_CHARS) {
+                return `Lyrics limit is ${CUSTOM_LYRICS_MAX_CHARS} characters.`;
+            }
+            if (transLen > CUSTOM_TRANSLATION_MAX_CHARS) {
+                return `Translation limit is ${CUSTOM_TRANSLATION_MAX_CHARS} characters.`;
+            }
+            if (totalLen > CUSTOM_TOTAL_MAX_CHARS) {
+                return `Lyrics + translation limit is ${CUSTOM_TOTAL_MAX_CHARS} characters.`;
+            }
+            return '';
+        }
+
+        function buildCustomSongTitle(text) {
+            const firstLine = String(text || '')
+                .split('\n')
+                .map((line) => line.trim())
+                .find((line) => line.length > 0) || 'Custom Lyrics';
+            const compact = firstLine.replace(/\s+/g, ' ');
+            const short = compact.length > 52 ? `${compact.slice(0, 49)}...` : compact;
+            return `Custom: ${short}`;
+        }
+
         function isSongFavorited(artist, songTitle) {
             const target = buildFavoriteSongKey(artist, songTitle);
             return (authFavoritesCache || []).some((f) => buildFavoriteSongKey(f.artist, f.song_title) === target);
         }
 
-        async function addSongToFavorites(artist, songTitle, silent = false) {
+        async function addSongToFavorites(artist, songTitle, silent = false, options = {}) {
             if (!ensureSupabaseReady()) return false;
             const user = authCurrentUser || await syncCurrentUser();
             if (!user) {
@@ -861,9 +980,19 @@ bindLegacyInlineHandlers();
             }
             const safeArtist = String(artist || '').trim();
             const safeSong = String(songTitle || '').trim();
+            const sourceType = options?.sourceType === 'custom' ? 'custom' : 'catalog';
+            const customLyrics = sourceType === 'custom' ? String(options?.customLyrics || '').trim() : '';
+            const customTranslation = sourceType === 'custom' ? String(options?.customTranslation || '').trim() : '';
             if (!safeSong || !safeArtist) {
                 if (!silent) showToast('Invalid song data.', 'error');
                 return false;
+            }
+            if (sourceType === 'custom') {
+                const limitError = validateCustomInputLimits(customLyrics, customTranslation);
+                if (limitError) {
+                    if (!silent) showToast(limitError, 'error');
+                    return false;
+                }
             }
             if (isSongFavorited(safeArtist, safeSong)) {
                 if (!silent) showToast('Song already in favorites.', 'info');
@@ -888,13 +1017,29 @@ bindLegacyInlineHandlers();
                 return true;
             }
 
-            const { error } = await supabase
+            const payload = {
+                user_id: user.id,
+                song_title: safeSong,
+                artist: safeArtist
+            };
+            if (favoritesSupportsCustomColumns) {
+                payload.source_type = sourceType;
+                payload.custom_lyrics = sourceType === 'custom' ? customLyrics : null;
+                payload.custom_translation = sourceType === 'custom' ? customTranslation : null;
+            }
+            let { error } = await supabase
                 .from('user_favorites')
-                .insert({
-                    user_id: user.id,
-                    song_title: safeSong,
-                    artist: safeArtist
-                });
+                .insert(payload);
+            if (error && favoritesSupportsCustomColumns && isFavoritesColumnMissingError(error)) {
+                favoritesSupportsCustomColumns = false;
+                ({ error } = await supabase
+                    .from('user_favorites')
+                    .insert({
+                        user_id: user.id,
+                        song_title: safeSong,
+                        artist: safeArtist
+                    }));
+            }
             if (error) {
                 if (String(error.code || '') === '23505') {
                     if (!silent) showToast('Song already in favorites.', 'info');
@@ -927,19 +1072,31 @@ bindLegacyInlineHandlers();
                 const when = f.created_at ? new Date(f.created_at).toLocaleDateString() : '';
                 const encodedArtist = encodeURIComponent(f.artist || '');
                 const encodedTitle = encodeURIComponent(f.song_title || '');
+                const sourceTag = f.source_type === 'custom' ? '<span class="auth-favorite-meta">custom</span>' : '';
                 return `<button class="p-4 bg-surface hover:opacity-90 rounded text-left transition group border border-transparent hover:border-main preset-btn"
-                                data-onclick="playFavoriteFromSetup('${encodedArtist}','${encodedTitle}')">
+                                data-onclick="playFavoriteFromSetup(${f.id},'${encodedArtist}','${encodedTitle}')">
                           <div class="text-base group-hover:text-main font-bold">${artist} - ${title}</div>
-                          <div class="text-xs text-sub">${when ? `saved ${when}` : 'saved song'}</div>
+                          <div class="text-xs text-sub">${when ? `saved ${when}` : 'saved song'} ${sourceTag}</div>
                         </button>`;
             }).join('');
         }
 
-        async function playFavoriteFromSetup(encodedArtist, encodedTitle) {
+        async function playFavoriteFromSetup(favoriteId, encodedArtist, encodedTitle) {
             const artist = decodeURIComponent(String(encodedArtist || '')).trim();
             const title = decodeURIComponent(String(encodedTitle || '')).trim();
             if (!artist || !title) {
                 showToast('Invalid favorite song.', 'error');
+                return;
+            }
+            const favorite = (authFavoritesCache || []).find((f) => Number(f.id) === Number(favoriteId));
+            if (favorite?.source_type === 'custom' && favorite?.custom_lyrics) {
+                state.isCustomGame = true;
+                startGame(
+                    String(favorite.custom_lyrics || ''),
+                    favorite.song_title || 'Custom Text',
+                    favorite.artist || 'Custom',
+                    String(favorite.custom_translation || '')
+                );
                 return;
             }
             if (elements.artistInput) elements.artistInput.value = artist;
@@ -953,6 +1110,14 @@ bindLegacyInlineHandlers();
             const artist = (state.artist || '').trim();
             if (!songTitle || !artist) {
                 showToast('Load a song first.', 'error');
+                return;
+            }
+            if (state.isCustomGame) {
+                await addSongToFavorites(artist, songTitle, false, {
+                    sourceType: 'custom',
+                    customLyrics: state.currentLyricsRaw || '',
+                    customTranslation: state.currentTranslationRaw || ''
+                });
                 return;
             }
             await addSongToFavorites(artist, songTitle);
@@ -1322,6 +1487,7 @@ bindLegacyInlineHandlers();
                     bindFriendAvatarPreview(elements.authFriendCompare);
                 }
             }
+            renderDuelFriendInviteList();
             renderProfileHub();
         }
 
@@ -1358,6 +1524,531 @@ bindLegacyInlineHandlers();
             await loadFriendsPanel();
         }
 
+        function clearDuelPolling() {
+            if (duelPollTimer) {
+                clearInterval(duelPollTimer);
+                duelPollTimer = null;
+            }
+        }
+
+        function clearDuelState() {
+            clearDuelPolling();
+            duelLastProgressSentAt = 0;
+            state.duel = {
+                roomId: '',
+                status: 'idle',
+                ownerId: '',
+                ownerName: '',
+                songTitle: '',
+                artist: '',
+                lyrics: '',
+                translation: '',
+                startedAtMs: 0,
+                countdownSeconds: 5,
+                inRoom: false,
+                isOwner: false,
+                opponentId: '',
+                opponentName: '',
+                gameLaunched: false,
+                resultShown: false
+            };
+            if (elements.duelHud) elements.duelHud.classList.add('hidden');
+            renderDuelPanel();
+        }
+
+        function getCurrentTypedChars() {
+            let charCount = 0;
+            for (let i = 0; i < state.currentWordIndex; i++) {
+                charCount += (state.words[i]?.length || 0) + 1;
+            }
+            charCount += (elements.input?.value || '').length;
+            return Math.max(0, charCount);
+        }
+
+        function setDuelHudProgress(selfPercent, opponentPercent, selfLabel, opponentLabel, centerLabel) {
+            if (elements.duelMeProgressBar) elements.duelMeProgressBar.style.width = `${Math.max(0, Math.min(100, selfPercent))}%`;
+            if (elements.duelOpponentProgressBar) elements.duelOpponentProgressBar.style.width = `${Math.max(0, Math.min(100, opponentPercent))}%`;
+            if (elements.duelMeProgressText) elements.duelMeProgressText.textContent = selfLabel;
+            if (elements.duelOpponentProgressText) elements.duelOpponentProgressText.textContent = opponentLabel;
+            if (elements.duelCountdownText) elements.duelCountdownText.textContent = centerLabel;
+        }
+
+        function renderDuelPanel() {
+            if (elements.duelRoomBox) elements.duelRoomBox.classList.toggle('hidden', !state.duel.inRoom);
+            if (elements.duelRoomMeta) {
+                elements.duelRoomMeta.textContent = state.duel.inRoom
+                    ? `Room: ${state.duel.roomId}`
+                    : 'Room: -';
+            }
+            if (elements.duelRoomStatus) {
+                elements.duelRoomStatus.textContent = `Status: ${state.duel.status || 'idle'}`;
+            }
+            if (elements.duelViewState) {
+                elements.duelViewState.textContent = state.duel.inRoom
+                    ? `Room active (${state.duel.status})`
+                    : 'Not in a duel room.';
+            }
+            if (elements.duelViewOpponent) {
+                elements.duelViewOpponent.textContent = state.duel.opponentName
+                    ? `Opponent: ${state.duel.opponentName}`
+                    : '';
+            }
+            if (elements.duelSlotOwner) {
+                elements.duelSlotOwner.textContent = state.duel.ownerName || (elements.authUserName?.textContent || 'You');
+            }
+            if (elements.duelSlotOpponent) {
+                elements.duelSlotOpponent.textContent = state.duel.opponentName || 'Empty slot';
+            }
+            if (elements.duelMeName) {
+                const meName = elements.authUserName?.textContent || 'You';
+                elements.duelMeName.textContent = meName;
+            }
+            if (elements.duelOpponentName) {
+                elements.duelOpponentName.textContent = state.duel.opponentName || '-';
+            }
+            renderDuelFriendInviteList();
+        }
+
+        function renderDuelFriendInviteList() {
+            if (!elements.duelFriendList && !elements.duelViewFriendList) return;
+            const buildHtml = () => {
+                if (!authFriendsCache.length) {
+                    return '<div class="auth-recent-empty">No friends added yet.</div>';
+                }
+                const canInvite = !!state.duel.inRoom && !!state.duel.roomId;
+                return authFriendsCache.map((f) => {
+                    const usernameRaw = String(f.username || '').trim();
+                    const username = escapeHtml(usernameRaw || 'friend');
+                    const encodedUsername = encodeURIComponent(usernameRaw);
+                    const avatar = buildFriendAvatarButton(f.username, f.avatar_url);
+                    const inviteBtn = canInvite
+                        ? `<button class="auth-friend-btn accept" data-onclick="inviteDuelFriendByUsername('${encodedUsername}')">Invite duel</button>`
+                        : `<button class="auth-friend-btn" disabled title="Create or join a duel room first">Invite duel</button>`;
+                    return `<div class="auth-friend-item">
+                              ${avatar}
+                              <div>
+                                <div class="auth-friend-name">${username}</div>
+                                <div class="auth-friend-meta">${f.games} games | avg ${f.avg_wpm} | best ${f.best_wpm}</div>
+                              </div>
+                              <div class="auth-friend-actions">
+                                ${inviteBtn}
+                              </div>
+                            </div>`;
+                }).join('');
+            };
+            const html = buildHtml();
+            if (elements.duelFriendList) elements.duelFriendList.innerHTML = html;
+            if (elements.duelViewFriendList) elements.duelViewFriendList.innerHTML = html;
+            if (elements.duelFriendList) bindFriendAvatarPreview(elements.duelFriendList);
+            if (elements.duelViewFriendList) bindFriendAvatarPreview(elements.duelViewFriendList);
+        }
+
+        async function invitePlayerToDuelRoomByIdentifier(target) {
+            if (!ensureSupabaseReady()) return;
+            if (!state.duel.roomId) {
+                showToast('Create or join a room first.', 'error');
+                return;
+            }
+            const safeTarget = String(target || '').trim();
+            if (!safeTarget) {
+                showToast('Enter friend username/email.', 'error');
+                return;
+            }
+            const { data, error } = await supabase.rpc('invite_duel_player', {
+                p_room_id: state.duel.roomId,
+                p_target_identifier: safeTarget
+            });
+            if (error) {
+                showToast(error.message || 'Could not send duel invite.', 'error');
+                return;
+            }
+            showToast(data || 'Invite sent.', 'info');
+            await renderDuelInvites();
+        }
+
+        async function invitePlayerToDuelRoomFromView() {
+            const target = String(elements.duelViewInviteTarget?.value || '').trim();
+            await invitePlayerToDuelRoomByIdentifier(target);
+            if (elements.duelViewInviteTarget) elements.duelViewInviteTarget.value = '';
+        }
+
+        async function inviteDuelFriendByUsername(encodedUsername) {
+            const username = decodeURIComponent(String(encodedUsername || '')).trim();
+            if (!username) {
+                showToast('Invalid friend.', 'error');
+                return;
+            }
+            if (elements.duelInviteTarget) elements.duelInviteTarget.value = username;
+            if (elements.duelViewInviteTarget) elements.duelViewInviteTarget.value = username;
+            await invitePlayerToDuelRoomByIdentifier(username);
+        }
+
+        async function renderDuelInvites() {
+            if (!ensureSupabaseReady() || !elements.duelInviteList) return;
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user) {
+                elements.duelInviteList.innerHTML = '<div class="auth-recent-empty">Login required.</div>';
+                return;
+            }
+            const { data, error } = await supabase
+                .from('duel_room_invites')
+                .select('id,room_id,status,created_at,inviter_id')
+                .eq('invitee_id', user.id)
+                .eq('status', 'pending')
+                .order('created_at', { ascending: false })
+                .limit(20);
+            if (error || !data || data.length === 0) {
+                elements.duelInviteList.innerHTML = '<div class="auth-recent-empty">No duel invites.</div>';
+                return;
+            }
+            const inviterIds = Array.from(new Set(data.map((row) => row.inviter_id).filter(Boolean)));
+            let inviterMap = new Map();
+            if (inviterIds.length > 0) {
+                const { data: inviterProfiles } = await supabase
+                    .from('profiles')
+                    .select('id,username,avatar_url')
+                    .in('id', inviterIds);
+                inviterMap = new Map((inviterProfiles || []).map((p) => [p.id, p]));
+            }
+            elements.duelInviteList.innerHTML = data.map((row) => {
+                const from = inviterMap.get(row.inviter_id)?.username || 'player';
+                return `<div class="auth-friend-item">
+                          <div>
+                            <div class="auth-friend-name">${escapeHtml(from)}</div>
+                            <div class="auth-friend-meta">room ${escapeHtml(String(row.room_id || ''))}</div>
+                          </div>
+                          <div class="auth-friend-actions">
+                            <button class="auth-friend-btn accept" data-onclick="respondDuelInvite(${row.id}, true)">Accept</button>
+                            <button class="auth-friend-btn reject" data-onclick="respondDuelInvite(${row.id}, false)">Reject</button>
+                          </div>
+                        </div>`;
+            }).join('');
+        }
+
+        async function fetchDuelRoomSnapshot(roomId) {
+            if (!roomId || !ensureSupabaseReady()) return null;
+            const { data: room, error: roomError } = await supabase
+                .from('duel_rooms')
+                .select('id,owner_id,song_title,artist,lyrics,translation,status,countdown_seconds,started_at,finished_at,created_at')
+                .eq('id', roomId)
+                .maybeSingle();
+            if (roomError || !room) return null;
+
+            const { data: members } = await supabase
+                .from('duel_room_members')
+                .select('room_id,user_id,joined_at')
+                .eq('room_id', roomId);
+            const { data: progress } = await supabase
+                .from('duel_progress')
+                .select('room_id,user_id,typed_words,typed_chars,wpm,accuracy,is_finished,finished_at,updated_at')
+                .eq('room_id', roomId);
+
+            const userIds = Array.from(new Set([room.owner_id, ...(members || []).map((m) => m.user_id)].filter(Boolean)));
+            let profilesMap = new Map();
+            if (userIds.length > 0) {
+                const { data: profiles } = await supabase
+                    .from('profiles')
+                    .select('id,username')
+                    .in('id', userIds);
+                profilesMap = new Map((profiles || []).map((p) => [p.id, p]));
+            }
+            return { room, members: members || [], progress: progress || [], profilesMap };
+        }
+
+        async function findResumableDuelRoomId() {
+            if (!ensureSupabaseReady()) return '';
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user) return '';
+            const { data: memberships } = await supabase
+                .from('duel_room_members')
+                .select('room_id,joined_at')
+                .eq('user_id', user.id)
+                .order('joined_at', { ascending: false })
+                .limit(10);
+            const roomIds = (memberships || []).map((m) => m.room_id).filter(Boolean);
+            if (!roomIds.length) return '';
+            const { data: rooms } = await supabase
+                .from('duel_rooms')
+                .select('id,status,created_at')
+                .in('id', roomIds);
+            const resumable = (rooms || [])
+                .filter((r) => ['waiting', 'countdown', 'active'].includes(String(r.status || '')))
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            return resumable[0]?.id || '';
+        }
+
+        function announceDuelResultIfReady(progressRows) {
+            if (!state.duel.inRoom || state.duel.resultShown) return;
+            const finishedRows = (progressRows || [])
+                .filter((p) => p.is_finished && p.finished_at)
+                .sort((a, b) => new Date(a.finished_at).getTime() - new Date(b.finished_at).getTime());
+            if (finishedRows.length < 2) return;
+            const me = authCurrentUser?.id || '';
+            const winner = finishedRows[0];
+            const isWinner = winner.user_id === me;
+            showToast(isWinner ? 'You won the duel.' : 'You lost the duel.', isWinner ? 'info' : 'error');
+            state.duel.resultShown = true;
+        }
+
+        function updateDuelHud(snapshot) {
+            if (!elements.duelHud) return;
+            if (!state.duel.inRoom || !state.duel.gameLaunched) {
+                elements.duelHud.classList.add('hidden');
+                return;
+            }
+            elements.duelHud.classList.remove('hidden');
+            const me = authCurrentUser?.id || '';
+            const totalWords = Math.max(1, String(snapshot?.room?.lyrics || '').split(/\s+/).filter(Boolean).length);
+            const meProgress = (snapshot?.progress || []).find((p) => p.user_id === me);
+            const opProgress = state.duel.opponentId
+                ? (snapshot?.progress || []).find((p) => p.user_id === state.duel.opponentId)
+                : null;
+            const mePct = meProgress ? Math.round((Number(meProgress.typed_words || 0) / totalWords) * 100) : Math.round((state.currentWordIndex / totalWords) * 100);
+            const opPct = opProgress ? Math.round((Number(opProgress.typed_words || 0) / totalWords) * 100) : 0;
+            const now = Date.now();
+            let center = 'Duel running';
+            if (state.duel.startedAtMs > now) {
+                center = `Start in ${Math.max(0, Math.ceil((state.duel.startedAtMs - now) / 1000))}s`;
+            }
+            if (meProgress?.is_finished && opProgress?.is_finished) {
+                center = 'Finished';
+            }
+            setDuelHudProgress(
+                mePct,
+                opPct,
+                `${Math.max(0, Math.min(100, mePct))}%${meProgress?.is_finished ? ' done' : ''}`,
+                `${Math.max(0, Math.min(100, opPct))}%${opProgress?.is_finished ? ' done' : ''}`,
+                center
+            );
+        }
+
+        async function applyDuelSnapshot(snapshot) {
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user || !snapshot || !snapshot.room) return;
+            const room = snapshot.room;
+            const members = snapshot.members || [];
+            const meInRoom = members.some((m) => m.user_id === user.id) || room.owner_id === user.id;
+            if (!meInRoom) {
+                clearDuelState();
+                return;
+            }
+            state.duel.roomId = room.id;
+            state.duel.inRoom = true;
+            state.duel.status = room.status || 'waiting';
+            state.duel.ownerId = room.owner_id || '';
+            state.duel.isOwner = room.owner_id === user.id;
+            state.duel.songTitle = room.song_title || 'Duel song';
+            state.duel.artist = room.artist || 'Duel';
+            state.duel.lyrics = room.lyrics || '';
+            state.duel.translation = room.translation || '';
+            state.duel.countdownSeconds = Number(room.countdown_seconds || 5) || 5;
+            state.duel.startedAtMs = room.started_at ? new Date(room.started_at).getTime() : 0;
+            if (room.status === 'finished' || room.status === 'canceled') {
+                showToast('Duel room closed.', 'info');
+                clearDuelState();
+                return;
+            }
+            const ownerProfile = snapshot.profilesMap.get(room.owner_id);
+            state.duel.ownerName = ownerProfile?.username || 'owner';
+            const opponentMember = members.find((m) => m.user_id !== user.id) || null;
+            state.duel.opponentId = opponentMember?.user_id || '';
+            state.duel.opponentName = opponentMember
+                ? (snapshot.profilesMap.get(opponentMember.user_id)?.username || 'opponent')
+                : '';
+
+            if (elements.duelRoomMembers) {
+                if (members.length === 0) {
+                    elements.duelRoomMembers.innerHTML = '<div class="auth-recent-empty">No players.</div>';
+                } else {
+                    elements.duelRoomMembers.innerHTML = members.map((m) => {
+                        const username = snapshot.profilesMap.get(m.user_id)?.username || 'player';
+                        const suffix = m.user_id === room.owner_id ? ' (owner)' : '';
+                        return `<div class="auth-friend-item">
+                                  <div>
+                                    <div class="auth-friend-name">${escapeHtml(username)}${suffix}</div>
+                                  </div>
+                                </div>`;
+                    }).join('');
+                }
+            }
+
+            const now = Date.now();
+            if (state.duel.startedAtMs > now && room.status === 'countdown') {
+                setDuelHudProgress(0, 0, '0%', '0%', `Start in ${Math.ceil((state.duel.startedAtMs - now) / 1000)}s`);
+            }
+
+            if (!state.duel.gameLaunched && room.status === 'countdown' && state.duel.startedAtMs > 0 && now >= state.duel.startedAtMs) {
+                state.isClozeMode = false;
+                state.isRhythmMode = false;
+                document.getElementById('mode-cloze')?.classList.remove('active');
+                document.getElementById('mode-rhythm')?.classList.remove('active');
+                document.getElementById('mode-normal')?.classList.add('active');
+                state.duel.gameLaunched = true;
+                state.duel.resultShown = false;
+                startGame(state.duel.lyrics, state.duel.songTitle, state.duel.artist, state.duel.translation || '');
+                showToast('Duel started.', 'info');
+            }
+
+            updateDuelHud(snapshot);
+            announceDuelResultIfReady(snapshot.progress || []);
+            renderDuelPanel();
+        }
+
+        async function pollDuelRoom() {
+            if (!state.duel.roomId || !state.duel.inRoom) return;
+            const snapshot = await fetchDuelRoomSnapshot(state.duel.roomId);
+            if (!snapshot) return;
+            await applyDuelSnapshot(snapshot);
+        }
+
+        function ensureDuelPolling() {
+            clearDuelPolling();
+            duelPollTimer = setInterval(() => {
+                pollDuelRoom().catch(() => {});
+            }, DUEL_POLL_MS);
+        }
+
+        async function createDuelRoomFromCurrentSong() {
+            if (!ensureSupabaseReady()) return;
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user) {
+                showToast('Login first.', 'error');
+                return;
+            }
+            const lyrics = String(state.currentLyricsRaw || '').trim();
+            if (!lyrics) {
+                showToast('Load a song first before creating a duel room.', 'error');
+                return;
+            }
+            const { data, error } = await supabase.rpc('create_duel_room', {
+                p_song_title: String(state.songTitle || 'Duel Song'),
+                p_artist: String(state.artist || 'Unknown'),
+                p_lyrics: lyrics,
+                p_translation: String(state.currentTranslationRaw || '')
+            });
+            if (error || !data) {
+                showToast(error?.message || 'Could not create duel room.', 'error');
+                return;
+            }
+            state.duel.roomId = data;
+            state.duel.inRoom = true;
+            state.duel.gameLaunched = false;
+            state.duel.resultShown = false;
+            ensureDuelPolling();
+            await pollDuelRoom();
+            showToast('Duel room created.', 'info');
+            closeModal('profile');
+            switchTab('duel');
+        }
+
+        async function joinDuelRoomByCode() {
+            if (!ensureSupabaseReady()) return;
+            const code = String(elements.duelRoomCodeInput?.value || '').trim();
+            if (!code) {
+                showToast('Enter a room id.', 'error');
+                return;
+            }
+            const { error } = await supabase.rpc('join_duel_room', { p_room_id: code });
+            if (error) {
+                showToast(error.message || 'Could not join room.', 'error');
+                return;
+            }
+            state.duel.roomId = code;
+            state.duel.inRoom = true;
+            state.duel.gameLaunched = false;
+            state.duel.resultShown = false;
+            if (elements.duelRoomCodeInput) elements.duelRoomCodeInput.value = '';
+            ensureDuelPolling();
+            await pollDuelRoom();
+            showToast('Joined duel room.', 'info');
+            closeModal('profile');
+            switchTab('duel');
+        }
+
+        async function invitePlayerToDuelRoom() {
+            const target = String(elements.duelInviteTarget?.value || '').trim();
+            await invitePlayerToDuelRoomByIdentifier(target);
+            if (elements.duelInviteTarget) elements.duelInviteTarget.value = '';
+        }
+
+        async function respondDuelInvite(inviteId, acceptInvite) {
+            if (!ensureSupabaseReady()) return;
+            const { data, error } = await supabase.rpc('respond_duel_invite', {
+                p_invite_id: inviteId,
+                p_accept: !!acceptInvite
+            });
+            if (error) {
+                showToast(error.message || 'Could not update duel invite.', 'error');
+                return;
+            }
+            if (acceptInvite && data) {
+                state.duel.roomId = data;
+                state.duel.inRoom = true;
+                state.duel.gameLaunched = false;
+                state.duel.resultShown = false;
+                ensureDuelPolling();
+                await pollDuelRoom();
+                closeModal('profile');
+                switchTab('duel');
+            }
+            showToast(acceptInvite ? 'Duel invite accepted.' : 'Duel invite rejected.', 'info');
+            await renderDuelInvites();
+        }
+
+        async function startDuelCountdown() {
+            if (!ensureSupabaseReady()) return;
+            if (!state.duel.roomId) {
+                showToast('Create a room first.', 'error');
+                return;
+            }
+            const { data, error } = await supabase.rpc('start_duel_room', {
+                p_room_id: state.duel.roomId,
+                p_countdown_seconds: 5
+            });
+            if (error) {
+                showToast(error.message || 'Could not start duel.', 'error');
+                return;
+            }
+            state.duel.startedAtMs = data ? new Date(data).getTime() : (Date.now() + 5000);
+            state.duel.gameLaunched = false;
+            state.duel.resultShown = false;
+            await pollDuelRoom();
+            showToast('Countdown started.', 'info');
+            switchTab('duel');
+        }
+
+        async function leaveCurrentDuelRoom() {
+            if (!ensureSupabaseReady()) return;
+            if (!state.duel.roomId) {
+                clearDuelState();
+                return;
+            }
+            await supabase.rpc('leave_duel_room', { p_room_id: state.duel.roomId });
+            clearDuelState();
+            await renderDuelInvites();
+            showToast('Left duel room.', 'info');
+        }
+
+        async function sendDuelProgress(forceFinished = false, overrides = {}) {
+            if (!ensureSupabaseReady()) return;
+            if (!state.duel.inRoom || !state.duel.roomId) return;
+            const now = Date.now();
+            if (!forceFinished && (now - duelLastProgressSentAt) < 700) return;
+            duelLastProgressSentAt = now;
+            const typedWords = Number(overrides.typedWords ?? state.currentWordIndex) || 0;
+            const typedChars = Number(overrides.typedChars ?? getCurrentTypedChars()) || 0;
+            const liveWpm = Number(overrides.wpm ?? Number(elements.liveWpm?.textContent || 0)) || 0;
+            const liveAcc = Number(overrides.accuracy ?? 0) || 0;
+            await supabase.rpc('upsert_duel_progress', {
+                p_room_id: state.duel.roomId,
+                p_typed_words: Math.max(0, typedWords),
+                p_typed_chars: Math.max(0, typedChars),
+                p_wpm: Math.max(0, liveWpm),
+                p_accuracy: Math.max(0, Math.min(100, liveAcc)),
+                p_is_finished: !!forceFinished
+            });
+        }
+
         function resetAuthDashboardUI() {
             if (elements.authStatGames) elements.authStatGames.textContent = '0';
             if (elements.authStatBestWpm) elements.authStatBestWpm.textContent = '0';
@@ -1376,7 +2067,11 @@ bindLegacyInlineHandlers();
             drawSongHistoryChart(null);
             if (elements.authFriendRequests) elements.authFriendRequests.innerHTML = '<div class="auth-recent-empty">No requests.</div>';
             if (elements.authFriendCompare) elements.authFriendCompare.innerHTML = '<div class="auth-recent-empty">No friends added yet.</div>';
+            if (elements.duelFriendList) elements.duelFriendList.innerHTML = '<div class="auth-recent-empty">No friends added yet.</div>';
+            if (elements.duelViewFriendList) elements.duelViewFriendList.innerHTML = '<div class="auth-recent-empty">No friends added yet.</div>';
             if (elements.authFavoritesList) elements.authFavoritesList.innerHTML = '<div class="auth-recent-empty">No favorites yet.</div>';
+            if (elements.duelInviteList) elements.duelInviteList.innerHTML = '<div class="auth-recent-empty">No duel invites.</div>';
+            if (elements.duelRoomMembers) elements.duelRoomMembers.innerHTML = '<div class="auth-recent-empty">No players.</div>';
             authFriendsCache = [];
             authFriendRequestsCache = [];
             authFavoritesCache = [];
@@ -1739,6 +2434,8 @@ bindLegacyInlineHandlers();
             if (elements.authRegisterPasswordVerify) elements.authRegisterPasswordVerify.value = '';
             if (elements.authDeletePassword) elements.authDeletePassword.value = '';
             if (elements.authFriendUsername) elements.authFriendUsername.value = '';
+            if (elements.duelRoomCodeInput) elements.duelRoomCodeInput.value = '';
+            if (elements.duelInviteTarget) elements.duelInviteTarget.value = '';
             if (elements.authUserBio) elements.authUserBio.value = '';
             if (elements.authAvatarFile) elements.authAvatarFile.value = '';
             if (elements.authAvatarFileName) elements.authAvatarFileName.textContent = 'No file selected';
@@ -1748,6 +2445,24 @@ bindLegacyInlineHandlers();
                 URL.revokeObjectURL(authAvatarPreviewUrl);
                 authAvatarPreviewUrl = '';
             }
+            if (elements.authLoginPassword) elements.authLoginPassword.type = 'password';
+            if (elements.authRegisterPassword) elements.authRegisterPassword.type = 'password';
+            if (elements.authRegisterPasswordVerify) elements.authRegisterPasswordVerify.type = 'password';
+            document.querySelectorAll('.auth-password-toggle').forEach((btn) => {
+                btn.textContent = 'Show';
+                btn.setAttribute('aria-pressed', 'false');
+                btn.setAttribute('aria-label', 'Show password');
+            });
+        }
+
+        function togglePasswordVisibility(inputId, triggerButton) {
+            const input = document.getElementById(inputId);
+            if (!input || !triggerButton) return;
+            const shouldShow = input.type === 'password';
+            input.type = shouldShow ? 'text' : 'password';
+            triggerButton.textContent = shouldShow ? 'Hide' : 'Show';
+            triggerButton.setAttribute('aria-pressed', shouldShow ? 'true' : 'false');
+            triggerButton.setAttribute('aria-label', shouldShow ? 'Hide password' : 'Show password');
         }
 
         function switchAuthTab(tab) {
@@ -1789,6 +2504,20 @@ bindLegacyInlineHandlers();
                 await loadUserGameStats(user.id);
                 await loadFriendsPanel();
                 await loadFavoriteSongs(user.id);
+                await renderDuelInvites();
+                if (!state.duel.roomId) {
+                    const resumableRoomId = await findResumableDuelRoomId();
+                    if (resumableRoomId) {
+                        state.duel.roomId = resumableRoomId;
+                        state.duel.inRoom = true;
+                    }
+                }
+                if (state.duel.inRoom && state.duel.roomId) {
+                    ensureDuelPolling();
+                    await pollDuelRoom();
+                } else {
+                    renderDuelPanel();
+                }
                 renderSetupFavoritesTab();
                 renderProfileHub();
                 await maybeOpenSharedResultFromLink();
@@ -1799,6 +2528,7 @@ bindLegacyInlineHandlers();
                 closeProfileHub();
                 authStoredAvatarUrl = '';
                 if (elements.headerAvatarImage) elements.headerAvatarImage.src = 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
+                clearDuelState();
                 renderSetupFavoritesTab();
             }
             setAccountViewMode(authAccountViewMode);
@@ -2355,9 +3085,10 @@ bindLegacyInlineHandlers();
         }
 
         function switchTab(tabName) {
-            ['search', 'presets', 'custom'].forEach(t => {
+            ['search', 'presets', 'custom', 'duel'].forEach(t => {
                 const el = document.getElementById(`nav-${t}`);
                 const view = document.getElementById(`view-${t}`);
+                if (!el || !view) return;
                 if (t === tabName) {
                     el.classList.add('active');
                     view.classList.remove('hidden');
@@ -2370,6 +3101,9 @@ bindLegacyInlineHandlers();
                 elements.customTransContainer.classList.remove('hidden');
             } else {
                 elements.customTransContainer.classList.add('hidden');
+            }
+            if (tabName === 'duel') {
+                renderDuelPanel();
             }
         }
 
@@ -3328,14 +4062,32 @@ bindLegacyInlineHandlers();
         }
 
         function startCustomGame() {
-            const text = elements.customText.value.trim();
-            const trans = elements.customTrans.value.trim();
-            if (!text) return;
+            const text = (elements.customText?.value || '').trim();
+            const trans = (elements.customTrans?.value || '').trim();
+            if (!text) {
+                showToast('Paste lyrics first.', 'error');
+                return;
+            }
+            const limitError = validateCustomInputLimits(text, trans);
+            if (limitError) {
+                showToast(limitError, 'error');
+                return;
+            }
+            const customTitle = buildCustomSongTitle(text);
             state.isCustomGame = true;
-            startGame(text, "Custom Text", "You", trans);
+            startGame(text, customTitle, "Custom", trans);
+            if (elements.customSaveFavorite?.checked) {
+                addSongToFavorites('Custom', customTitle, false, {
+                    sourceType: 'custom',
+                    customLyrics: text,
+                    customTranslation: trans
+                }).catch(() => {});
+            }
         }
 
         function startGame(text, title, artist, translationText = '', syncedLyricsRaw = '') {
+            state.currentLyricsRaw = String(text || '');
+            state.currentTranslationRaw = String(translationText || '');
             state.syncedLyricsRaw = syncedLyricsRaw || '';
             state.syncedTimeline = parseSyncedLyrics(state.syncedLyricsRaw);
             let effectiveText = text;
@@ -3421,6 +4173,12 @@ bindLegacyInlineHandlers();
             elements.setupArea.classList.add('hidden');
             elements.resultsArea.classList.add('hidden');
             elements.gameArea.classList.remove('hidden');
+            if (elements.duelHud) {
+                elements.duelHud.classList.toggle('hidden', !(state.duel.inRoom && state.duel.gameLaunched));
+            }
+            if (state.duel.inRoom && state.duel.gameLaunched) {
+                setDuelHudProgress(0, 0, '0%', '0%', 'Duel running');
+            }
             renderWords();
             elements.input.value = '';
             focusTypingInput();
@@ -3502,6 +4260,7 @@ bindLegacyInlineHandlers();
 
             // SAFETY: Do not process if game is hidden (finished)
             if (elements.gameArea.classList.contains('hidden')) return;
+            if (state.duel.inRoom && state.duel.startedAtMs > Date.now()) return;
 
             if (state.currentWordIndex >= state.words.length) return;
             if (!state.isPlaying && currentVal.length > 0) {
@@ -3753,7 +4512,14 @@ bindLegacyInlineHandlers();
             if (e.key === 'Alt') { togglePreviewMode(false); } 
         });
 
-        function requestRestart() { if (state.isPlaying) { clearInterval(state.timerInterval); state.isPlaying = false; } elements.restartModal.classList.remove('hidden'); }
+        function requestRestart() {
+            if (state.duel.inRoom && state.duel.gameLaunched && !elements.gameArea.classList.contains('hidden')) {
+                showToast('Restart is disabled during duel mode.', 'info');
+                return;
+            }
+            if (state.isPlaying) { clearInterval(state.timerInterval); state.isPlaying = false; }
+            elements.restartModal.classList.remove('hidden');
+        }
         function cancelRestart() { elements.restartModal.classList.add('hidden'); focusTypingInput(); }
         function confirmRestart() { elements.restartModal.classList.add('hidden'); resetGame(); }
         
@@ -4001,6 +4767,15 @@ bindLegacyInlineHandlers();
                 extraChars: state.extraChars,
                 durationSeconds: Math.round(timeSeconds)
             });
+            if (state.duel.inRoom && state.duel.gameLaunched) {
+                sendDuelProgress(true, {
+                    typedWords: state.words.length,
+                    typedChars: totalCharsTyped,
+                    wpm: netWpm,
+                    accuracy
+                }).catch(() => {});
+                showToast('Duel result sent. Waiting for opponent...', 'info');
+            }
             
             // Update Results UI
             elements.resWpmBig.textContent = netWpm;
@@ -4226,6 +5001,9 @@ bindLegacyInlineHandlers();
             elements.liveCorrect.textContent = state.wordsCorrect;
             elements.liveWrong.textContent = state.wordsWrong;
             elements.liveCombo.textContent = state.currentCombo;
+            if (state.duel.inRoom && state.duel.gameLaunched) {
+                sendDuelProgress(false).catch(() => {});
+            }
         }
         
         function startTimer() {
@@ -4243,6 +5021,9 @@ bindLegacyInlineHandlers();
                 if (wpm > 0 && wpm < 300) {
                      elements.liveWpm.textContent = wpm;
                      state.wpmHistory.push(wpm);
+                     if (state.duel.inRoom && state.duel.gameLaunched) {
+                        sendDuelProgress(false, { wpm }).catch(() => {});
+                     }
                      
                      if (state.previousRun && state.previousRun.wpmHistory && state.wpmHistory.length <= state.previousRun.wpmHistory.length) {
                          const tickIndex = state.wpmHistory.length - 1;
@@ -4301,6 +5082,7 @@ bindLegacyInlineHandlers();
             speakWord,
             toggleVideoPanel,
             switchAuthTab,
+            togglePasswordVisibility,
             loginWithProvider,
             registerAccount,
             loginAccount,
@@ -4308,6 +5090,14 @@ bindLegacyInlineHandlers();
             deleteAccount,
             sendFriendRequest,
             respondFriendRequest,
+            createDuelRoomFromCurrentSong,
+            joinDuelRoomByCode,
+            invitePlayerToDuelRoom,
+            invitePlayerToDuelRoomFromView,
+            inviteDuelFriendByUsername,
+            respondDuelInvite,
+            startDuelCountdown,
+            leaveCurrentDuelRoom,
             openFriendProfileFromList,
             saveProfileDetails,
             addCurrentSongToFavorites,
@@ -4361,6 +5151,12 @@ bindLegacyInlineHandlers();
                     renderArtistCatalogList(elements.artistSongFilter.value || '', true);
                 }, 220);
             });
+        }
+        if (elements.customText) {
+            elements.customText.addEventListener('input', updateCustomInputCounters);
+        }
+        if (elements.customTrans) {
+            elements.customTrans.addEventListener('input', updateCustomInputCounters);
         }
         document.addEventListener('click', (event) => {
             const target = event.target;
@@ -4426,6 +5222,8 @@ bindLegacyInlineHandlers();
             });
         }
         switchAuthTab('login');
+        updateCustomInputCounters();
+        renderDuelPanel();
         pendingSharedResultId = parseShareIdFromLocation();
         bindAuthActivityWatchers();
         if (supabase) {
