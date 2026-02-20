@@ -514,7 +514,6 @@
         <div class="config-bar mobile-config-bar">
                 <div class="mode-group">
                     <div class="nav-link active" id="nav-search" data-onclick="trySwitchTab('search')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>search</div>
-                    <div class="nav-link" id="nav-presets" data-onclick="trySwitchTab('presets')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>favorites</div>
                     <div class="nav-link" id="nav-custom" data-onclick="trySwitchTab('custom')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>custom</div>
                     <div class="nav-link" id="nav-duel" data-onclick="trySwitchTab('duel')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M8 4l-3 8h5l-2 8 11-13h-6l2-3z"/></svg>duel</div>
                 </div>
@@ -595,6 +594,47 @@
                 <div id="search-error-container" class="hidden mt-4 p-4 bg-surface rounded text-center border border-error">
                     <p id="search-error" class="text-error text-sm font-bold mb-2"></p>
                     <a id="google-fallback-link" href="#" target="_blank" class="text-xs text-base underline hover:text-white">Search on Google</a>
+                </div>
+                <div id="search-discovery" class="search-discovery-board">
+                    <div class="search-discovery-chips">
+                        <button id="search-chip-all" type="button" class="search-discovery-chip active" data-onclick="setSearchDiscoveryFilter('all')">Tudo</button>
+                        <button id="search-chip-music" type="button" class="search-discovery-chip" data-onclick="setSearchDiscoveryFilter('music')">Músicas</button>
+                        <button id="search-chip-favorites" type="button" class="search-discovery-chip" data-onclick="setSearchDiscoveryFilter('favorites')">Favoritas</button>
+                        <button id="search-chip-artists" type="button" class="search-discovery-chip" data-onclick="setSearchDiscoveryFilter('artists')">Artistas</button>
+                        <button id="search-chip-train" type="button" class="search-discovery-chip" data-onclick="setSearchDiscoveryFilter('train')">Treinar</button>
+                    </div>
+                    <section id="search-section-recent" class="search-discovery-section">
+                        <div class="search-discovery-head">
+                            <span class="search-discovery-title">Recent artists</span>
+                        </div>
+                        <div id="search-recent-artists" class="search-discovery-row search-discovery-row-artists">
+                            <div class="auth-recent-empty">Search artists and they will appear here.</div>
+                        </div>
+                    </section>
+                    <section id="search-section-favorites" class="search-discovery-section">
+                        <div class="search-discovery-head">
+                            <span class="search-discovery-title">Recent songs</span>
+                        </div>
+                        <div id="search-recent-songs" class="favorites-cards-grid">
+                            <div class="auth-recent-empty">Play songs and your recent list appears here.</div>
+                        </div>
+                    </section>
+                    <section id="search-section-favorites-tab" class="search-discovery-section">
+                        <div class="search-discovery-head">
+                            <span class="search-discovery-title">Favorite picks</span>
+                        </div>
+                        <div id="search-favorite-picks" class="favorites-cards-grid">
+                            <div class="auth-recent-empty">Login to see favorite picks.</div>
+                        </div>
+                    </section>
+                    <section id="search-section-train" class="search-discovery-section">
+                        <div class="search-discovery-head">
+                            <span class="search-discovery-title">Train next</span>
+                        </div>
+                        <div id="search-train-picks" class="search-discovery-row">
+                            <div class="auth-recent-empty">Play a few songs and we suggest what to train next.</div>
+                        </div>
+                    </section>
                 </div>
                 <div id="artist-catalog" class="hidden artist-catalog-wrap">
                     <div class="artist-catalog-head">
