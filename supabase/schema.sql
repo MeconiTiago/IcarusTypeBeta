@@ -1223,3 +1223,50 @@ $$;
 
 revoke all on function public.upsert_duel_progress(uuid, integer, integer, integer, integer, boolean) from public;
 grant execute on function public.upsert_duel_progress(uuid, integer, integer, integer, integer, boolean) to authenticated;
+
+-- Realtime publication for duel mode tables
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'duel_rooms'
+  ) then
+    alter publication supabase_realtime add table public.duel_rooms;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'duel_room_members'
+  ) then
+    alter publication supabase_realtime add table public.duel_room_members;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'duel_room_invites'
+  ) then
+    alter publication supabase_realtime add table public.duel_room_invites;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'duel_progress'
+  ) then
+    alter publication supabase_realtime add table public.duel_progress;
+  end if;
+exception
+  when undefined_object then
+    null;
+end $$;

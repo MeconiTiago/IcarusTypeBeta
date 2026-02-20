@@ -589,6 +589,11 @@ bindLegacyInlineHandlers();
         let artistCatalogFilterSeq = 0;
         let duelPollTimer = null;
         let duelLastProgressSentAt = 0;
+        let duelRealtimeRoomChannel = null;
+        let duelRealtimeRoomId = '';
+        let duelRealtimeInvitesChannel = null;
+        let duelRealtimeInvitesUserId = '';
+        let duelSnapshotRefreshTimer = null;
 
         function normalizeEmail(email) {
             return (email || '').trim().toLowerCase();
@@ -1542,8 +1547,125 @@ bindLegacyInlineHandlers();
             }
         }
 
+        function clearDuelRealtimeRoomSubscription() {
+            if (duelSnapshotRefreshTimer) {
+                clearTimeout(duelSnapshotRefreshTimer);
+                duelSnapshotRefreshTimer = null;
+            }
+            if (duelRealtimeRoomChannel && supabase) {
+                supabase.removeChannel(duelRealtimeRoomChannel).catch(() => {});
+            }
+            duelRealtimeRoomChannel = null;
+            duelRealtimeRoomId = '';
+        }
+
+        function clearDuelRealtimeInvitesSubscription() {
+            if (duelRealtimeInvitesChannel && supabase) {
+                supabase.removeChannel(duelRealtimeInvitesChannel).catch(() => {});
+            }
+            duelRealtimeInvitesChannel = null;
+            duelRealtimeInvitesUserId = '';
+        }
+
+        function queueDuelSnapshotRefresh(delayMs = 120) {
+            if (duelSnapshotRefreshTimer || !state.duel.inRoom || !state.duel.roomId) return;
+            duelSnapshotRefreshTimer = setTimeout(() => {
+                duelSnapshotRefreshTimer = null;
+                pollDuelRoom().catch(() => {});
+            }, Math.max(0, Number(delayMs) || 0));
+        }
+
+        function ensureDuelRealtimeRoomSubscription(roomId) {
+            if (!supabase || !roomId) return;
+            if (duelRealtimeRoomChannel && duelRealtimeRoomId === roomId) return;
+            clearDuelRealtimeRoomSubscription();
+            const roomFilter = `id=eq.${roomId}`;
+            const roomMemberFilter = `room_id=eq.${roomId}`;
+            const channel = supabase
+                .channel(`duel-room:${roomId}`)
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'duel_rooms',
+                    filter: roomFilter
+                }, () => queueDuelSnapshotRefresh(0))
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'duel_room_members',
+                    filter: roomMemberFilter
+                }, () => queueDuelSnapshotRefresh(0))
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'duel_progress',
+                    filter: roomMemberFilter
+                }, () => queueDuelSnapshotRefresh(0))
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'duel_room_invites',
+                    filter: roomMemberFilter
+                }, () => {
+                    renderDuelInvites().catch(() => {});
+                    queueDuelSnapshotRefresh(0);
+                })
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        clearDuelPolling();
+                        queueDuelSnapshotRefresh(0);
+                        return;
+                    }
+                    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                        if (duelRealtimeRoomChannel === channel) {
+                            duelRealtimeRoomChannel = null;
+                            duelRealtimeRoomId = '';
+                        }
+                        if (state.duel.inRoom && state.duel.roomId === roomId) {
+                            ensureDuelPolling();
+                        }
+                    }
+                });
+            duelRealtimeRoomChannel = channel;
+            duelRealtimeRoomId = roomId;
+        }
+
+        function ensureDuelRealtimeInvitesSubscription(userId) {
+            if (!supabase || !userId) return;
+            if (duelRealtimeInvitesChannel && duelRealtimeInvitesUserId === userId) return;
+            clearDuelRealtimeInvitesSubscription();
+            const channel = supabase
+                .channel(`duel-invites:${userId}`)
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'duel_room_invites',
+                    filter: `invitee_id=eq.${userId}`
+                }, () => {
+                    renderDuelInvites().catch(() => {});
+                    queueDuelSnapshotRefresh(0);
+                })
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'duel_room_invites',
+                    filter: `inviter_id=eq.${userId}`
+                }, () => {
+                    renderDuelInvites().catch(() => {});
+                    queueDuelSnapshotRefresh(0);
+                })
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        renderDuelInvites().catch(() => {});
+                    }
+                });
+            duelRealtimeInvitesChannel = channel;
+            duelRealtimeInvitesUserId = userId;
+        }
+
         function clearDuelState() {
             clearDuelPolling();
+            clearDuelRealtimeRoomSubscription();
             duelLastProgressSentAt = 0;
             state.duel = {
                 roomId: '',
@@ -2075,6 +2197,9 @@ bindLegacyInlineHandlers();
         }
 
         function ensureDuelPolling() {
+            if (duelRealtimeRoomChannel && duelRealtimeRoomId && duelRealtimeRoomId === state.duel.roomId) {
+                return;
+            }
             clearDuelPolling();
             duelPollTimer = setInterval(() => {
                 pollDuelRoom().catch(() => {});
@@ -2103,7 +2228,7 @@ bindLegacyInlineHandlers();
             state.duel.uiStep = 'room';
             state.duel.gameLaunched = false;
             state.duel.resultShown = false;
-            ensureDuelPolling();
+            ensureDuelRealtimeRoomSubscription(state.duel.roomId);
             await pollDuelRoom();
             showToast('Duel room created.', 'info');
             closeModal('profile');
@@ -2129,7 +2254,7 @@ bindLegacyInlineHandlers();
             state.duel.resultShown = false;
             if (elements.duelRoomCodeInput) elements.duelRoomCodeInput.value = '';
             if (elements.duelRoomCodeInputView) elements.duelRoomCodeInputView.value = '';
-            ensureDuelPolling();
+            ensureDuelRealtimeRoomSubscription(state.duel.roomId);
             await pollDuelRoom();
             showToast('Joined duel room.', 'info');
             closeModal('profile');
@@ -2168,7 +2293,7 @@ bindLegacyInlineHandlers();
                 state.duel.uiStep = 'room';
                 state.duel.gameLaunched = false;
                 state.duel.resultShown = false;
-                ensureDuelPolling();
+                ensureDuelRealtimeRoomSubscription(state.duel.roomId);
                 await pollDuelRoom();
                 closeModal('profile');
                 switchTab('duel');
@@ -2198,7 +2323,7 @@ bindLegacyInlineHandlers();
             state.duel.startedAtMs = data ? new Date(data).getTime() : (Date.now() + 5000);
             state.duel.gameLaunched = false;
             state.duel.resultShown = false;
-            await pollDuelRoom();
+            queueDuelSnapshotRefresh(0);
             showToast('Countdown started.', 'info');
             switchTab('duel');
         }
@@ -2691,6 +2816,7 @@ bindLegacyInlineHandlers();
                 await loadFriendsPanel();
                 await loadFavoriteSongs(user.id);
                 await renderDuelInvites();
+                ensureDuelRealtimeInvitesSubscription(user.id);
                 if (!state.duel.roomId) {
                     const resumableRoomId = await findResumableDuelRoomId();
                     if (resumableRoomId) {
@@ -2699,9 +2825,11 @@ bindLegacyInlineHandlers();
                     }
                 }
                 if (state.duel.inRoom && state.duel.roomId) {
-                    ensureDuelPolling();
+                    ensureDuelRealtimeRoomSubscription(state.duel.roomId);
                     await pollDuelRoom();
                 } else {
+                    clearDuelRealtimeRoomSubscription();
+                    clearDuelPolling();
                     renderDuelPanel();
                 }
                 renderSetupFavoritesTab();
@@ -2709,6 +2837,7 @@ bindLegacyInlineHandlers();
                 await maybeOpenSharedResultFromLink();
             } else {
                 resetAuthDashboardUI();
+                clearDuelRealtimeInvitesSubscription();
                 if (elements.authRememberMe) elements.authRememberMe.checked = shouldPersistSession();
                 switchAuthTab(authTab);
                 closeProfileHub();
