@@ -14,24 +14,11 @@ window.toggleSavedWord = window.toggleSavedWord || (() => {});
 window.isWordSaved = window.isWordSaved || (() => false);
 window.saveGameResult = undefined;
 
-const KNOWN_YOUTUBE_VIDEO_IDS = {
-    'neck deep|kali ma': ['aYpDYuoEA4U', 'uKw7oEvzL_Y']
-};
 const CUSTOM_LYRICS_MAX_CHARS = 4000;
 const CUSTOM_TRANSLATION_MAX_CHARS = 4000;
 const CUSTOM_TOTAL_MAX_CHARS = 6500;
-const DUEL_POLL_MS = 1200;
-
-function normalizeSongKey(artist, title) {
-    const clean = (v) => (v || '')
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9\s]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-    return `${clean(artist)}|${clean(title)}`;
-}
+const DUEL_POLL_MS = 1800;
+const PLAYER_PROVIDERS = ['spotify', 'deezer', 'youtube_music'];
 
 bindLegacyInlineHandlers();
 
@@ -315,6 +302,7 @@ bindLegacyInlineHandlers();
             youtubeSearchUrl: '',
             youtubeEmbedCandidates: [],
             youtubeCandidateIndex: 0,
+            preferredPlayer: 'spotify',
             wpmHistory: [],
             previousRun: null,
             lastResultShare: null,
@@ -442,8 +430,13 @@ bindLegacyInlineHandlers();
             headerAvatarButton: document.getElementById('header-avatar-button'),
             headerAvatarImage: document.getElementById('header-avatar-image'),
             videoPanel: document.getElementById('video-pip-panel'),
-            videoFrame: document.getElementById('video-pip-frame'),
             videoSearchLink: document.getElementById('video-search-link'),
+            videoCoverLink: document.getElementById('video-cover-link'),
+            videoCoverImage: document.getElementById('video-cover-image'),
+            videoCoverFallback: document.getElementById('video-cover-fallback'),
+            videoTitleLink: document.getElementById('video-title-link'),
+            videoSubtitle: document.getElementById('video-subtitle'),
+            videoProviderLabel: document.getElementById('video-provider-label'),
             authGuestView: document.getElementById('auth-guest-view'),
             authUserView: document.getElementById('auth-user-view'),
             authTabLogin: document.getElementById('auth-tab-login'),
@@ -466,6 +459,7 @@ bindLegacyInlineHandlers();
             authAvatarFile: document.getElementById('auth-avatar-file'),
             authAvatarFileName: document.getElementById('auth-avatar-file-name'),
             authUserBio: document.getElementById('auth-user-bio'),
+            authPlayerPref: document.getElementById('auth-player-pref'),
             authUserLevel: document.getElementById('auth-user-level'),
             authAchievements: document.getElementById('auth-achievements'),
             authStatsSection: document.getElementById('auth-stats-section'),
@@ -518,6 +512,7 @@ bindLegacyInlineHandlers();
             sharedResultSong: document.getElementById('shared-result-song'),
             sharedResultMeta: document.getElementById('shared-result-meta'),
             sharedResultWpm: document.getElementById('shared-result-wpm'),
+            headerBrand: document.getElementById('header-brand'),
             sharedResultAcc: document.getElementById('shared-result-acc'),
             sharedResultRaw: document.getElementById('shared-result-raw'),
             sharedResultConsistency: document.getElementById('shared-result-consistency'),
@@ -799,7 +794,7 @@ bindLegacyInlineHandlers();
             if (!supabase || !userId) return null;
             const { data } = await supabase
                 .from('profiles')
-                .select('username,email,avatar_url,bio')
+                .select('username,email,avatar_url,bio,preferred_player')
                 .eq('id', userId)
                 .maybeSingle();
             return data || null;
@@ -812,8 +807,53 @@ bindLegacyInlineHandlers();
             await supabase.from('profiles').upsert({
                 id: user.id,
                 email: user.email,
-                username
+                username,
+                preferred_player: 'spotify'
             });
+        }
+
+        function normalizePreferredPlayer(raw) {
+            const value = String(raw || '').trim().toLowerCase();
+            return PLAYER_PROVIDERS.includes(value) ? value : 'spotify';
+        }
+
+        function getPlayerLabel(provider) {
+            if (provider === 'deezer') return 'Deezer';
+            if (provider === 'youtube_music') return 'YouTube Music';
+            return 'Spotify';
+        }
+
+        function buildProviderSearchLink(provider, query) {
+            const safeQuery = encodeURIComponent(String(query || '').trim());
+            const selected = normalizePreferredPlayer(provider);
+            if (selected === 'deezer') return `https://www.deezer.com/search/${safeQuery}`;
+            if (selected === 'youtube_music') return `https://music.youtube.com/search?q=${safeQuery}`;
+            return `https://open.spotify.com/search/${safeQuery}`;
+        }
+
+        function getCandidateLinkForProvider(candidate, provider) {
+            const selected = normalizePreferredPlayer(provider);
+            if (selected === 'deezer') return candidate?.deezerUrl || candidate?.spotifyUrl || '#';
+            if (selected === 'youtube_music') return candidate?.youtubeMusicUrl || candidate?.spotifyUrl || '#';
+            return candidate?.spotifyUrl || '#';
+        }
+
+        function setPreferredPlayer(provider) {
+            const next = normalizePreferredPlayer(provider);
+            state.preferredPlayer = next;
+            if (elements.authPlayerPref) {
+                elements.authPlayerPref.querySelectorAll('.auth-player-btn').forEach((btn) => {
+                    const isActive = btn.getAttribute('data-player') === next;
+                    btn.classList.toggle('active', isActive);
+                    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+                });
+            }
+            if (elements.videoProviderLabel) {
+                elements.videoProviderLabel.textContent = getPlayerLabel(next);
+            }
+            if (state.youtubeEmbedCandidates?.length) {
+                loadYouTubeCandidate(state.youtubeCandidateIndex || 0);
+            }
         }
 
         function computeProfileLevel(summary) {
@@ -865,7 +905,8 @@ bindLegacyInlineHandlers();
                 email: user.email,
                 username: elements.authUserName?.textContent || user.user_metadata?.username || user.email?.split('@')[0] || 'user',
                 avatar_url: avatarUrl || null,
-                bio: bio || null
+                bio: bio || null,
+                preferred_player: normalizePreferredPlayer(state.preferredPlayer)
             };
             const { error } = await supabase.from('profiles').upsert(updates);
             if (error) {
@@ -1612,7 +1653,6 @@ bindLegacyInlineHandlers();
                 })
                 .subscribe((status) => {
                     if (status === 'SUBSCRIBED') {
-                        clearDuelPolling();
                         queueDuelSnapshotRefresh(0);
                         return;
                     }
@@ -1621,9 +1661,7 @@ bindLegacyInlineHandlers();
                             duelRealtimeRoomChannel = null;
                             duelRealtimeRoomId = '';
                         }
-                        if (state.duel.inRoom && state.duel.roomId === roomId) {
-                            ensureDuelPolling();
-                        }
+                        if (state.duel.inRoom && state.duel.roomId === roomId) ensureDuelPolling();
                     }
                 });
             duelRealtimeRoomChannel = channel;
@@ -2056,7 +2094,17 @@ bindLegacyInlineHandlers();
             const resumable = (rooms || [])
                 .filter((r) => ['waiting', 'countdown', 'active'].includes(String(r.status || '')))
                 .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-            return resumable[0]?.id || '';
+            if (resumable[0]?.id) return resumable[0].id;
+
+            // Fallback: owner may still have an active room even if membership row was lost.
+            const { data: ownedRooms } = await supabase
+                .from('duel_rooms')
+                .select('id,status,created_at')
+                .eq('owner_id', user.id)
+                .in('status', ['waiting', 'countdown', 'active'])
+                .order('created_at', { ascending: false })
+                .limit(1);
+            return ownedRooms?.[0]?.id || '';
         }
 
         function announceDuelResultIfReady(progressRows) {
@@ -2386,6 +2434,7 @@ bindLegacyInlineHandlers();
             authFriendsCache = [];
             authFriendRequestsCache = [];
             authFavoritesCache = [];
+            setPreferredPlayer('spotify');
             renderSetupFavoritesTab();
             renderProfileHub();
         }
@@ -2797,11 +2846,13 @@ bindLegacyInlineHandlers();
                 const email = profile?.email || user.email || '';
                 const avatarUrl = sanitizeAvatarUrl(profile?.avatar_url || '');
                 const bio = profile?.bio || '';
+                const preferredPlayer = normalizePreferredPlayer(profile?.preferred_player || 'spotify');
                 if (elements.authUserName) elements.authUserName.textContent = username;
                 if (elements.authUserEmail) elements.authUserEmail.textContent = email;
                 if (elements.authUserBio) elements.authUserBio.value = bio;
                 if (elements.authUserAvatar) elements.authUserAvatar.src = avatarUrl || 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
                 if (elements.headerAvatarImage) elements.headerAvatarImage.src = avatarUrl || 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
+                setPreferredPlayer(preferredPlayer);
                 authStoredAvatarUrl = avatarUrl || '';
                 if (elements.authDeletePassword) elements.authDeletePassword.value = '';
                 if (elements.authAvatarFile) elements.authAvatarFile.value = '';
@@ -2826,6 +2877,7 @@ bindLegacyInlineHandlers();
                 }
                 if (state.duel.inRoom && state.duel.roomId) {
                     ensureDuelRealtimeRoomSubscription(state.duel.roomId);
+                    ensureDuelPolling();
                     await pollDuelRoom();
                 } else {
                     clearDuelRealtimeRoomSubscription();
@@ -2837,6 +2889,7 @@ bindLegacyInlineHandlers();
                 await maybeOpenSharedResultFromLink();
             } else {
                 resetAuthDashboardUI();
+                setPreferredPlayer('spotify');
                 clearDuelRealtimeInvitesSubscription();
                 if (elements.authRememberMe) elements.authRememberMe.checked = shouldPersistSession();
                 switchAuthTab(authTab);
@@ -3165,94 +3218,108 @@ bindLegacyInlineHandlers();
             scheduleRhythmDeadline();
         }
 
-        function buildYouTubeEmbedFromQuery(query) {
-            const encoded = encodeURIComponent(query);
-            return `https://www.youtube.com/embed/videoseries?listType=search&list=${encoded}&autoplay=1&controls=1&rel=0&modestbranding=1&playsinline=1`;
+        function buildSpotifyResourceLink(resourceType, resourceId) {
+            return `https://open.spotify.com/${resourceType}/${resourceId}`;
         }
 
-        function buildYouTubeEmbedFromVideoId(videoId) {
-            return `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=1&rel=0&modestbranding=1&playsinline=1`;
-        }
-        function buildNoCookieEmbedFromVideoId(videoId) {
-            return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&controls=1&rel=0&modestbranding=1&playsinline=1`;
-        }
-        function buildPipedEmbedFromVideoId(videoId) {
-            return `https://piped.video/embed/${videoId}?autoplay=1`;
+        function upscaleItunesArtwork(url) {
+            const raw = String(url || '');
+            if (!raw) return '';
+            return raw.replace(/\/[0-9]+x[0-9]+bb\./i, '/600x600bb.');
         }
 
-        async function fetchJsonWithTimeout(url, timeoutMs = 6000) {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), timeoutMs);
+        async function fetchSpotifyCandidatesByQuery(query) {
+            const trimmed = String(query || '').trim();
+            const spotifySearch = buildProviderSearchLink('spotify', trimmed);
+            const deezerSearch = buildProviderSearchLink('deezer', trimmed);
+            const youtubeMusicSearch = buildProviderSearchLink('youtube_music', trimmed);
+            const fallback = {
+                title: trimmed || 'Open in your player',
+                subtitle: 'Search result',
+                coverUrl: '',
+                spotifyUrl: spotifySearch,
+                deezerUrl: deezerSearch,
+                youtubeMusicUrl: youtubeMusicSearch,
+                searchUrl: spotifySearch
+            };
+            if (!trimmed) return [fallback];
+
             try {
-                const res = await fetch(url, { signal: controller.signal });
-                if (!res.ok) return null;
-                return await res.json();
-            } catch (e) {
-                return null;
-            } finally {
-                clearTimeout(timer);
+                const q = encodeURIComponent(trimmed);
+                const data = await fetchJsonWithRetry(`https://itunes.apple.com/search?term=${q}&entity=song&limit=6`, {}, 3400, 0);
+                const rows = Array.isArray(data?.results) ? data.results : [];
+                if (!rows.length) return [fallback];
+                const mapped = rows.map((r) => {
+                    const track = String(r?.trackName || '').trim();
+                    const artistName = String(r?.artistName || '').trim();
+                    const label = `${track} ${artistName}`.trim();
+                    const normalizedQuery = label || trimmed;
+                    const spotifyUrl = buildProviderSearchLink('spotify', normalizedQuery);
+                    return {
+                        title: track || trimmed,
+                        subtitle: artistName || 'Search result',
+                        coverUrl: upscaleItunesArtwork(r?.artworkUrl100 || r?.artworkUrl60 || r?.artworkUrl30 || ''),
+                        spotifyUrl,
+                        deezerUrl: buildProviderSearchLink('deezer', normalizedQuery),
+                        youtubeMusicUrl: buildProviderSearchLink('youtube_music', normalizedQuery),
+                        searchUrl: spotifyUrl
+                    };
+                }).filter((row) => row.spotifyUrl);
+                return mapped.length ? mapped : [fallback];
+            } catch (_err) {
+                return [fallback];
             }
         }
 
-        function extractYouTubeVideoId(raw) {
+        function applySpotifyCandidate(candidate) {
+            const provider = normalizePreferredPlayer(state.preferredPlayer);
+            const providerLabel = getPlayerLabel(provider);
+            const targetUrl = getCandidateLinkForProvider(candidate, provider);
+            const title = candidate?.title || `Open on ${providerLabel}`;
+            const subtitle = candidate?.subtitle || 'Search result';
+            const coverUrl = candidate?.coverUrl || '';
+            const hasCover = Boolean(coverUrl);
+
+            if (elements.videoSearchLink) elements.videoSearchLink.href = targetUrl;
+            if (elements.videoCoverLink) elements.videoCoverLink.href = targetUrl;
+            if (elements.videoTitleLink) {
+                elements.videoTitleLink.href = targetUrl;
+                elements.videoTitleLink.textContent = title;
+            }
+            if (elements.videoSubtitle) elements.videoSubtitle.textContent = subtitle;
+            if (elements.videoCoverImage) {
+                elements.videoCoverImage.src = coverUrl;
+                elements.videoCoverImage.alt = `${title} cover`;
+            }
+            if (elements.videoCoverLink) {
+                elements.videoCoverLink.classList.toggle('has-image', hasCover);
+            }
+        }
+
+        function extractSpotifyResource(raw) {
             if (!raw) return null;
             const input = String(raw).trim();
-            const plainId = input.match(/^[a-zA-Z0-9_-]{11}$/);
-            if (plainId) return plainId[0];
-            const watchId = input.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
-            if (watchId) return watchId[1];
-            const shortId = input.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
-            if (shortId) return shortId[1];
-            const embedId = input.match(/\/embed\/([a-zA-Z0-9_-]{11})/);
-            if (embedId) return embedId[1];
-            const shortsId = input.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
-            if (shortsId) return shortsId[1];
+            const resourceFromUrl = input.match(/open\.spotify\.com\/(?:intl-[^/]+\/)?(track|album|playlist|artist|episode|show)\/([A-Za-z0-9]{22})/i);
+            if (resourceFromUrl) {
+                return { type: resourceFromUrl[1].toLowerCase(), id: resourceFromUrl[2] };
+            }
+            const resourceFromUri = input.match(/^spotify:(track|album|playlist|artist|episode|show):([A-Za-z0-9]{22})$/i);
+            if (resourceFromUri) {
+                return { type: resourceFromUri[1].toLowerCase(), id: resourceFromUri[2] };
+            }
+            const plainId = input.match(/^[A-Za-z0-9]{22}$/);
+            if (plainId) {
+                return { type: 'track', id: plainId[0] };
+            }
             return null;
         }
 
-        function extractVideoIdFromPipedUrl(url) {
-            return extractYouTubeVideoId(url);
-        }
-
-        async function resolveYouTubeVideoIds(query) {
-            const encoded = encodeURIComponent(query);
-            const collected = [];
-            const addId = (id) => {
-                if (!id || collected.includes(id)) return;
-                collected.push(id);
-            };
-
-            const lemnosData = await fetchJsonWithTimeout(
-                `https://yt.lemnoslife.com/noKey/search?part=id&type=video&maxResults=8&q=${encoded}`,
-                6500
-            );
-            if (Array.isArray(lemnosData?.items)) {
-                lemnosData.items.forEach((item) => addId(item?.id?.videoId));
-            }
-
-            const pipedData = await fetchJsonWithTimeout(
-                `https://piped.video/api/v1/search?q=${encoded}&filter=videos`,
-                6500
-            );
-            if (Array.isArray(pipedData) && pipedData.length > 0) {
-                pipedData.slice(0, 8).forEach((item) => {
-                    addId(item?.id || null);
-                    addId(extractVideoIdFromPipedUrl(item?.url));
-                });
-            }
-
-            return collected;
-        }
-
         function loadYouTubeCandidate(index) {
-            if (!elements.videoFrame) return;
             const candidate = state.youtubeEmbedCandidates[index];
             if (!candidate) return;
             state.youtubeCandidateIndex = index;
-            state.youtubeEmbedUrl = candidate;
-            if (!elements.videoPanel.classList.contains('hidden')) {
-                elements.videoFrame.src = candidate;
-            }
+            state.youtubeEmbedUrl = getCandidateLinkForProvider(candidate, state.preferredPlayer);
+            applySpotifyCandidate(candidate);
         }
 
         function tryNextYouTubeCandidate() {
@@ -3269,86 +3336,78 @@ bindLegacyInlineHandlers();
 
         async function updateYouTubeSource(artist, title) {
             const rawQuery = `${artist} ${title}`.trim().replace(/\s+/g, ' ');
-            const knownKey = normalizeSongKey(artist, title);
-            const knownIds = KNOWN_YOUTUBE_VIDEO_IDS[knownKey] || [];
-            const queries = [
-                `${rawQuery} official audio`,
-                `${rawQuery} lyrics`,
-                rawQuery
-            ].filter(Boolean);
-
-            const resolvedVideoIds = [];
-            knownIds.forEach((id) => {
-                if (!resolvedVideoIds.includes(id)) resolvedVideoIds.push(id);
-            });
-            for (const q of queries) {
-                const ids = await resolveYouTubeVideoIds(q);
-                ids.forEach((id) => {
-                    if (!resolvedVideoIds.includes(id)) resolvedVideoIds.push(id);
-                });
-                if (resolvedVideoIds.length >= 8) break;
-            }
-            if (resolvedVideoIds.length === 0) {
-                showToast("Couldn't resolve direct YouTube IDs. Using search fallback.", "info");
-            }
+            const queries = [...new Set([
+                rawQuery,
+                `${rawQuery} official`,
+                `${rawQuery} lyrics`
+            ].filter(Boolean))];
 
             state.youtubeEmbedCandidates = [];
-            resolvedVideoIds.forEach((id) => {
-                state.youtubeEmbedCandidates.push(buildYouTubeEmbedFromVideoId(id));
-                state.youtubeEmbedCandidates.push(buildNoCookieEmbedFromVideoId(id));
-                state.youtubeEmbedCandidates.push(buildPipedEmbedFromVideoId(id));
-            });
-            queries.forEach((q) => {
-                state.youtubeEmbedCandidates.push(buildYouTubeEmbedFromQuery(q));
-            });
+            const seenLinks = new Set();
+            for (const q of queries) {
+                const candidates = await fetchSpotifyCandidatesByQuery(q);
+                candidates.forEach((candidate) => {
+                    const key = candidate.spotifyUrl || candidate.searchUrl;
+                    if (!key || seenLinks.has(key)) return;
+                    seenLinks.add(key);
+                    state.youtubeEmbedCandidates.push(candidate);
+                });
+                if (state.youtubeEmbedCandidates.length >= 8) break;
+            }
             if (state.youtubeEmbedCandidates.length === 0) {
-                state.youtubeEmbedCandidates = [buildYouTubeEmbedFromQuery(rawQuery)];
+                const fallbackSpotifyLink = buildProviderSearchLink('spotify', rawQuery);
+                state.youtubeEmbedCandidates = [{
+                    title: rawQuery || 'Open in your player',
+                    subtitle: 'Search result',
+                    coverUrl: '',
+                    spotifyUrl: fallbackSpotifyLink,
+                    deezerUrl: buildProviderSearchLink('deezer', rawQuery),
+                    youtubeMusicUrl: buildProviderSearchLink('youtube_music', rawQuery),
+                    searchUrl: fallbackSpotifyLink
+                }];
             }
             state.youtubeCandidateIndex = 0;
-            state.youtubeEmbedUrl = state.youtubeEmbedCandidates[0] || '';
-            state.youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(rawQuery)}`;
-            if (elements.videoSearchLink) {
-                elements.videoSearchLink.href = state.youtubeSearchUrl;
-            }
-            if (!elements.videoFrame) return;
+            state.youtubeEmbedUrl = getCandidateLinkForProvider(state.youtubeEmbedCandidates[0], state.preferredPlayer);
+            state.youtubeSearchUrl = buildProviderSearchLink(state.preferredPlayer, rawQuery);
             loadYouTubeCandidate(0);
         }
 
         function nextYouTubeResult() {
             if (!state.youtubeEmbedCandidates || state.youtubeEmbedCandidates.length === 0) {
-                showToast("No video candidates available for this song.", "error");
+                showToast("No music candidates available for this song.", "error");
                 return;
             }
             const moved = tryNextYouTubeCandidate();
             if (moved) {
-                showToast(`Trying another YouTube result (${currentYouTubeAttemptLabel()})...`, "info");
+                showToast(`Trying another result (${currentYouTubeAttemptLabel()})...`, "info");
                 return;
             }
-            showToast("No more candidates. Use 'search' to open YouTube results.", "info");
+            showToast("No more candidates.", "info");
         }
 
         function setYouTubeVideoManually() {
-            const raw = prompt("Paste a YouTube URL or 11-char video ID:");
+            const raw = prompt("Paste a Spotify URL, URI, or 22-char track ID:");
             if (!raw) return;
-            const videoId = extractYouTubeVideoId(raw);
-            if (!videoId) {
-                showToast("Invalid YouTube URL/ID.", "error");
+            const resource = extractSpotifyResource(raw);
+            if (!resource) {
+                showToast("Invalid Spotify URL/URI/ID.", "error");
                 return;
             }
-            const embed = buildYouTubeEmbedFromVideoId(videoId);
-            state.youtubeEmbedCandidates = [
-                embed,
-                buildNoCookieEmbedFromVideoId(videoId),
-                buildPipedEmbedFromVideoId(videoId)
-            ];
+            const spotifyUrl = buildSpotifyResourceLink(resource.type, resource.id);
+            state.youtubeEmbedCandidates = [{
+                title: `${resource.type} (${resource.id.slice(0, 6)}...)`,
+                subtitle: 'Manual Spotify link',
+                coverUrl: '',
+                spotifyUrl,
+                deezerUrl: buildProviderSearchLink('deezer', `${resource.type} ${resource.id}`),
+                youtubeMusicUrl: buildProviderSearchLink('youtube_music', `${resource.type} ${resource.id}`),
+                searchUrl: spotifyUrl
+            }];
             state.youtubeCandidateIndex = 0;
-            state.youtubeEmbedUrl = embed;
-            if (elements.videoSearchLink) {
-                elements.videoSearchLink.href = `https://www.youtube.com/watch?v=${videoId}`;
-            }
+            state.youtubeEmbedUrl = spotifyUrl;
             toggleVideoPanel(true);
             loadYouTubeCandidate(0);
-            showToast("Manual YouTube video loaded.", "info");
+            showToast("Manual Spotify link loaded.", "info");
         }
 
         function estimateCpuDurationMs() {
@@ -3364,7 +3423,7 @@ bindLegacyInlineHandlers();
         }
 
         function toggleVideoPanel(forceState) {
-            if (!elements.videoPanel || !elements.videoFrame) return;
+            if (!elements.videoPanel) return;
             const shouldOpen = forceState !== undefined
                 ? forceState
                 : elements.videoPanel.classList.contains('hidden');
@@ -3373,15 +3432,13 @@ bindLegacyInlineHandlers();
                 elements.btnToggleVideo?.classList.remove('active');
                 return;
             }
-            if (!state.youtubeEmbedUrl) {
+            if (!state.youtubeEmbedCandidates || state.youtubeEmbedCandidates.length === 0) {
                 showToast("Load a song first to open video.", "info");
                 return;
             }
             elements.videoPanel.classList.remove('hidden');
             elements.btnToggleVideo?.classList.add('active');
-            if (elements.videoFrame.src !== state.youtubeEmbedUrl) {
-                loadYouTubeCandidate(state.youtubeCandidateIndex || 0);
-            }
+            loadYouTubeCandidate(state.youtubeCandidateIndex || 0);
         }
 
         function openModal(id) {
@@ -4365,7 +4422,7 @@ bindLegacyInlineHandlers();
             state.isFetching = false;
             updateFetchUI(false);
             await updateYouTubeSource(artist, title);
-            if (state.isRhythmMode) toggleVideoPanel(true);
+            toggleVideoPanel(true);
             startGame(cleanedLyrics, title, artist, "", syncedLyricsRaw);
         }
 
@@ -5518,6 +5575,14 @@ bindLegacyInlineHandlers();
                 }
             });
         }
+        if (elements.authPlayerPref) {
+            elements.authPlayerPref.addEventListener('click', (event) => {
+                const btn = event.target?.closest?.('.auth-player-btn');
+                if (!btn) return;
+                const provider = btn.getAttribute('data-player') || 'spotify';
+                setPreferredPlayer(provider);
+            });
+        }
         if (elements.authHistorySong) {
             elements.authHistorySong.addEventListener('change', () => renderSongHistoryDetails());
         }
@@ -5529,15 +5594,13 @@ bindLegacyInlineHandlers();
         }
         window.addEventListener('resize', () => { if(state.isPlaying) updateCaretPosition(); });
         elements.gameArea.addEventListener('click', () => { if(!state.isPreviewMode) focusTypingInput(); });
-        if (elements.videoFrame) {
-            elements.videoFrame.addEventListener('error', () => {
-                const prevIndex = state.youtubeCandidateIndex;
-                const moved = tryNextYouTubeCandidate();
-                if (moved && state.youtubeCandidateIndex !== prevIndex) {
-                    showToast(`Trying another YouTube result (${currentYouTubeAttemptLabel()})...`, "info");
-                } else {
-                    showToast("Could not auto-load an embeddable YouTube video. Use 'search' to pick one.", "error");
-                }
+        if (elements.headerBrand) {
+            elements.headerBrand.addEventListener('click', () => goHome());
+        }
+        if (elements.videoCoverImage) {
+            elements.videoCoverImage.addEventListener('error', () => {
+                elements.videoCoverImage.src = '';
+                elements.videoCoverLink?.classList.remove('has-image');
             });
         }
         switchAuthTab('login');

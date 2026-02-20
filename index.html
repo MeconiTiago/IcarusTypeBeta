@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lrclib.net https://api.lyrics.ovh https://api.mymemory.translated.net https://api.dictionaryapi.dev https://yt.lemnoslife.com https://www.youtube.com https://www.youtube-nocookie.com https://piped.video https://itunes.apple.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://piped.video; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lrclib.net https://api.lyrics.ovh https://api.mymemory.translated.net https://api.dictionaryapi.dev https://yt.lemnoslife.com https://www.youtube.com https://www.youtube-nocookie.com https://piped.video https://itunes.apple.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://piped.video https://open.spotify.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
     <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()">
     <title>Icarus Type</title>
@@ -170,6 +170,14 @@
                         <div class="auth-field-group">
                             <label class="auth-label" for="auth-user-bio">Bio</label>
                             <textarea id="auth-user-bio" class="auth-input auth-bio-input" rows="2" maxlength="180" placeholder="Tell people about your music taste..."></textarea>
+                        </div>
+                        <div class="auth-field-group">
+                            <label class="auth-label">Preferred player</label>
+                            <div id="auth-player-pref" class="auth-player-pref" role="radiogroup" aria-label="Preferred music player">
+                                <button type="button" class="auth-player-btn active" data-player="spotify" aria-pressed="true">Spotify</button>
+                                <button type="button" class="auth-player-btn" data-player="deezer" aria-pressed="false">Deezer</button>
+                                <button type="button" class="auth-player-btn" data-player="youtube_music" aria-pressed="false">YouTube Music</button>
+                            </div>
                         </div>
                         <div class="auth-edit-actions">
                             <button class="auth-submit-btn" data-onclick="saveProfileDetails()">Save profile</button>
@@ -474,7 +482,7 @@
 
     <!-- Header -->
     <header class="w-full max-w-6xl px-4 py-5 sm:p-8 flex flex-col sm:flex-row sm:justify-between sm:items-end items-start gap-4 mb-3 sm:mb-4">
-        <div class="header-brand flex items-center gap-3 cursor-pointer select-none" data-onclick="goHome()">
+        <div id="header-brand" class="header-brand flex items-center gap-3 cursor-pointer select-none" data-onclick="goHome()">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-main" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="5"></circle>
                 <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -854,19 +862,17 @@
         </div>
         <div id="video-pip-panel" class="video-pip-panel hidden">
             <div class="video-pip-header">
-                <span class="text-xs uppercase tracking-wide">YouTube</span>
-                <a id="video-search-link" class="video-pip-link" href="#" target="_blank" rel="noopener noreferrer">search</a>
-                <button class="video-pip-link video-pip-link-btn" data-onclick="setYouTubeVideoManually()">paste</button>
-                <button class="video-pip-link video-pip-link-btn" data-onclick="nextYouTubeResult()">next</button>
+                <span id="video-provider-label" class="text-xs uppercase tracking-wide">Spotify</span>
                 <button class="video-pip-close" data-onclick="toggleVideoPanel(false)">x</button>
             </div>
-            <iframe
-                id="video-pip-frame"
-                class="video-pip-frame"
-                allow="autoplay; encrypted-media; picture-in-picture"
-                referrerpolicy="strict-origin-when-cross-origin"
-                allowfullscreen
-                title="Icarus Video Player"></iframe>
+            <div class="video-pip-body">
+                <a id="video-cover-link" class="video-pip-cover-link" href="#" target="_blank" rel="noopener noreferrer">
+                    <img id="video-cover-image" class="video-pip-cover-image" src="" alt="Album cover" loading="lazy">
+                    <span id="video-cover-fallback" class="video-pip-cover-fallback">No cover</span>
+                </a>
+                <a id="video-title-link" class="video-pip-title-link" href="#" target="_blank" rel="noopener noreferrer">Open on Spotify</a>
+                <div id="video-subtitle" class="video-pip-subtitle">Search result</div>
+            </div>
         </div>
     </main>
 

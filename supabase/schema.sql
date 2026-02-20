@@ -6,12 +6,14 @@ create table if not exists public.profiles (
   username text not null,
   avatar_url text,
   bio text,
+  preferred_player text not null default 'spotify',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 alter table public.profiles add column if not exists avatar_url text;
 alter table public.profiles add column if not exists bio text;
+alter table public.profiles add column if not exists preferred_player text not null default 'spotify';
 
 alter table public.profiles enable row level security;
 
@@ -58,6 +60,15 @@ begin
     alter table public.profiles
       add constraint profiles_bio_length_chk
       check (bio is null or char_length(bio) <= 180);
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'profiles_preferred_player_chk'
+  ) then
+    alter table public.profiles
+      add constraint profiles_preferred_player_chk
+      check (preferred_player in ('spotify', 'deezer', 'youtube_music'));
   end if;
 end $$;
 
