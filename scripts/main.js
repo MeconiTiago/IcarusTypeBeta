@@ -326,11 +326,13 @@ bindLegacyInlineHandlers();
             duel: {
                 roomId: '',
                 status: 'idle',
+                uiStep: 'entry',
                 ownerId: '',
                 ownerName: '',
                 songTitle: '',
                 artist: '',
                 lyrics: '',
+                songConfigured: false,
                 translation: '',
                 startedAtMs: 0,
                 countdownSeconds: 5,
@@ -373,6 +375,9 @@ bindLegacyInlineHandlers();
             viewPresets: document.getElementById('view-presets'),
             viewCustom: document.getElementById('view-custom'),
             viewDuel: document.getElementById('view-duel'),
+            duelStepEntry: document.getElementById('duel-step-entry'),
+            duelStepRoom: document.getElementById('duel-step-room'),
+            duelStepSong: document.getElementById('duel-step-song'),
             favoritesTabList: document.getElementById('favorites-tab-list'),
             artistInput: document.getElementById('input-artist'),
             titleInput: document.getElementById('input-title'),
@@ -395,7 +400,13 @@ bindLegacyInlineHandlers();
             duelSlotOwner: document.getElementById('duel-slot-owner'),
             duelSlotOpponent: document.getElementById('duel-slot-opponent'),
             duelViewInviteTarget: document.getElementById('duel-view-invite-target'),
+            duelViewInviteBtn: document.getElementById('duel-view-invite-btn'),
+            duelRoomCodeInputView: document.getElementById('duel-room-code-input-view'),
             duelViewFriendList: document.getElementById('duel-view-friend-list'),
+            duelNextToSongBtn: document.getElementById('duel-next-to-song-btn'),
+            duelSongArtist: document.getElementById('duel-song-artist'),
+            duelSongTitle: document.getElementById('duel-song-title'),
+            duelSongStatus: document.getElementById('duel-song-status'),
             missedWordsContainer: document.getElementById('missed-words-container'),
             missedWordsList: document.getElementById('missed-words-list'),
             resWpmBig: document.getElementById('res-wpm-big'),
@@ -1537,11 +1548,13 @@ bindLegacyInlineHandlers();
             state.duel = {
                 roomId: '',
                 status: 'idle',
+                uiStep: 'entry',
                 ownerId: '',
                 ownerName: '',
                 songTitle: '',
                 artist: '',
                 lyrics: '',
+                songConfigured: false,
                 translation: '',
                 startedAtMs: 0,
                 countdownSeconds: 5,
@@ -1552,6 +1565,10 @@ bindLegacyInlineHandlers();
                 gameLaunched: false,
                 resultShown: false
             };
+            if (elements.duelSongArtist) elements.duelSongArtist.value = '';
+            if (elements.duelSongTitle) elements.duelSongTitle.value = '';
+            if (elements.duelSongStatus) elements.duelSongStatus.textContent = 'Pick a song before starting.';
+            if (elements.duelRoomCodeInputView) elements.duelRoomCodeInputView.value = '';
             if (elements.duelHud) elements.duelHud.classList.add('hidden');
             renderDuelPanel();
         }
@@ -1573,7 +1590,18 @@ bindLegacyInlineHandlers();
             if (elements.duelCountdownText) elements.duelCountdownText.textContent = centerLabel;
         }
 
+        function isDuelSongConfigured(room = state.duel) {
+            const title = String(room?.songTitle || '').trim();
+            const lyrics = String(room?.lyrics || '').trim();
+            return !!title && !!lyrics && title !== 'Pending song' && lyrics !== 'waiting';
+        }
+
         function renderDuelPanel() {
+            const inRoom = !!state.duel.inRoom && !!state.duel.roomId;
+            if (!inRoom) state.duel.uiStep = 'entry';
+            if (elements.duelStepEntry) elements.duelStepEntry.classList.toggle('hidden', state.duel.uiStep !== 'entry');
+            if (elements.duelStepRoom) elements.duelStepRoom.classList.toggle('hidden', state.duel.uiStep !== 'room');
+            if (elements.duelStepSong) elements.duelStepSong.classList.toggle('hidden', state.duel.uiStep !== 'song');
             if (elements.duelRoomBox) elements.duelRoomBox.classList.toggle('hidden', !state.duel.inRoom);
             if (elements.duelRoomMeta) {
                 elements.duelRoomMeta.textContent = state.duel.inRoom
@@ -1594,10 +1622,51 @@ bindLegacyInlineHandlers();
                     : '';
             }
             if (elements.duelSlotOwner) {
-                elements.duelSlotOwner.textContent = state.duel.ownerName || (elements.authUserName?.textContent || 'You');
+                elements.duelSlotOwner.textContent = inRoom
+                    ? (state.duel.ownerName || (elements.authUserName?.textContent || 'You'))
+                    : '-';
             }
             if (elements.duelSlotOpponent) {
-                elements.duelSlotOpponent.textContent = state.duel.opponentName || 'Empty slot';
+                elements.duelSlotOpponent.textContent = inRoom
+                    ? (state.duel.opponentName || 'Empty slot')
+                    : 'Empty slot';
+            }
+            if (elements.duelViewInviteTarget) {
+                elements.duelViewInviteTarget.disabled = !inRoom;
+                if (!inRoom) {
+                    elements.duelViewInviteTarget.value = '';
+                    elements.duelViewInviteTarget.placeholder = 'Create or join a room first';
+                } else {
+                    elements.duelViewInviteTarget.placeholder = 'friend username/email';
+                }
+            }
+            if (elements.duelViewInviteBtn) {
+                elements.duelViewInviteBtn.disabled = !inRoom;
+            }
+            if (elements.duelNextToSongBtn) {
+                elements.duelNextToSongBtn.classList.toggle('hidden', !state.duel.isOwner);
+                elements.duelNextToSongBtn.disabled = !inRoom || !state.duel.isOwner;
+            }
+            if (elements.duelSongArtist) {
+                if (!elements.duelSongArtist.value && state.duel.artist) elements.duelSongArtist.value = state.duel.artist;
+                elements.duelSongArtist.disabled = !state.duel.isOwner || !inRoom;
+            }
+            if (elements.duelSongTitle) {
+                if (!elements.duelSongTitle.value && state.duel.songTitle && state.duel.songTitle !== 'Pending song') elements.duelSongTitle.value = state.duel.songTitle;
+                elements.duelSongTitle.disabled = !state.duel.isOwner || !inRoom;
+            }
+            if (elements.duelSongStatus) {
+                if (!inRoom) {
+                    elements.duelSongStatus.textContent = 'Join or create a room first.';
+                } else if (!state.duel.isOwner) {
+                    elements.duelSongStatus.textContent = isDuelSongConfigured()
+                        ? `Waiting start: ${state.duel.artist || 'Unknown'} - ${state.duel.songTitle}`
+                        : 'Waiting room owner to choose the song.';
+                } else if (isDuelSongConfigured()) {
+                    elements.duelSongStatus.textContent = `Ready: ${state.duel.artist || 'Unknown'} - ${state.duel.songTitle}`;
+                } else {
+                    elements.duelSongStatus.textContent = 'Pick artist and song, then start game.';
+                }
             }
             if (elements.duelMeName) {
                 const meName = elements.authUserName?.textContent || 'You';
@@ -1609,9 +1678,100 @@ bindLegacyInlineHandlers();
             renderDuelFriendInviteList();
         }
 
+        function goToDuelSongStep() {
+            if (!state.duel.inRoom || !state.duel.roomId) {
+                showToast('Create or join a room first.', 'error');
+                return;
+            }
+            if (!state.duel.isOwner) {
+                showToast('Only room owner can choose the song.', 'info');
+                return;
+            }
+            state.duel.uiStep = 'song';
+            renderDuelPanel();
+        }
+
+        function goToDuelRoomStep() {
+            state.duel.uiStep = state.duel.inRoom ? 'room' : 'entry';
+            renderDuelPanel();
+        }
+
+        async function fetchDuelLyricsBySong(artist, title) {
+            const controller = new AbortController();
+            const signal = controller.signal;
+            try {
+                const lrclibData = await fetchFromLrcLib(artist, title, signal);
+                if (lrclibData && lrclibData.lyrics) {
+                    return { lyrics: cleanLyrics(lrclibData.lyrics), translation: '' };
+                }
+            } catch (_e) {}
+            const fallback = await fetchFromLyricsOvh(artist, title, signal);
+            return { lyrics: cleanLyrics(fallback || ''), translation: '' };
+        }
+
+        async function prepareAndStartDuel() {
+            if (!ensureSupabaseReady()) return;
+            if (!state.duel.inRoom || !state.duel.roomId) {
+                showToast('Create or join a room first.', 'error');
+                return;
+            }
+            if (!state.duel.isOwner) {
+                showToast('Only room owner can start.', 'error');
+                return;
+            }
+            const artist = String(elements.duelSongArtist?.value || '').trim();
+            const title = String(elements.duelSongTitle?.value || '').trim();
+            if (!artist || !title) {
+                showToast('Enter artist and song name.', 'error');
+                return;
+            }
+            if (elements.duelSongStatus) elements.duelSongStatus.textContent = 'Loading lyrics...';
+            let lyricsPayload = null;
+            try {
+                lyricsPayload = await fetchDuelLyricsBySong(artist, title);
+            } catch (e) {
+                if (elements.duelSongStatus) elements.duelSongStatus.textContent = 'Could not find lyrics.';
+                showToast('Could not load lyrics for this song.', 'error');
+                return;
+            }
+            const lyrics = String(lyricsPayload?.lyrics || '').trim();
+            if (!lyrics) {
+                if (elements.duelSongStatus) elements.duelSongStatus.textContent = 'Could not find lyrics.';
+                showToast('Could not load lyrics for this song.', 'error');
+                return;
+            }
+            const { error: updateError } = await supabase
+                .from('duel_rooms')
+                .update({
+                    song_title: title,
+                    artist,
+                    lyrics,
+                    translation: String(lyricsPayload?.translation || ''),
+                    status: 'waiting'
+                })
+                .eq('id', state.duel.roomId)
+                .eq('owner_id', authCurrentUser?.id || '');
+            if (updateError) {
+                showToast('Could not save duel song.', 'error');
+                if (elements.duelSongStatus) elements.duelSongStatus.textContent = 'Could not save selected song.';
+                return;
+            }
+            if (elements.duelSongStatus) elements.duelSongStatus.textContent = 'Song selected. Starting countdown...';
+            state.duel.songTitle = title;
+            state.duel.artist = artist;
+            state.duel.lyrics = lyrics;
+            state.duel.songConfigured = true;
+            await startDuelCountdown();
+            state.duel.uiStep = 'room';
+            renderDuelPanel();
+        }
+
         function renderDuelFriendInviteList() {
             if (!elements.duelFriendList && !elements.duelViewFriendList) return;
             const buildHtml = () => {
+                if (!state.duel.inRoom || !state.duel.roomId) {
+                    return '<div class="auth-recent-empty">Create or join a room to invite friends.</div>';
+                }
                 if (!authFriendsCache.length) {
                     return '<div class="auth-recent-empty">No friends added yet.</div>';
                 }
@@ -1840,6 +2000,10 @@ bindLegacyInlineHandlers();
             state.duel.songTitle = room.song_title || 'Duel song';
             state.duel.artist = room.artist || 'Duel';
             state.duel.lyrics = room.lyrics || '';
+            state.duel.songConfigured = isDuelSongConfigured({
+                songTitle: room.song_title || '',
+                lyrics: room.lyrics || ''
+            });
             state.duel.translation = room.translation || '';
             state.duel.countdownSeconds = Number(room.countdown_seconds || 5) || 5;
             state.duel.startedAtMs = room.started_at ? new Date(room.started_at).getTime() : 0;
@@ -1855,6 +2019,15 @@ bindLegacyInlineHandlers();
             state.duel.opponentName = opponentMember
                 ? (snapshot.profilesMap.get(opponentMember.user_id)?.username || 'opponent')
                 : '';
+            if (state.duel.uiStep === 'entry') {
+                state.duel.uiStep = 'room';
+            }
+            if (elements.duelSongArtist && !elements.duelSongArtist.value && state.duel.artist && state.duel.artist !== 'Unknown') {
+                elements.duelSongArtist.value = state.duel.artist;
+            }
+            if (elements.duelSongTitle && !elements.duelSongTitle.value && state.duel.songTitle && state.duel.songTitle !== 'Pending song') {
+                elements.duelSongTitle.value = state.duel.songTitle;
+            }
 
             if (elements.duelRoomMembers) {
                 if (members.length === 0) {
@@ -1915,16 +2088,11 @@ bindLegacyInlineHandlers();
                 showToast('Login first.', 'error');
                 return;
             }
-            const lyrics = String(state.currentLyricsRaw || '').trim();
-            if (!lyrics) {
-                showToast('Load a song first before creating a duel room.', 'error');
-                return;
-            }
             const { data, error } = await supabase.rpc('create_duel_room', {
-                p_song_title: String(state.songTitle || 'Duel Song'),
-                p_artist: String(state.artist || 'Unknown'),
-                p_lyrics: lyrics,
-                p_translation: String(state.currentTranslationRaw || '')
+                p_song_title: 'Pending song',
+                p_artist: 'Unknown',
+                p_lyrics: 'waiting',
+                p_translation: ''
             });
             if (error || !data) {
                 showToast(error?.message || 'Could not create duel room.', 'error');
@@ -1932,6 +2100,7 @@ bindLegacyInlineHandlers();
             }
             state.duel.roomId = data;
             state.duel.inRoom = true;
+            state.duel.uiStep = 'room';
             state.duel.gameLaunched = false;
             state.duel.resultShown = false;
             ensureDuelPolling();
@@ -1955,14 +2124,26 @@ bindLegacyInlineHandlers();
             }
             state.duel.roomId = code;
             state.duel.inRoom = true;
+            state.duel.uiStep = 'room';
             state.duel.gameLaunched = false;
             state.duel.resultShown = false;
             if (elements.duelRoomCodeInput) elements.duelRoomCodeInput.value = '';
+            if (elements.duelRoomCodeInputView) elements.duelRoomCodeInputView.value = '';
             ensureDuelPolling();
             await pollDuelRoom();
             showToast('Joined duel room.', 'info');
             closeModal('profile');
             switchTab('duel');
+        }
+
+        async function joinDuelRoomByCodeFromView() {
+            const code = String(elements.duelRoomCodeInputView?.value || '').trim();
+            if (!code) {
+                showToast('Enter a room id.', 'error');
+                return;
+            }
+            if (elements.duelRoomCodeInput) elements.duelRoomCodeInput.value = code;
+            await joinDuelRoomByCode();
         }
 
         async function invitePlayerToDuelRoom() {
@@ -1984,6 +2165,7 @@ bindLegacyInlineHandlers();
             if (acceptInvite && data) {
                 state.duel.roomId = data;
                 state.duel.inRoom = true;
+                state.duel.uiStep = 'room';
                 state.duel.gameLaunched = false;
                 state.duel.resultShown = false;
                 ensureDuelPolling();
@@ -1999,6 +2181,10 @@ bindLegacyInlineHandlers();
             if (!ensureSupabaseReady()) return;
             if (!state.duel.roomId) {
                 showToast('Create a room first.', 'error');
+                return;
+            }
+            if (!isDuelSongConfigured()) {
+                showToast('Choose the song first (Next).', 'error');
                 return;
             }
             const { data, error } = await supabase.rpc('start_duel_room', {
@@ -5092,10 +5278,14 @@ bindLegacyInlineHandlers();
             respondFriendRequest,
             createDuelRoomFromCurrentSong,
             joinDuelRoomByCode,
+            joinDuelRoomByCodeFromView,
             invitePlayerToDuelRoom,
             invitePlayerToDuelRoomFromView,
             inviteDuelFriendByUsername,
             respondDuelInvite,
+            goToDuelSongStep,
+            goToDuelRoomStep,
+            prepareAndStartDuel,
             startDuelCountdown,
             leaveCurrentDuelRoom,
             openFriendProfileFromList,

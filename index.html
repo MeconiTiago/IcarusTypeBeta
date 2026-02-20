@@ -605,30 +605,59 @@
             <div id="view-duel" class="w-full hidden flex flex-col gap-4">
                 <div class="duel-view-card">
                     <div class="duel-view-title">Online Duel</div>
-                    <div class="duel-view-desc">Create a room in Account > Duel rooms. Owner chooses the song and starts the countdown.</div>
-                    <div id="duel-view-state" class="duel-view-state">Not in a duel room.</div>
-                    <div id="duel-view-opponent" class="duel-view-opponent"></div>
-                    <div class="duel-slots">
-                        <div class="duel-slot">
-                            <div class="duel-slot-label">Player 1</div>
-                            <div id="duel-slot-owner" class="duel-slot-name">-</div>
+                    <div id="duel-step-entry">
+                        <div class="duel-view-desc">Create a room or join one.</div>
+                        <div class="duel-view-actions mt-3">
+                            <button class="auth-submit-btn" data-onclick="createDuelRoomFromCurrentSong()">Create room</button>
                         </div>
-                        <div class="duel-slot">
-                            <div class="duel-slot-label">Player 2</div>
-                            <div id="duel-slot-opponent" class="duel-slot-name">Empty slot</div>
+                        <div class="auth-friend-add-row mt-2">
+                            <input id="duel-room-code-input-view" type="text" class="auth-input" placeholder="Enter room id (uuid)">
+                            <button class="auth-submit-btn" data-onclick="joinDuelRoomByCodeFromView()">Join</button>
                         </div>
                     </div>
-                    <div class="auth-friend-add-row mt-2">
-                        <input id="duel-view-invite-target" type="text" class="auth-input" placeholder="friend username/email">
-                        <button class="auth-submit-btn" data-onclick="invitePlayerToDuelRoomFromView()">Invite</button>
+
+                    <div id="duel-step-room" class="hidden">
+                        <div id="duel-view-state" class="duel-view-state">Not in a duel room.</div>
+                        <div id="duel-view-opponent" class="duel-view-opponent"></div>
+                        <div class="duel-slots">
+                            <div class="duel-slot">
+                                <div class="duel-slot-label">Player 1</div>
+                                <div id="duel-slot-owner" class="duel-slot-name">-</div>
+                            </div>
+                            <div class="duel-slot">
+                                <div class="duel-slot-label">Player 2</div>
+                                <div id="duel-slot-opponent" class="duel-slot-name">Empty slot</div>
+                            </div>
+                        </div>
+                        <div class="auth-friend-add-row mt-2">
+                            <input id="duel-view-invite-target" type="text" class="auth-input" placeholder="friend username/email">
+                            <button id="duel-view-invite-btn" class="auth-submit-btn" data-onclick="invitePlayerToDuelRoomFromView()">Invite</button>
+                        </div>
+                        <div class="auth-subtitle mt-3">Invite from friends</div>
+                        <div id="duel-view-friend-list" class="auth-friend-list">
+                            <div class="auth-recent-empty">No friends added yet.</div>
+                        </div>
+                        <div class="duel-view-actions">
+                            <button id="duel-next-to-song-btn" class="auth-submit-btn" data-onclick="goToDuelSongStep()">Next</button>
+                            <button class="auth-friend-btn" data-onclick="leaveCurrentDuelRoom()">Leave room</button>
+                        </div>
                     </div>
-                    <div class="auth-subtitle mt-3">Invite from friends</div>
-                    <div id="duel-view-friend-list" class="auth-friend-list">
-                        <div class="auth-recent-empty">No friends added yet.</div>
-                    </div>
-                    <div class="duel-view-actions">
-                        <button class="auth-submit-btn" data-onclick="openFriendsPanel()">Open account/friends</button>
-                        <button class="auth-friend-btn" data-onclick="leaveCurrentDuelRoom()">Leave room</button>
+
+                    <div id="duel-step-song" class="hidden">
+                        <div class="duel-view-state">Choose the song</div>
+                        <div class="auth-field-group mt-2">
+                            <label class="auth-label" for="duel-song-artist">Artist/Band</label>
+                            <input id="duel-song-artist" type="text" class="auth-input" placeholder="Artist/band">
+                        </div>
+                        <div class="auth-field-group mt-2">
+                            <label class="auth-label" for="duel-song-title">Music name</label>
+                            <input id="duel-song-title" type="text" class="auth-input" placeholder="Song name">
+                        </div>
+                        <div id="duel-song-status" class="duel-view-opponent mt-2">Pick a song before starting.</div>
+                        <div class="duel-view-actions">
+                            <button class="auth-friend-btn" data-onclick="goToDuelRoomStep()">Back</button>
+                            <button class="auth-submit-btn" data-onclick="prepareAndStartDuel()">Start Game</button>
+                        </div>
                     </div>
                 </div>
             </div>

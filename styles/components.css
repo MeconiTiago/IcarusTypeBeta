@@ -896,6 +896,12 @@
             border-color: var(--main-color);
             color: var(--main-color);
         }
+        .auth-submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-color: rgba(125, 125, 125, 0.15);
+            color: var(--sub-color);
+        }
         .auth-user-card {
             border: 1px solid rgba(125, 125, 125, 0.2);
             background: rgba(0, 0, 0, 0.2);
