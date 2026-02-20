@@ -528,13 +528,22 @@
     </div>
 
     <div id="artist-songs-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" data-onclick="if(event.target === this) closeArtistSongsModal()">
-        <div class="bg-surface p-6 rounded-lg shadow-2xl max-w-2xl w-full mx-4 border border-sub max-h-[88vh] overflow-y-auto">
+        <div class="artist-spotlight-modal bg-surface p-6 rounded-lg shadow-2xl w-full border border-sub overflow-y-auto">
             <div class="flex items-center justify-between mb-4">
-                <h3 id="artist-songs-title" class="text-main font-bold text-xl">Artist songs</h3>
+                <h3 id="artist-songs-title" class="text-main font-bold text-xl">Artist spotlight</h3>
                 <button data-onclick="closeArtistSongsModal()" class="text-sub hover:text-base text-sm">Close</button>
             </div>
-            <div id="artist-songs-status" class="text-sub text-sm mb-3">Type an artist name and click browse.</div>
-            <div id="artist-songs-list" class="artist-songs-list">
+            <div class="artist-spotlight-hero">
+                <img id="artist-songs-cover" class="artist-spotlight-cover" src="https://placehold.co/96x96/0B2D45/3EE39E?text=AR" alt="Artist cover">
+                <div class="artist-spotlight-info">
+                    <div id="artist-songs-status" class="text-sub text-sm">Loading artist songs...</div>
+                    <div class="artist-spotlight-actions">
+                        <a id="artist-songs-open-player" class="auth-friend-btn accept" href="#" target="_blank" rel="noopener noreferrer">Open in player</a>
+                        <button class="auth-friend-btn" data-onclick="openRandomArtistSong()">Random song</button>
+                    </div>
+                </div>
+            </div>
+            <div id="artist-songs-list" class="artist-spotlight-grid mt-4">
                 <div class="auth-recent-empty">No songs loaded.</div>
             </div>
         </div>
@@ -545,6 +554,21 @@
             <button data-onclick="closeAvatarPreview()" class="avatar-preview-close">Close</button>
             <img id="avatar-preview-image" class="avatar-preview-image" src="https://placehold.co/320x320/0B2D45/3EE39E?text=IT" alt="Avatar preview">
             <div id="avatar-preview-name" class="avatar-preview-name">User avatar</div>
+        </div>
+    </div>
+
+    <div id="song-launch-overlay" class="song-launch-overlay hidden">
+        <div class="song-launch-card">
+            <div class="song-launch-kicker">Loading song</div>
+            <div id="song-launch-title" class="song-launch-title">Song</div>
+            <div id="song-launch-artist" class="song-launch-artist">Artist</div>
+            <div class="song-launch-meter">
+                <div id="song-launch-progress" class="song-launch-progress"></div>
+            </div>
+            <div class="song-launch-status-row">
+                <div id="song-launch-status" class="song-launch-status">Preparing lyrics...</div>
+                <div class="loader"></div>
+            </div>
         </div>
     </div>
 
@@ -590,7 +614,23 @@
             </div>
 
             <div id="view-presets" class="w-full hidden grid grid-cols-2 gap-4">
-                <div id="favorites-tab-list" class="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div id="favorites-tab-controls" class="col-span-2 favorites-tab-controls hidden">
+                    <input id="favorites-tab-filter" type="text" class="auth-input" placeholder="Filter by artist or song...">
+                    <select id="favorites-tab-sort" class="auth-input favorites-select">
+                        <option value="recent">Most recent</option>
+                        <option value="artist_az">Artist A-Z</option>
+                        <option value="song_az">Song A-Z</option>
+                    </select>
+                    <select id="favorites-tab-type" class="auth-input favorites-select">
+                        <option value="all">All types</option>
+                        <option value="catalog">Catalog</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                    <select id="favorites-tab-artist" class="auth-input favorites-select">
+                        <option value="all">All artists</option>
+                    </select>
+                </div>
+                <div id="favorites-tab-list" class="col-span-2 favorites-cards-grid">
                     <div class="auth-recent-empty">Login to see your saved favorites.</div>
                 </div>
             </div>
@@ -608,6 +648,15 @@
                     <input id="custom-save-favorite" type="checkbox">
                     <span>Save custom song to favorites (logged users)</span>
                 </label>
+                <div class="auth-field-group">
+                    <label class="auth-label" for="custom-cover-file">Custom cover (optional)</label>
+                    <input id="custom-cover-file" type="file" class="auth-file-input" accept="image/*">
+                    <div class="auth-file-row">
+                        <button type="button" class="auth-file-trigger" data-onclick="triggerCustomCoverPicker()">Choose image</button>
+                        <span id="custom-cover-file-name" class="auth-file-name">No file selected</span>
+                    </div>
+                    <img id="custom-cover-preview" class="custom-cover-preview hidden" src="" alt="Custom cover preview">
+                </div>
                 <button data-onclick="startCustomGame()" class="self-end btn-primary px-8 py-2 rounded font-bold transition">Start</button>
             </div>
             <div id="view-duel" class="w-full hidden flex flex-col gap-4">
@@ -693,7 +742,7 @@
                 <div class="flex flex-col justify-end">
                     <h2 id="current-song-title" class="text-3xl font-bold text-main leading-tight">Song Title</h2>
                     <div class="flex items-center gap-4 mt-2">
-                        <p id="current-song-artist" class="text-sm text-base opacity-80">Artist</p>
+                        <button id="current-song-artist" class="current-song-artist-btn text-sm text-base opacity-80" title="Open artist spotlight" data-onclick="openArtistSongsModal()">Artist</button>
                         <!-- Integrated Toggles -->
                         <div class="flex gap-2 ml-4 border-l border-sub pl-4">
                             <button id="btn-toggle-easy" class="header-toggle-btn" title="Toggle Easy Mode (Translation)" data-onclick="toggleEasyMode()">

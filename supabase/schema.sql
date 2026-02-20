@@ -431,6 +431,7 @@ create table if not exists public.user_favorites (
   source_type text not null default 'catalog' check (source_type in ('catalog', 'custom')),
   custom_lyrics text,
   custom_translation text,
+  custom_cover_url text,
   created_at timestamptz not null default now(),
   unique(user_id, song_title, artist)
 );
@@ -438,6 +439,7 @@ create table if not exists public.user_favorites (
 alter table public.user_favorites add column if not exists source_type text not null default 'catalog';
 alter table public.user_favorites add column if not exists custom_lyrics text;
 alter table public.user_favorites add column if not exists custom_translation text;
+alter table public.user_favorites add column if not exists custom_cover_url text;
 
 do $$
 begin
@@ -460,6 +462,17 @@ begin
         (custom_lyrics is null or char_length(custom_lyrics) <= 4000)
         and (custom_translation is null or char_length(custom_translation) <= 4000)
         and (coalesce(char_length(custom_lyrics), 0) + coalesce(char_length(custom_translation), 0) <= 6500)
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'user_favorites_custom_cover_len_chk'
+  ) then
+    alter table public.user_favorites
+      add constraint user_favorites_custom_cover_len_chk
+      check (
+        custom_cover_url is null or char_length(custom_cover_url) <= 1024
       );
   end if;
 end $$;
