@@ -1379,7 +1379,7 @@ bindLegacyInlineHandlers();
 
         function handleSpotifyAuthFailure(error) {
             const status = Number(error?.status || 0);
-            if (status === 401 || status === 403 || error?.code === 'missing_refresh_token') {
+            if (status === 401 || status === 403 || error?.code === 'missing_refresh_token' || error?.code === 'insufficient_scope_relogin') {
                 spotifyLogoutTokens();
                 if (authCurrentUser?.id) {
                     clearSpotifyTokensFromProfile(authCurrentUser.id).catch(() => {});

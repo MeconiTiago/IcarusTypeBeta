@@ -8,9 +8,34 @@ const STORAGE_KEYS = {
   accessToken: 'sp_access_token',
   refreshToken: 'sp_refresh_token',
   expiresAt: 'sp_expires_at',
+  scope: 'sp_scope',
   pkceVerifier: 'sp_pkce_verifier',
   pkceState: 'sp_pkce_state'
 };
+
+const REQUIRED_SPOTIFY_SCOPES = [...SPOTIFY_SCOPES];
+
+function normalizeScopeList(scopeValue = '') {
+  return String(scopeValue || '')
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function getMissingRequiredScopes(scopeValue = '') {
+  const available = new Set(normalizeScopeList(scopeValue));
+  return REQUIRED_SPOTIFY_SCOPES.filter((scope) => !available.has(scope));
+}
+
+function assertRequiredScopes(scopeValue = '') {
+  const missing = getMissingRequiredScopes(scopeValue);
+  if (missing.length > 0) {
+    const err = new Error(`Spotify token sem scopes obrigatorios: ${missing.join(', ')}`);
+    err.code = 'insufficient_scope_relogin';
+    err.missingScopes = missing;
+    throw err;
+  }
+}
 
 function randomString(length = 64) {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -56,11 +81,16 @@ async function requestToken(formParams) {
 function writeTokens(tokenPayload) {
   const expiresInSeconds = Number(tokenPayload?.expires_in || 3600);
   const expiresAt = Date.now() + (expiresInSeconds * 1000);
+  const existingScope = localStorage.getItem(STORAGE_KEYS.scope) || '';
+  const resolvedScope = String(tokenPayload?.scope || existingScope || '').trim();
   if (tokenPayload?.access_token) {
     localStorage.setItem(STORAGE_KEYS.accessToken, tokenPayload.access_token);
   }
   if (tokenPayload?.refresh_token) {
     localStorage.setItem(STORAGE_KEYS.refreshToken, tokenPayload.refresh_token);
+  }
+  if (resolvedScope) {
+    localStorage.setItem(STORAGE_KEYS.scope, resolvedScope);
   }
   localStorage.setItem(STORAGE_KEYS.expiresAt, String(expiresAt));
 }
@@ -69,10 +99,12 @@ function readStoredTokens() {
   const accessToken = localStorage.getItem(STORAGE_KEYS.accessToken) || '';
   const refreshToken = localStorage.getItem(STORAGE_KEYS.refreshToken) || '';
   const expiresAt = Number(localStorage.getItem(STORAGE_KEYS.expiresAt) || '0');
+  const scope = localStorage.getItem(STORAGE_KEYS.scope) || '';
   return {
     accessToken,
     refreshToken,
-    expiresAt: Number.isFinite(expiresAt) ? expiresAt : 0
+    expiresAt: Number.isFinite(expiresAt) ? expiresAt : 0,
+    scope
   };
 }
 
@@ -154,6 +186,7 @@ export async function spotifyHandleCallback() {
   }
 
   const payload = await exchangeCodeForToken(code);
+  assertRequiredScopes(payload?.scope || '');
   writeTokens(payload);
   cleanCallbackUrl();
   return true;
@@ -173,12 +206,20 @@ export async function refreshAccessToken() {
   });
   const payload = await requestToken(form);
   if (!payload.refresh_token) payload.refresh_token = refreshToken;
+  const scopeFromPayloadOrStorage = String(payload?.scope || localStorage.getItem(STORAGE_KEYS.scope) || '').trim();
+  assertRequiredScopes(scopeFromPayloadOrStorage);
   writeTokens(payload);
   return payload.access_token || '';
 }
 
 export async function getValidAccessToken() {
-  const { accessToken, expiresAt } = readStoredTokens();
+  const { accessToken, expiresAt, scope } = readStoredTokens();
+  try {
+    assertRequiredScopes(scope);
+  } catch (error) {
+    spotifyLogout();
+    throw error;
+  }
   if (accessToken && expiresAt > (Date.now() + TOKEN_SAFETY_WINDOW_MS)) {
     return accessToken;
   }
@@ -189,12 +230,18 @@ export function spotifyLogout() {
   localStorage.removeItem(STORAGE_KEYS.accessToken);
   localStorage.removeItem(STORAGE_KEYS.refreshToken);
   localStorage.removeItem(STORAGE_KEYS.expiresAt);
+  localStorage.removeItem(STORAGE_KEYS.scope);
   sessionStorage.removeItem(STORAGE_KEYS.pkceVerifier);
   sessionStorage.removeItem(STORAGE_KEYS.pkceState);
 }
 
 export function isSpotifyLoggedIn() {
-  return Boolean(localStorage.getItem(STORAGE_KEYS.refreshToken) || localStorage.getItem(STORAGE_KEYS.accessToken));
+  const accessToken = localStorage.getItem(STORAGE_KEYS.accessToken) || '';
+  const refreshToken = localStorage.getItem(STORAGE_KEYS.refreshToken) || '';
+  const scope = localStorage.getItem(STORAGE_KEYS.scope) || '';
+  if (!accessToken && !refreshToken) return false;
+  if (!scope) return true;
+  return getMissingRequiredScopes(scope).length === 0;
 }
 
 export function getStoredSpotifyTokens() {
@@ -206,6 +253,8 @@ export function setStoredSpotifyTokens(tokens = {}) {
   const refreshToken = String(tokens.refreshToken || '').trim();
   const expiresAtNum = Number(tokens.expiresAt || 0);
   const expiresAt = Number.isFinite(expiresAtNum) && expiresAtNum > 0 ? Math.floor(expiresAtNum) : 0;
+  const hasScopeField = Object.prototype.hasOwnProperty.call(tokens, 'scope');
+  const scope = String(tokens.scope || '').trim();
 
   if (accessToken) localStorage.setItem(STORAGE_KEYS.accessToken, accessToken);
   else localStorage.removeItem(STORAGE_KEYS.accessToken);
@@ -215,6 +264,11 @@ export function setStoredSpotifyTokens(tokens = {}) {
 
   if (expiresAt > 0) localStorage.setItem(STORAGE_KEYS.expiresAt, String(expiresAt));
   else localStorage.removeItem(STORAGE_KEYS.expiresAt);
+
+  if (hasScopeField) {
+    if (scope) localStorage.setItem(STORAGE_KEYS.scope, scope);
+    else localStorage.removeItem(STORAGE_KEYS.scope);
+  }
 }
 
 export function describeSpotifyAuthError(error) {
@@ -228,6 +282,9 @@ export function describeSpotifyAuthError(error) {
   }
   if (code === 'missing_refresh_token' || code === 'invalid_grant') {
     return 'Sessao Spotify expirada e sem refresh token. Faca login novamente.';
+  }
+  if (code === 'insufficient_scope_relogin') {
+    return 'Spotify conectado com permissao incompleta. Re-vincule para conceder scopes de playback.';
   }
   if (code === 'missing_pkce_verifier') {
     return 'Falha no PKCE verifier. Inicie o login Spotify novamente.';
