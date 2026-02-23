@@ -1,6 +1,12 @@
 export const SPOTIFY_CLIENT_ID = '79a95a0dcde843e19634096ccfdf942e';
 export const SPOTIFY_REDIRECT_URI = 'https://icarustypebeta.vercel.app/';
-export const SPOTIFY_SCOPES = ['user-read-recently-played'];
+export const SPOTIFY_SCOPES = [
+  'user-read-recently-played',
+  'streaming',
+  'user-read-playback-state',
+  'user-modify-playback-state',
+  'user-read-currently-playing'
+];
 
 export function getSpotifyRedirectUri() {
   const host = window.location.hostname;

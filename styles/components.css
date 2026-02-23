@@ -91,6 +91,10 @@
             background: rgba(94, 131, 150, 0.12);
             border-radius: 4px;
         }
+        .word.music-active {
+            background: rgba(94, 131, 150, 0.1);
+            border-radius: 4px;
+        }
         .word.rhythm-word.active.music-active {
             border-bottom-style: solid;
             border-bottom-color: var(--main-color);
