@@ -673,6 +673,7 @@ bindLegacyInlineHandlers();
         let spPlaybackPaused = true;
         let spPlaybackHasState = false;
         let spPlaybackProgressMs = 0;
+        let spPlaybackApiLastCheckAt = 0;
         let spTransferPlaybackAttemptAt = 0;
         let spRhythmSyncTimer = null;
         let rhythmAudioToastAt = 0;
@@ -975,30 +976,73 @@ bindLegacyInlineHandlers();
             if (!state.isRhythmMode) return true;
             if (!hasRhythmSyncTimeline()) return false;
             if (!isSpotifyLoggedIn()) return false;
-            if (!spPlayer || !spDeviceId) return false;
             if (!spPlaybackHasState) return false;
             if (spPlaybackPaused) return false;
             return true;
         }
 
-        function startRhythmSpotifySyncPoll() {
-            stopRhythmSpotifySyncPoll();
-            if (!state.isRhythmMode || !spPlayer || !hasRhythmSyncTimeline()) return;
-            spRhythmSyncTimer = setInterval(async () => {
-                if (!state.isRhythmMode || !spPlayer || elements.gameArea.classList.contains('hidden')) return;
-                try {
-                    const current = await spPlayer.getCurrentState();
-                    if (!current) {
+        async function syncSpotifyPlaybackStateFromApi(force = false) {
+            if (!isSpotifyLoggedIn()) return false;
+            const now = Date.now();
+            if (!force && now - spPlaybackApiLastCheckAt < 1200) {
+                return spPlaybackHasState && !spPlaybackPaused;
+            }
+            spPlaybackApiLastCheckAt = now;
+            try {
+                const token = await getValidAccessToken();
+                const res = await fetch('https://api.spotify.com/v1/me/player', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (res.status === 204) {
+                    spPlaybackHasState = false;
+                    spPlaybackPaused = true;
+                    return false;
+                }
+                if (!res.ok) {
+                    if (res.status === 401 || res.status === 403) {
                         spPlaybackHasState = false;
                         spPlaybackPaused = true;
-                        return;
                     }
-                    spPlaybackHasState = true;
-                    spPlaybackPaused = Boolean(current.paused);
-                    spPlaybackProgressMs = Number(current.position || 0);
-                    if (!spPlaybackPaused) {
-                        updateLyricsHighlight(spPlaybackProgressMs);
+                    return false;
+                }
+                const data = await res.json().catch(() => ({}));
+                const isPlaying = Boolean(data?.is_playing);
+                const progress = Number(data?.progress_ms || 0);
+                spPlaybackHasState = Boolean(data?.item || data?.device || typeof data?.is_playing === 'boolean');
+                spPlaybackPaused = !isPlaying;
+                spPlaybackProgressMs = Number.isFinite(progress) ? progress : 0;
+                const trackName = String(data?.item?.name || '').trim();
+                if (trackName && elements.videoTitleLink) {
+                    elements.videoTitleLink.textContent = trackName;
+                }
+                if (state.isRhythmMode && spPlaybackHasState && !spPlaybackPaused) {
+                    updateLyricsHighlight(spPlaybackProgressMs);
+                }
+                return spPlaybackHasState && !spPlaybackPaused;
+            } catch (_error) {
+                return false;
+            }
+        }
+
+        function startRhythmSpotifySyncPoll() {
+            stopRhythmSpotifySyncPoll();
+            if (!state.isRhythmMode || !hasRhythmSyncTimeline()) return;
+            spRhythmSyncTimer = setInterval(async () => {
+                if (!state.isRhythmMode || elements.gameArea.classList.contains('hidden')) return;
+                try {
+                    if (spPlayer) {
+                        const current = await spPlayer.getCurrentState();
+                        if (current) {
+                            spPlaybackHasState = true;
+                            spPlaybackPaused = Boolean(current.paused);
+                            spPlaybackProgressMs = Number(current.position || 0);
+                            if (!spPlaybackPaused) {
+                                updateLyricsHighlight(spPlaybackProgressMs);
+                            }
+                            return;
+                        }
                     }
+                    await syncSpotifyPlaybackStateFromApi(false);
                 } catch (_err) {}
             }, 300);
         }
@@ -1344,6 +1388,7 @@ bindLegacyInlineHandlers();
             spPlaybackHasState = false;
             spPlaybackPaused = true;
             spPlaybackProgressMs = 0;
+            spPlaybackApiLastCheckAt = 0;
             renderSpotifyRecentList();
             renderSpotifyStatus();
             renderSearchDiscoveryPanel().catch(() => {});
@@ -4170,6 +4215,7 @@ bindLegacyInlineHandlers();
                     spPlaybackHasState = false;
                     spPlaybackPaused = true;
                     spPlaybackProgressMs = 0;
+                    spPlaybackApiLastCheckAt = 0;
                 }
                 resetAuthDashboardUI();
                 setPreferredPlayer('spotify');
@@ -4307,6 +4353,7 @@ bindLegacyInlineHandlers();
             spPlaybackHasState = false;
             spPlaybackPaused = true;
             spPlaybackProgressMs = 0;
+            spPlaybackApiLastCheckAt = 0;
             spotifyLinkedToAccount = false;
             spotifyLastSyncedSignature = '';
             spotifyLinkPromptShownForUserId = '';
@@ -6099,6 +6146,7 @@ bindLegacyInlineHandlers();
                     if (spDeviceId) {
                         await ensureRhythmPlaybackActive(true).catch(() => {});
                     }
+                    await syncSpotifyPlaybackStateFromApi(true).catch(() => {});
                     startRhythmSpotifySyncPoll();
                 }).catch(() => {});
             } else {
@@ -6222,14 +6270,12 @@ bindLegacyInlineHandlers();
                     elements.input.value = '';
                     return;
                 }
-                if (!spPlayer) {
-                    ensureSpotifyWebPlayer().catch(() => {});
-                    showRhythmAudioRequiredToast();
-                    elements.input.value = '';
-                    return;
-                }
+                if (!spPlayer) ensureSpotifyWebPlayer().catch(() => {});
                 if (spDeviceId && (spPlaybackPaused || !spPlaybackHasState)) {
                     ensureRhythmPlaybackActive().catch(() => {});
+                }
+                if (!spPlaybackHasState || spPlaybackPaused) {
+                    syncSpotifyPlaybackStateFromApi(false).catch(() => {});
                 }
                 if (!canTypeInRhythmNow()) {
                     showRhythmAudioRequiredToast();
