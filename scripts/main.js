@@ -852,6 +852,8 @@ bindLegacyInlineHandlers();
 
         function maybeOpenSpotifyLinkPrompt() {
             if (!authCurrentUser?.id) return;
+            if (hasSpotifyCallbackParams()) return;
+            if (isSpotifyLoggedIn()) return;
             if (spotifyLinkedToAccount) return;
             if (spotifyLinkPromptShownForUserId === authCurrentUser.id) return;
             spotifyLinkPromptShownForUserId = authCurrentUser.id;
@@ -6770,6 +6772,13 @@ bindLegacyInlineHandlers();
                     } else {
                         const callbackHandled = await spotifyHandleCallback();
                         if (callbackHandled) {
+                            const localTokens = getStoredSpotifyTokens();
+                            if (localTokens.refreshToken) {
+                                spotifyLinkedToAccount = true;
+                                spotifyLinkPromptShownForUserId = authCurrentUser.id;
+                                closeSpotifyLinkPrompt();
+                                await saveSpotifyTokensToProfile(authCurrentUser.id, localTokens);
+                            }
                             showToast('Spotify vinculado com sucesso.', 'info');
                             await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
                         }
