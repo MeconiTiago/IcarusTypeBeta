@@ -1,4 +1,4 @@
-import { SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI, SPOTIFY_SCOPES } from '../config/spotify.js';
+import { SPOTIFY_CLIENT_ID, SPOTIFY_SCOPES, getSpotifyRedirectUri } from '../config/spotify.js';
 
 const SPOTIFY_AUTHORIZE_URL = 'https://accounts.spotify.com/authorize';
 const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
@@ -75,7 +75,8 @@ function cleanCallbackUrl() {
 }
 
 export async function spotifyLogin() {
-  if (!SPOTIFY_CLIENT_ID || !SPOTIFY_REDIRECT_URI) {
+  const redirectUri = getSpotifyRedirectUri();
+  if (!SPOTIFY_CLIENT_ID || !redirectUri) {
     throw new Error('Spotify config is missing client id or redirect uri.');
   }
   const codeVerifier = randomString(64);
@@ -88,7 +89,7 @@ export async function spotifyLogin() {
   const params = new URLSearchParams({
     client_id: SPOTIFY_CLIENT_ID,
     response_type: 'code',
-    redirect_uri: SPOTIFY_REDIRECT_URI,
+    redirect_uri: redirectUri,
     scope: SPOTIFY_SCOPES.join(' '),
     code_challenge_method: 'S256',
     code_challenge: codeChallenge,
@@ -98,6 +99,7 @@ export async function spotifyLogin() {
 }
 
 export async function exchangeCodeForToken(code) {
+  const redirectUri = getSpotifyRedirectUri();
   const verifier = sessionStorage.getItem(STORAGE_KEYS.pkceVerifier) || '';
   if (!verifier) {
     const err = new Error('Missing PKCE verifier.');
@@ -108,7 +110,7 @@ export async function exchangeCodeForToken(code) {
     client_id: SPOTIFY_CLIENT_ID,
     grant_type: 'authorization_code',
     code,
-    redirect_uri: SPOTIFY_REDIRECT_URI,
+    redirect_uri: redirectUri,
     code_verifier: verifier
   });
   const payload = await requestToken(form);
@@ -205,6 +207,9 @@ export function describeSpotifyAuthError(error) {
   }
   if (typeof error?.status === 'number' && (error.status === 401 || error.status === 403)) {
     return 'Sessao Spotify invalida (401/403). Entre novamente.';
+  }
+  if (message.toLowerCase().includes('failed to fetch')) {
+    return 'Falha de rede ao falar com Spotify. Verifique CSP/connect-src, internet e Redirect URI cadastrado para este dominio.';
   }
   return error?.message || 'Nao foi possivel autenticar com Spotify.';
 }

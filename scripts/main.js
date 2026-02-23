@@ -459,6 +459,8 @@ bindLegacyInlineHandlers();
             searchChipTrain: document.getElementById('search-chip-train'),
             searchRecentArtists: document.getElementById('search-recent-artists'),
             searchRecentSongs: document.getElementById('search-recent-songs'),
+            searchRecentArtistsSource: document.getElementById('search-recent-artists-source'),
+            searchRecentSongsSource: document.getElementById('search-recent-songs-source'),
             searchFavoritePicks: document.getElementById('search-favorite-picks'),
             searchTrainPicks: document.getElementById('search-train-picks'),
             songLaunchOverlay: document.getElementById('song-launch-overlay'),
@@ -469,6 +471,8 @@ bindLegacyInlineHandlers();
             toastContainer: document.getElementById('toast-container'),
             headerAvatarButton: document.getElementById('header-avatar-button'),
             headerAvatarImage: document.getElementById('header-avatar-image'),
+            headerAuthStatus: document.getElementById('header-auth-status'),
+            headerSpotifyStatus: document.getElementById('header-spotify-status'),
             videoPanel: document.getElementById('video-pip-panel'),
             videoSearchLink: document.getElementById('video-search-link'),
             videoCoverLink: document.getElementById('video-cover-link'),
@@ -669,10 +673,64 @@ bindLegacyInlineHandlers();
             return dt.toLocaleString();
         }
 
+        function renderHeaderAuthStatus() {
+            const username = String(elements.authUserName?.textContent || '').trim();
+            const isLoggedIn = Boolean(authCurrentUser);
+            if (elements.headerAuthStatus) {
+                elements.headerAuthStatus.textContent = isLoggedIn
+                    ? `Conta: ${username || 'Logado'}`
+                    : 'Conta: guest';
+                elements.headerAuthStatus.classList.toggle('muted', !isLoggedIn);
+            }
+        }
+
+        function getSpotifyArtistRows(limit = 8) {
+            const rows = [];
+            const seen = new Set();
+            (spotifyTracks || []).forEach((track) => {
+                const artists = String(track?.artists || '')
+                    .split(',')
+                    .map((name) => name.trim())
+                    .filter(Boolean);
+                artists.forEach((name) => {
+                    const key = normalizeLookupText(name);
+                    if (!key || seen.has(key) || rows.length >= limit) return;
+                    seen.add(key);
+                    rows.push({ name, at: Date.now() });
+                });
+            });
+            return rows;
+        }
+
+        function getSpotifyRecentSongs(limit = 8) {
+            const rows = [];
+            const seen = new Set();
+            (spotifyTracks || []).forEach((track) => {
+                const songTitle = String(track?.trackName || '').trim();
+                const artistName = String(track?.artists || '').split(',')[0]?.trim() || '';
+                if (!songTitle || !artistName) return;
+                const key = `${normalizeLookupText(artistName)}|||${normalizeLookupText(songTitle)}`;
+                if (seen.has(key) || rows.length >= limit) return;
+                seen.add(key);
+                rows.push({
+                    songTitle,
+                    artistName,
+                    createdAt: track?.playedAt || null,
+                    cover: track?.albumImage || ''
+                });
+            });
+            return rows;
+        }
+
         function renderSpotifyStatus() {
             const loggedIn = isSpotifyLoggedIn();
             if (elements.spotifyAuthStatus) {
                 elements.spotifyAuthStatus.textContent = loggedIn ? 'Status: logado no Spotify.' : 'Status: deslogado no Spotify.';
+            }
+            if (elements.headerSpotifyStatus) {
+                const label = loggedIn ? `Spotify: on (${spotifyTracks.length})` : 'Spotify: off';
+                elements.headerSpotifyStatus.textContent = label;
+                elements.headerSpotifyStatus.classList.toggle('muted', !loggedIn);
             }
             if (elements.spotifyLastPlayed) {
                 elements.spotifyLastPlayed.textContent = `Ultimo played_at: ${spotifyLastPlayedAtKnown || '-'}`;
@@ -757,6 +815,7 @@ bindLegacyInlineHandlers();
                 spotifyLastPlayedAtKnown = '';
                 renderSpotifyRecentList();
                 renderSpotifyStatus();
+                renderSearchDiscoveryPanel().catch(() => {});
             }
         }
 
@@ -778,6 +837,7 @@ bindLegacyInlineHandlers();
                     saveSpotifyHistoryByDay(normalized);
                 }
                 renderSpotifyStatus();
+                renderSearchDiscoveryPanel().catch(() => {});
                 return { changed: hasChanged, items: normalized };
             } catch (error) {
                 handleSpotifyAuthFailure(error);
@@ -805,6 +865,7 @@ bindLegacyInlineHandlers();
             spotifyLastPlayedAtKnown = '';
             renderSpotifyRecentList();
             renderSpotifyStatus();
+            renderSearchDiscoveryPanel().catch(() => {});
             showToast('Spotify desconectado.', 'info');
         }
 
@@ -1032,7 +1093,9 @@ bindLegacyInlineHandlers();
         }
 
         function shouldPersistSession() {
-            return localStorage.getItem(AUTH_PERSIST_MODE_KEY) === '1';
+            const mode = localStorage.getItem(AUTH_PERSIST_MODE_KEY);
+            if (mode === null) return true;
+            return mode === '1';
         }
 
         function clearAuthSession() {
@@ -1511,10 +1574,28 @@ bindLegacyInlineHandlers();
             }
             elements.searchDiscovery.classList.remove('hidden');
 
-            const recentArtists = readRecentArtists().slice(0, 8);
+            const spotifyArtistRows = getSpotifyArtistRows(8);
+            const localRecentArtists = readRecentArtists().slice(0, 8);
+            const recentArtists = [];
+            const seenArtistKeys = new Set();
+            [...spotifyArtistRows, ...localRecentArtists].forEach((row) => {
+                const key = normalizeLookupText(row?.name || '');
+                if (!key || seenArtistKeys.has(key) || recentArtists.length >= 8) return;
+                seenArtistKeys.add(key);
+                recentArtists.push(row);
+            });
+            if (elements.searchRecentArtistsSource) {
+                if (spotifyArtistRows.length && localRecentArtists.length) {
+                    elements.searchRecentArtistsSource.textContent = 'Spotify + Icarus';
+                } else if (spotifyArtistRows.length) {
+                    elements.searchRecentArtistsSource.textContent = 'Spotify';
+                } else {
+                    elements.searchRecentArtistsSource.textContent = 'Icarus history';
+                }
+            }
             if (elements.searchRecentArtists) {
                 if (!recentArtists.length) {
-                    elements.searchRecentArtists.innerHTML = '<div class="auth-recent-empty">Search artists and they will appear here.</div>';
+                    elements.searchRecentArtists.innerHTML = '<div class="auth-recent-empty">Busque artistas ou conecte Spotify para preencher esta lista.</div>';
                 } else {
                     const cards = await Promise.all(recentArtists.map(async (row) => {
                         const name = String(row.name || '').trim();
@@ -1535,6 +1616,16 @@ bindLegacyInlineHandlers();
 
             const recentSongs = [];
             const seenRecentSongs = new Set();
+            const spotifyRecentSongs = getSpotifyRecentSongs(8);
+            spotifyRecentSongs.forEach((row) => {
+                const key = `${normalizeLookupText(row.artistName)}|||${normalizeLookupText(row.songTitle)}`;
+                if (seenRecentSongs.has(key) || recentSongs.length >= 8) return;
+                seenRecentSongs.add(key);
+                recentSongs.push({
+                    ...row,
+                    source: 'spotify'
+                });
+            });
             const sortedResults = (authGameResultsCache || [])
                 .slice()
                 .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
@@ -1545,16 +1636,27 @@ bindLegacyInlineHandlers();
                 const key = `${normalizeLookupText(artistName)}|||${normalizeLookupText(songTitle)}`;
                 if (seenRecentSongs.has(key)) return;
                 seenRecentSongs.add(key);
+                if (recentSongs.length >= 8) return;
                 recentSongs.push({
                     songTitle,
                     artistName,
-                    createdAt: row.created_at || null
+                    createdAt: row.created_at || null,
+                    source: 'icarus'
                 });
             });
+            if (elements.searchRecentSongsSource) {
+                if (spotifyRecentSongs.length && sortedResults.length) {
+                    elements.searchRecentSongsSource.textContent = 'Spotify + Icarus';
+                } else if (spotifyRecentSongs.length) {
+                    elements.searchRecentSongsSource.textContent = 'Spotify';
+                } else {
+                    elements.searchRecentSongsSource.textContent = 'Icarus runs';
+                }
+            }
 
             if (elements.searchRecentSongs) {
                 if (!recentSongs.length) {
-                    elements.searchRecentSongs.innerHTML = '<div class="auth-recent-empty">Play songs and your recent list appears here.</div>';
+                    elements.searchRecentSongs.innerHTML = '<div class="auth-recent-empty">Toque algo no Spotify ou jogue uma musica para aparecer aqui.</div>';
                 } else {
                     elements.searchRecentSongs.innerHTML = recentSongs.slice(0, 8).map((row) => {
                         const favoriteRow = (authFavoritesCache || []).find((f) =>
@@ -1563,18 +1665,21 @@ bindLegacyInlineHandlers();
                         );
                         const artKey = favoriteArtworkKey(row.artistName, row.songTitle);
                         const customCover = sanitizeAvatarUrl(favoriteRow?.custom_cover_url || '');
-                        const cover = escapeHtml(customCover || favoriteArtworkCache.get(artKey) || buildFavoriteArtworkFallback(row.artistName, row.songTitle));
+                        const spotifyCover = sanitizeAvatarUrl(row.cover || '');
+                        const cover = escapeHtml(spotifyCover || customCover || favoriteArtworkCache.get(artKey) || buildFavoriteArtworkFallback(row.artistName, row.songTitle));
                         const encodedArtist = encodeURIComponent(row.artistName);
                         const encodedTitle = encodeURIComponent(row.songTitle);
                         const when = row.createdAt ? new Date(row.createdAt).toLocaleDateString() : '';
+                        const sourceTag = row.source === 'spotify' ? 'spotify' : 'recent';
+                        const whenLabel = row.source === 'spotify' ? 'ouvida' : 'played';
                         return `<button class="favorite-media-card"
                                 data-onclick="quickLoadSongFromHub('${encodedArtist}','${encodedTitle}')">
                           <img class="favorite-media-thumb" src="${cover}" alt="${escapeHtml(row.artistName)} cover" loading="lazy">
                           <div class="favorite-media-body">
                             <div class="favorite-media-title">${escapeHtml(row.songTitle)}</div>
                             <div class="favorite-media-artist">${escapeHtml(row.artistName)}</div>
-                            <div class="favorite-media-meta">${when ? `played ${when}` : 'recent song'}</div>
-                            <div class="favorite-media-tag">recent</div>
+                            <div class="favorite-media-meta">${when ? `${whenLabel} ${when}` : 'recent song'}</div>
+                            <div class="favorite-media-tag">${sourceTag}</div>
                           </div>
                         </button>`;
                     }).join('');
@@ -3570,6 +3675,7 @@ bindLegacyInlineHandlers();
                 renderSetupFavoritesTab();
                 renderSearchDiscoveryPanel().catch(() => {});
             }
+            renderHeaderAuthStatus();
             setAccountViewMode(authAccountViewMode);
         }
 
@@ -6449,6 +6555,7 @@ bindLegacyInlineHandlers();
         }
         switchAuthTab('login');
         updateCustomInputCounters();
+        renderHeaderAuthStatus();
         renderSpotifyStatus();
         renderSpotifyRecentList();
         renderDuelPanel();
@@ -6473,10 +6580,14 @@ bindLegacyInlineHandlers();
                 const callbackHandled = await spotifyHandleCallback();
                 if (callbackHandled) {
                     showToast('Spotify conectado com sucesso.', 'info');
+                    await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
                 }
             } catch (error) {
                 handleSpotifyAuthFailure(error);
                 showToast(describeSpotifyAuthError(error), 'error');
+            }
+            if (isSpotifyLoggedIn() && !spotifyTracks.length) {
+                await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
             }
             renderSpotifyStatus();
             await bootstrapAuthSession();

@@ -523,6 +523,10 @@
             <button data-onclick="openProfileScreen()" class="btn-ghost transition" title="Full profile"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></button>
             <button data-onclick="openModal('about')" class="btn-ghost transition" title="About"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg></button>
             <button data-onclick="openModal('settings')" class="btn-ghost transition" title="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+            <div class="header-status-stack">
+                <div id="header-auth-status" class="header-status-pill">Guest</div>
+                <div id="header-spotify-status" class="header-status-pill muted">Spotify off</div>
+            </div>
             <button id="header-avatar-button" data-onclick="handleHeaderAvatarClick(event)" class="header-avatar-btn transition" title="Friends/account (Shift or Ctrl click to zoom)">
                 <img id="header-avatar-image" class="header-avatar-image" src="https://placehold.co/80x80/0B2D45/3EE39E?text=IT" alt="account avatar">
             </button>
@@ -625,6 +629,7 @@
                     <section id="search-section-recent" class="search-discovery-section">
                         <div class="search-discovery-head">
                             <span class="search-discovery-title">Recent artists</span>
+                            <span id="search-recent-artists-source" class="search-discovery-meta">Icarus history</span>
                         </div>
                         <div id="search-recent-artists" class="search-discovery-row search-discovery-row-artists">
                             <div class="auth-recent-empty">Search artists and they will appear here.</div>
@@ -633,6 +638,7 @@
                     <section id="search-section-favorites" class="search-discovery-section">
                         <div class="search-discovery-head">
                             <span class="search-discovery-title">Recent songs</span>
+                            <span id="search-recent-songs-source" class="search-discovery-meta">Icarus runs</span>
                         </div>
                         <div id="search-recent-songs" class="favorites-cards-grid">
                             <div class="auth-recent-empty">Play songs and your recent list appears here.</div>
