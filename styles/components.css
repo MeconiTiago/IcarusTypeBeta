@@ -172,7 +172,7 @@
         }
         
         /* Modal Overlay */
-        #modal-overlay, #restart-modal-overlay, #about-modal-overlay, #settings-modal-overlay, #practice-modal-overlay, #profile-modal-overlay, #onboarding-overlay {
+        #modal-overlay, #restart-modal-overlay, #about-modal-overlay, #settings-modal-overlay, #practice-modal-overlay, #profile-modal-overlay, #onboarding-overlay, #spotify-link-modal-overlay {
             background-color: rgba(0, 0, 0, 0.85);
             backdrop-filter: blur(4px);
         }
@@ -245,6 +245,7 @@
         #practice-modal-overlay > div,
         #profile-modal-overlay > div,
         #onboarding-overlay > div,
+        #spotify-link-modal-overlay > div,
         #artist-songs-modal-overlay > div {
             border-color: rgba(62, 227, 158, 0.45);
         }

@@ -537,10 +537,12 @@ bindLegacyInlineHandlers();
             authDangerSection: document.getElementById('auth-danger-section'),
             authActionsSection: document.getElementById('auth-actions-section'),
             authFavoritesList: document.getElementById('auth-favorites-list'),
+            spotifySection: document.getElementById('spotify-section'),
             spotifyAuthStatus: document.getElementById('spotify-auth-status'),
             spotifyTrackingBtn: document.getElementById('spotify-tracking-btn'),
             spotifyLastPlayed: document.getElementById('spotify-last-played'),
             spotifyRecentList: document.getElementById('spotify-recent-list'),
+            spotifyLinkModal: document.getElementById('spotify-link-modal-overlay'),
             profileHubOverlay: document.getElementById('profile-hub-overlay'),
             profileHubName: document.getElementById('profile-hub-name'),
             profileHubAvatar: document.getElementById('profile-hub-avatar'),
@@ -656,6 +658,7 @@ bindLegacyInlineHandlers();
         let spotifyTracks = [];
         let spotifyLinkedToAccount = false;
         let spotifyLastSyncedSignature = '';
+        let spotifyLinkPromptShownForUserId = '';
 
         function normalizeEmail(email) {
             return (email || '').trim().toLowerCase();
@@ -827,6 +830,23 @@ bindLegacyInlineHandlers();
             }
         }
 
+        function closeSpotifyLinkPrompt() {
+            elements.spotifyLinkModal?.classList.add('hidden');
+        }
+
+        async function confirmSpotifyLinkPrompt() {
+            closeSpotifyLinkPrompt();
+            await spotifyLogin();
+        }
+
+        function maybeOpenSpotifyLinkPrompt() {
+            if (!authCurrentUser?.id) return;
+            if (spotifyLinkedToAccount) return;
+            if (spotifyLinkPromptShownForUserId === authCurrentUser.id) return;
+            spotifyLinkPromptShownForUserId = authCurrentUser.id;
+            elements.spotifyLinkModal?.classList.remove('hidden');
+        }
+
         function renderSpotifyRecentList() {
             if (!elements.spotifyRecentList) return;
             if (!spotifyTracks.length) {
@@ -948,6 +968,11 @@ bindLegacyInlineHandlers();
         }
 
         async function spotifyLogin() {
+            if (!authCurrentUser) {
+                showToast('Primeiro faca login na conta principal para vincular Spotify.', 'error');
+                openModal('profile');
+                return;
+            }
             try {
                 await spotifyLoginWithPkce();
             } catch (error) {
@@ -973,6 +998,10 @@ bindLegacyInlineHandlers();
         }
 
         async function spotifyToggleTracking() {
+            if (!authCurrentUser) {
+                showToast('Faca login na conta principal para usar tracking Spotify.', 'error');
+                return;
+            }
             if (spotifyIsTrackingEnabled) {
                 stopSpotifyTracking();
                 showToast('Tracking Spotify pausado.', 'info');
@@ -3714,6 +3743,7 @@ bindLegacyInlineHandlers();
             const isLoggedIn = !!user;
             elements.authGuestView?.classList.toggle('hidden', isLoggedIn);
             elements.authUserView?.classList.toggle('hidden', !isLoggedIn);
+            elements.spotifySection?.classList.toggle('hidden', !isLoggedIn);
 
             if (isLoggedIn) {
                 const profile = await getCurrentProfile(user.id);
@@ -3768,11 +3798,18 @@ bindLegacyInlineHandlers();
                 if (isSpotifyLoggedIn() && !spotifyTracks.length) {
                     await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
                 }
+                maybeOpenSpotifyLinkPrompt();
             } else {
+                spotifyLogoutTokens();
+                stopSpotifyTracking();
+                spotifyTracks = [];
+                spotifyLastPlayedAtKnown = '';
                 resetAuthDashboardUI();
                 setPreferredPlayer('spotify');
                 spotifyLinkedToAccount = false;
                 spotifyLastSyncedSignature = '';
+                spotifyLinkPromptShownForUserId = '';
+                closeSpotifyLinkPrompt();
                 clearDuelRealtimeInvitesSubscription();
                 if (elements.authRememberMe) elements.authRememberMe.checked = shouldPersistSession();
                 switchAuthTab(authTab);
@@ -3889,6 +3926,14 @@ bindLegacyInlineHandlers();
         }
 
         async function logoutAccount(showToastMessage = true) {
+            spotifyLogoutTokens();
+            stopSpotifyTracking();
+            spotifyTracks = [];
+            spotifyLastPlayedAtKnown = '';
+            spotifyLinkedToAccount = false;
+            spotifyLastSyncedSignature = '';
+            spotifyLinkPromptShownForUserId = '';
+            closeSpotifyLinkPrompt();
             if (!supabase) {
                 clearAuthSession();
                 await refreshAuthUI();
@@ -6491,6 +6536,8 @@ bindLegacyInlineHandlers();
             spotifyLogout,
             spotifyFetchRecentlyPlayed,
             spotifyToggleTracking,
+            closeSpotifyLinkPrompt,
+            confirmSpotifyLinkPrompt,
         });
 
         elements.input.addEventListener('input', (e) => handleInput(elements.input.value));
