@@ -806,6 +806,10 @@
         .artist-spotlight-meta {
             color: var(--sub-color);
             font-size: 0.72rem;
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
         }
         .artist-catalog-wrap {
             border: 1px solid rgba(125, 125, 125, 0.24);
@@ -1012,6 +1016,10 @@
             border-color: rgba(62, 227, 158, 0.5);
             background: rgba(62, 227, 158, 0.1);
         }
+        .artist-song-item.sync-ready {
+            border-color: rgba(62, 227, 158, 0.45);
+            background: rgba(62, 227, 158, 0.08);
+        }
         .artist-song-main {
             border: 0;
             background: transparent;
@@ -1052,6 +1060,30 @@
         .artist-song-meta {
             font-size: 0.72rem;
             color: var(--sub-color);
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .artist-song-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            font-size: 0.58rem;
+            letter-spacing: 0.05em;
+            padding: 2px 7px;
+            border: 1px solid rgba(125, 125, 125, 0.3);
+            color: var(--sub-color);
+            background: rgba(0, 0, 0, 0.24);
+        }
+        .artist-song-badge.ok {
+            border-color: rgba(62, 227, 158, 0.55);
+            color: var(--main-color);
+            background: rgba(62, 227, 158, 0.12);
+        }
+        .artist-song-badge.off {
+            border-color: rgba(125, 125, 125, 0.34);
         }
         .artist-album-section {
             border: 1px solid rgba(125, 125, 125, 0.2);

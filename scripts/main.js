@@ -5215,6 +5215,10 @@ bindLegacyInlineHandlers();
             return Boolean((row?.plainLyrics || '').trim() || (row?.syncedLyrics || '').trim());
         }
 
+        function songHasSyncedLyrics(song) {
+            return Boolean(String(song?.syncedLyrics || '').trim());
+        }
+
         function hideSearchSuggestions() {
             elements.artistSuggestions?.classList.add('hidden');
             elements.titleSuggestions?.classList.add('hidden');
@@ -5548,6 +5552,9 @@ bindLegacyInlineHandlers();
             }
 
             if (!songs.length) {
+                if (elements.artistCatalogMeta) {
+                    elements.artistCatalogMeta.textContent = 'Nenhuma opcao com letra encontrada para esse filtro.';
+                }
                 const artist = escapeHtml(state.artistCatalogName || elements.artistInput?.value || '');
                 const term = escapeHtml(filterText || '');
                 elements.artistCatalogList.innerHTML = `
@@ -5563,6 +5570,10 @@ bindLegacyInlineHandlers();
                 }
                 return;
             }
+            const syncCount = songs.filter((song) => songHasSyncedLyrics(song)).length;
+            if (elements.artistCatalogMeta) {
+                elements.artistCatalogMeta.textContent = `${songs.length} opcoes listadas. ${syncCount} com timestamp (SYNC READY).`;
+            }
             const groups = new Map();
             songs.forEach((song) => {
                 const albumKey = (song.album || 'Singles / Unknown Album').trim() || 'Singles / Unknown Album';
@@ -5574,12 +5585,21 @@ bindLegacyInlineHandlers();
             const html = albumNames.map((albumName) => {
                 const albumSongs = groups.get(albumName) || [];
                 const songsHtml = albumSongs
-                    .sort((a, b) => a.title.localeCompare(b.title))
+                    .sort((a, b) => {
+                        const syncDiff = Number(songHasSyncedLyrics(b)) - Number(songHasSyncedLyrics(a));
+                        if (syncDiff !== 0) return syncDiff;
+                        return a.title.localeCompare(b.title);
+                    })
                     .map((song) => `
-                        <div class="artist-song-item">
+                        <div class="artist-song-item${songHasSyncedLyrics(song) ? ' sync-ready' : ''}">
                             <button type="button" class="artist-song-main" data-song-title="${escapeHtml(song.title)}" data-song-artist="${escapeHtml(song.artist)}">
                                 <span class="artist-song-title">${escapeHtml(song.title)}</span>
-                                <span class="artist-song-meta">${escapeHtml(song.artist)}</span>
+                                <span class="artist-song-meta">
+                                    ${escapeHtml(song.artist)}
+                                    <span class="artist-song-badge ${songHasSyncedLyrics(song) ? 'ok' : 'off'}">
+                                        ${songHasSyncedLyrics(song) ? 'SYNC READY' : 'NO SYNC'}
+                                    </span>
+                                </span>
                             </button>
                             <button type="button"
                                     class="artist-song-fav${isSongFavorited(song.artist, song.title) ? ' active' : ''}"
@@ -5621,6 +5641,17 @@ bindLegacyInlineHandlers();
                 const key = `${normalizeLookupText(song.title)}|||${normalizeLookupText(song.artist)}`;
                 return key === selectedKey;
             });
+            if (state.isRhythmMode && selectedSong && !songHasSyncedLyrics(selectedSong)) {
+                const hasSyncAlternative = (state.artistCatalogSongs || []).some((song) => (
+                    normalizeLookupText(song.artist) === normalizeLookupText(artist) &&
+                    songHasSyncedLyrics(song)
+                ));
+                if (hasSyncAlternative) {
+                    showToast('Essa musica nao tem timestamp. Prefira opcoes marcadas como SYNC READY.', 'info');
+                } else {
+                    showToast('Essa musica nao tem timestamp sincronizado para Rhythm.', 'info');
+                }
+            }
             const inlineLyrics = String(selectedSong?.plainLyrics || '').trim() || syncedToPlainLyrics(String(selectedSong?.syncedLyrics || ''));
             if (inlineLyrics) {
                 const cacheKey = `${artist}-${title}`.toLowerCase();
@@ -5655,12 +5686,22 @@ bindLegacyInlineHandlers();
                 elements.artistSongsList.innerHTML = '<div class="auth-recent-empty">No songs found for this artist right now.</div>';
                 return;
             }
-            elements.artistSongsList.innerHTML = songs.slice(0, 24).map((song, idx) => `
+            const ranked = [...songs].sort((a, b) => {
+                const syncDiff = Number(songHasSyncedLyrics(b)) - Number(songHasSyncedLyrics(a));
+                if (syncDiff !== 0) return syncDiff;
+                return String(a?.title || '').localeCompare(String(b?.title || ''));
+            });
+            elements.artistSongsList.innerHTML = ranked.slice(0, 24).map((song, idx) => `
                 <button type="button" class="artist-spotlight-item" data-song-index="${idx}">
                     <span class="artist-spotlight-rank">${idx + 1}</span>
                     <span>
                         <span class="artist-spotlight-title">${escapeHtml(song.title || 'Unknown song')}</span>
-                        <span class="artist-spotlight-meta">${escapeHtml(song.album || artistName || 'Single')}</span>
+                        <span class="artist-spotlight-meta">
+                            ${escapeHtml(song.album || artistName || 'Single')}
+                            <span class="artist-song-badge ${songHasSyncedLyrics(song) ? 'ok' : 'off'}">
+                                ${songHasSyncedLyrics(song) ? 'SYNC READY' : 'NO SYNC'}
+                            </span>
+                        </span>
                     </span>
                 </button>
             `).join('');
@@ -5668,7 +5709,7 @@ bindLegacyInlineHandlers();
                 btn.addEventListener('click', async () => {
                     const index = Number(btn.getAttribute('data-song-index'));
                     if (!Number.isFinite(index)) return;
-                    const song = artistSpotlightSongs[index];
+                    const song = ranked[index];
                     if (!song?.title || !song?.artist) return;
                     await selectSongFromCatalog(song.title, song.artist, { showLaunchOverlay: true });
                 });
@@ -5698,9 +5739,10 @@ bindLegacyInlineHandlers();
                 state.artistCatalogSongs = songs || [];
                 state.artistCatalogName = artistName;
                 const topCount = Math.min(24, artistSpotlightSongs.length);
+                const syncCount = artistSpotlightSongs.filter((song) => songHasSyncedLyrics(song)).length;
                 if (elements.artistSongsStatus) {
                     elements.artistSongsStatus.textContent = topCount
-                        ? `${topCount} top songs found. Click one to start.`
+                        ? `${topCount} songs found. ${syncCount} com sync para Rhythm (SYNC READY).`
                         : 'No songs found.';
                 }
                 const cover = artistSpotlightSongs.find((s) => s?.artworkUrl100)?.artworkUrl100 || '';
@@ -5771,9 +5813,8 @@ bindLegacyInlineHandlers();
                 if (state.activeLyricsFetchKey === requestKey) {
                     return;
                 }
-                if (state.abortController) {
-                    state.abortController.abort();
-                }
+                showToast('Ja existe uma busca em andamento. Aguarde ou cancele.', 'info');
+                return;
             }
             elements.searchErrorContainer.classList.add('hidden');
             state.isFetching = true;
