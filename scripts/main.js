@@ -34,6 +34,7 @@ const DUEL_POLL_MS = 1800;
 const SPOTIFY_POLL_MS = 10 * 1000;
 const LYRICS_FETCH_TIMEOUT_MS = 5 * 60 * 1000;
 const PLAYER_PROVIDERS = ['spotify', 'deezer', 'youtube_music'];
+const SPOTIFY_DEBUG_LOGS = true;
 
 bindLegacyInlineHandlers();
 
@@ -965,6 +966,13 @@ bindLegacyInlineHandlers();
             return state.isRhythmMode && Array.isArray(state.syncedTimeline) && state.syncedTimeline.length > 1;
         }
 
+        function spotifyDebugLog(label, payload = {}) {
+            if (!SPOTIFY_DEBUG_LOGS) return;
+            try {
+                console.log(`[SpotifyDebug] ${label}`, payload);
+            } catch (_err) {}
+        }
+
         function showRhythmAudioRequiredToast(message = 'No modo Rhythm, Spotify precisa estar tocando para digitar.') {
             const now = Date.now();
             if (now - rhythmAudioToastAt < 2200) return;
@@ -973,6 +981,17 @@ bindLegacyInlineHandlers();
         }
 
         function canTypeInRhythmNow() {
+            const status = {
+                rhythmMode: state.isRhythmMode,
+                hasTimeline: hasRhythmSyncTimeline(),
+                spotifyLoggedIn: isSpotifyLoggedIn(),
+                hasState: spPlaybackHasState,
+                paused: spPlaybackPaused,
+                progressMs: spPlaybackProgressMs,
+                hasPlayer: Boolean(spPlayer),
+                deviceId: spDeviceId || ''
+            };
+            spotifyDebugLog('canTypeInRhythmNow.check', status);
             if (!state.isRhythmMode) return true;
             if (!hasRhythmSyncTimeline()) return false;
             if (!isSpotifyLoggedIn()) return false;
@@ -985,6 +1004,12 @@ bindLegacyInlineHandlers();
             if (!isSpotifyLoggedIn()) return false;
             const now = Date.now();
             if (!force && now - spPlaybackApiLastCheckAt < 1200) {
+                spotifyDebugLog('api.sync.skip-throttle', {
+                    force,
+                    msSinceLast: now - spPlaybackApiLastCheckAt,
+                    hasState: spPlaybackHasState,
+                    paused: spPlaybackPaused
+                });
                 return spPlaybackHasState && !spPlaybackPaused;
             }
             spPlaybackApiLastCheckAt = now;
@@ -996,6 +1021,7 @@ bindLegacyInlineHandlers();
                 if (res.status === 204) {
                     spPlaybackHasState = false;
                     spPlaybackPaused = true;
+                    spotifyDebugLog('api.sync.204-no-content', {});
                     return false;
                 }
                 if (!res.ok) {
@@ -1003,6 +1029,7 @@ bindLegacyInlineHandlers();
                         spPlaybackHasState = false;
                         spPlaybackPaused = true;
                     }
+                    spotifyDebugLog('api.sync.http-error', { status: res.status });
                     return false;
                 }
                 const data = await res.json().catch(() => ({}));
@@ -1018,8 +1045,19 @@ bindLegacyInlineHandlers();
                 if (state.isRhythmMode && spPlaybackHasState && !spPlaybackPaused) {
                     updateLyricsHighlight(spPlaybackProgressMs);
                 }
+                spotifyDebugLog('api.sync.ok', {
+                    isPlaying,
+                    hasState: spPlaybackHasState,
+                    paused: spPlaybackPaused,
+                    progressMs: spPlaybackProgressMs,
+                    deviceId: data?.device?.id || '',
+                    deviceName: data?.device?.name || '',
+                    deviceActive: Boolean(data?.device?.is_active),
+                    item: data?.item?.name || ''
+                });
                 return spPlaybackHasState && !spPlaybackPaused;
             } catch (_error) {
+                spotifyDebugLog('api.sync.exception', { message: String(_error?.message || _error || '') });
                 return false;
             }
         }
@@ -1039,8 +1077,15 @@ bindLegacyInlineHandlers();
                             if (!spPlaybackPaused) {
                                 updateLyricsHighlight(spPlaybackProgressMs);
                             }
+                            spotifyDebugLog('poll.sdk.state', {
+                                paused: spPlaybackPaused,
+                                progressMs: spPlaybackProgressMs,
+                                track: current?.track_window?.current_track?.name || '',
+                                deviceId: spDeviceId || ''
+                            });
                             return;
                         }
+                        spotifyDebugLog('poll.sdk.null-state', { deviceId: spDeviceId || '' });
                     }
                     await syncSpotifyPlaybackStateFromApi(false);
                 } catch (_err) {}
@@ -1145,6 +1190,7 @@ bindLegacyInlineHandlers();
                     spDeviceId = device_id || '';
                     spPlaybackHasState = false;
                     spPlaybackPaused = true;
+                    spotifyDebugLog('sdk.ready', { deviceId: spDeviceId });
                     try {
                         await ensureRhythmPlaybackActive(true);
                     } catch (error) {
@@ -1161,17 +1207,21 @@ bindLegacyInlineHandlers();
                     if (device_id && device_id === spDeviceId) spDeviceId = '';
                     spPlaybackHasState = false;
                     spPlaybackPaused = true;
+                    spotifyDebugLog('sdk.not_ready', { deviceId: device_id || '' });
                 });
 
                 spPlayer.addListener('authentication_error', ({ message }) => {
+                    spotifyDebugLog('sdk.authentication_error', { message: message || '' });
                     showToast(message || 'Erro de autenticacao no Spotify Player.', 'error');
                 });
 
                 spPlayer.addListener('account_error', ({ message }) => {
+                    spotifyDebugLog('sdk.account_error', { message: message || '' });
                     showToast(message || 'Conta Spotify sem permissao para Web Playback.', 'error');
                 });
 
                 spPlayer.addListener('playback_error', ({ message }) => {
+                    spotifyDebugLog('sdk.playback_error', { message: message || '' });
                     showToast(message || 'Erro de reproducao no Spotify Player.', 'error');
                 });
 
@@ -1179,6 +1229,7 @@ bindLegacyInlineHandlers();
                     if (!playerState) {
                         spPlaybackHasState = false;
                         spPlaybackPaused = true;
+                        spotifyDebugLog('sdk.player_state_changed.null', {});
                         return;
                     }
                     const currentTrack = playerState.track_window?.current_track;
@@ -1186,6 +1237,12 @@ bindLegacyInlineHandlers();
                     spPlaybackHasState = true;
                     spPlaybackPaused = Boolean(playerState.paused);
                     spPlaybackProgressMs = progress;
+                    spotifyDebugLog('sdk.player_state_changed', {
+                        paused: spPlaybackPaused,
+                        progressMs: spPlaybackProgressMs,
+                        track: currentTrack?.name || '',
+                        deviceId: spDeviceId || ''
+                    });
                     if (currentTrack?.name && elements.videoTitleLink) {
                         elements.videoTitleLink.textContent = currentTrack.name;
                     }
