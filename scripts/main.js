@@ -738,6 +738,16 @@ bindLegacyInlineHandlers();
             return `${refreshToken}|${accessToken}|${expiresAt}`;
         }
 
+        function isSpotifyLinkedEffective() {
+            if (!authCurrentUser?.id) return false;
+            const localTokens = getStoredSpotifyTokens();
+            return Boolean(
+                spotifyLinkedToAccount ||
+                localTokens.refreshToken ||
+                localTokens.accessToken
+            );
+        }
+
         function getSpotifyTokensFromProfile(profile) {
             return {
                 accessToken: String(profile?.spotify_access_token || '').trim(),
@@ -753,7 +763,31 @@ bindLegacyInlineHandlers();
                 spotify_refresh_token: tokens?.refreshToken ? String(tokens.refreshToken) : null,
                 spotify_expires_at: Number(tokens?.expiresAt || 0) > 0 ? Math.floor(Number(tokens.expiresAt)) : null
             };
-            const { error } = await supabase.from('profiles').update(payload).eq('id', userId);
+            let result = await supabase
+                .from('profiles')
+                .update(payload)
+                .eq('id', userId)
+                .select('id')
+                .maybeSingle();
+            if (!result.error && !result.data) {
+                const user = authCurrentUser || await syncCurrentUser();
+                if (user?.id === userId) {
+                    const usernameFallback = (user.user_metadata?.username || user.email?.split('@')[0] || 'user').trim();
+                    await supabase.from('profiles').upsert({
+                        id: user.id,
+                        email: user.email,
+                        username: usernameFallback,
+                        preferred_player: 'spotify'
+                    });
+                    result = await supabase
+                        .from('profiles')
+                        .update(payload)
+                        .eq('id', userId)
+                        .select('id')
+                        .maybeSingle();
+                }
+            }
+            const { error } = result;
             if (error) {
                 return false;
             }
@@ -768,11 +802,39 @@ bindLegacyInlineHandlers();
 
         async function clearSpotifyTokensFromProfile(userId) {
             if (!supabase || !userId) return false;
-            const { error } = await supabase.from('profiles').update({
-                spotify_access_token: null,
-                spotify_refresh_token: null,
-                spotify_expires_at: null
-            }).eq('id', userId);
+            let result = await supabase
+                .from('profiles')
+                .update({
+                    spotify_access_token: null,
+                    spotify_refresh_token: null,
+                    spotify_expires_at: null
+                })
+                .eq('id', userId)
+                .select('id')
+                .maybeSingle();
+            if (!result.error && !result.data) {
+                const user = authCurrentUser || await syncCurrentUser();
+                if (user?.id === userId) {
+                    const usernameFallback = (user.user_metadata?.username || user.email?.split('@')[0] || 'user').trim();
+                    await supabase.from('profiles').upsert({
+                        id: user.id,
+                        email: user.email,
+                        username: usernameFallback,
+                        preferred_player: 'spotify'
+                    });
+                    result = await supabase
+                        .from('profiles')
+                        .update({
+                            spotify_access_token: null,
+                            spotify_refresh_token: null,
+                            spotify_expires_at: null
+                        })
+                        .eq('id', userId)
+                        .select('id')
+                        .maybeSingle();
+                }
+            }
+            const { error } = result;
             if (error) return false;
             spotifyLastSyncedSignature = '';
             spotifyLinkedToAccount = false;
@@ -811,9 +873,10 @@ bindLegacyInlineHandlers();
 
         function renderSpotifyStatus() {
             const loggedIn = isSpotifyLoggedIn();
+            const linkedEffective = isSpotifyLinkedEffective();
             if (elements.spotifyAuthStatus) {
                 const linkedHint = authCurrentUser
-                    ? (spotifyLinkedToAccount ? ' Vinculado a sua conta.' : ' Nao vinculado.')
+                    ? (linkedEffective ? ' Vinculado a sua conta.' : ' Nao vinculado.')
                     : '';
                 elements.spotifyAuthStatus.textContent = loggedIn
                     ? `Status: logado no Spotify.${linkedHint}`
@@ -822,7 +885,7 @@ bindLegacyInlineHandlers();
             if (elements.spotifyLinkBtn) {
                 if (!authCurrentUser) {
                     elements.spotifyLinkBtn.textContent = 'Vincular Spotify';
-                } else if (spotifyLinkedToAccount && loggedIn) {
+                } else if (linkedEffective && loggedIn) {
                     elements.spotifyLinkBtn.textContent = 'Re-vincular Spotify';
                 } else {
                     elements.spotifyLinkBtn.textContent = 'Vincular Spotify';
@@ -854,7 +917,7 @@ bindLegacyInlineHandlers();
             if (!authCurrentUser?.id) return;
             if (hasSpotifyCallbackParams()) return;
             if (isSpotifyLoggedIn()) return;
-            if (spotifyLinkedToAccount) return;
+            if (isSpotifyLinkedEffective()) return;
             if (spotifyLinkPromptShownForUserId === authCurrentUser.id) return;
             spotifyLinkPromptShownForUserId = authCurrentUser.id;
             elements.spotifyLinkModal?.classList.remove('hidden');
@@ -1114,7 +1177,7 @@ bindLegacyInlineHandlers();
             elements.authHistorySection?.classList.toggle('hidden', friendsMode);
             elements.authFavoritesSection?.classList.toggle('hidden', friendsMode);
             elements.authDangerSection?.classList.toggle('hidden', friendsMode);
-            elements.authActionsSection?.classList.toggle('hidden', friendsMode);
+            elements.authActionsSection?.classList.remove('hidden');
             elements.authAchievements?.classList.toggle('hidden', friendsMode);
         }
 
@@ -6777,7 +6840,10 @@ bindLegacyInlineHandlers();
                                 spotifyLinkedToAccount = true;
                                 spotifyLinkPromptShownForUserId = authCurrentUser.id;
                                 closeSpotifyLinkPrompt();
-                                await saveSpotifyTokensToProfile(authCurrentUser.id, localTokens);
+                                const synced = await saveSpotifyTokensToProfile(authCurrentUser.id, localTokens);
+                                if (!synced) {
+                                    showToast('Spotify conectado localmente. Faltou sincronizar o vinculo no perfil.', 'info');
+                                }
                             }
                             showToast('Spotify vinculado com sucesso.', 'info');
                             await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
