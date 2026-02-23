@@ -12,6 +12,7 @@ import {
     spotifyLogout as spotifyLogoutTokens,
     isSpotifyLoggedIn,
     getValidAccessToken,
+    refreshAccessToken,
     describeSpotifyAuthError,
     getStoredSpotifyTokens,
     setStoredSpotifyTokens
@@ -1014,9 +1015,8 @@ bindLegacyInlineHandlers();
             }
             spPlaybackApiLastCheckAt = now;
             try {
-                const token = await getValidAccessToken();
-                const res = await fetch('https://api.spotify.com/v1/me/player', {
-                    headers: { Authorization: `Bearer ${token}` }
+                const res = await spotifyFetchWithAuthRetry('https://api.spotify.com/v1/me/player', {
+                    method: 'GET'
                 });
                 if (res.status === 204) {
                     spPlaybackHasState = false;
@@ -1060,6 +1060,31 @@ bindLegacyInlineHandlers();
                 spotifyDebugLog('api.sync.exception', { message: String(_error?.message || _error || '') });
                 return false;
             }
+        }
+
+        async function spotifyFetchWithAuthRetry(url, options = {}, retry401 = true) {
+            const baseHeaders = { ...(options.headers || {}) };
+            let token = await getValidAccessToken();
+            let res = await fetch(url, {
+                ...options,
+                headers: {
+                    ...baseHeaders,
+                    Authorization: `Bearer ${token}`
+                }
+            });
+            if (res.status === 401 && retry401) {
+                spotifyDebugLog('api.auth.retry401.start', { url });
+                token = await refreshAccessToken();
+                res = await fetch(url, {
+                    ...options,
+                    headers: {
+                        ...baseHeaders,
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+                spotifyDebugLog('api.auth.retry401.done', { url, status: res.status });
+            }
+            return res;
         }
 
         function startRhythmSpotifySyncPoll() {
@@ -1134,11 +1159,9 @@ bindLegacyInlineHandlers();
 
         async function transferPlaybackToWebPlayer(deviceId, play = true) {
             if (!deviceId) throw new Error('Spotify web device is not ready.');
-            const token = await getValidAccessToken();
-            const res = await fetch('https://api.spotify.com/v1/me/player', {
+            const res = await spotifyFetchWithAuthRetry('https://api.spotify.com/v1/me/player', {
                 method: 'PUT',
                 headers: {
-                    Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
