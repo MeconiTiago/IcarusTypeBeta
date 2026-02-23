@@ -65,6 +65,17 @@ function writeTokens(tokenPayload) {
   localStorage.setItem(STORAGE_KEYS.expiresAt, String(expiresAt));
 }
 
+function readStoredTokens() {
+  const accessToken = localStorage.getItem(STORAGE_KEYS.accessToken) || '';
+  const refreshToken = localStorage.getItem(STORAGE_KEYS.refreshToken) || '';
+  const expiresAt = Number(localStorage.getItem(STORAGE_KEYS.expiresAt) || '0');
+  return {
+    accessToken,
+    refreshToken,
+    expiresAt: Number.isFinite(expiresAt) ? expiresAt : 0
+  };
+}
+
 function cleanCallbackUrl() {
   const url = new URL(window.location.href);
   url.searchParams.delete('code');
@@ -167,8 +178,7 @@ export async function refreshAccessToken() {
 }
 
 export async function getValidAccessToken() {
-  const accessToken = localStorage.getItem(STORAGE_KEYS.accessToken) || '';
-  const expiresAt = Number(localStorage.getItem(STORAGE_KEYS.expiresAt) || '0');
+  const { accessToken, expiresAt } = readStoredTokens();
   if (accessToken && expiresAt > (Date.now() + TOKEN_SAFETY_WINDOW_MS)) {
     return accessToken;
   }
@@ -185,6 +195,26 @@ export function spotifyLogout() {
 
 export function isSpotifyLoggedIn() {
   return Boolean(localStorage.getItem(STORAGE_KEYS.refreshToken) || localStorage.getItem(STORAGE_KEYS.accessToken));
+}
+
+export function getStoredSpotifyTokens() {
+  return readStoredTokens();
+}
+
+export function setStoredSpotifyTokens(tokens = {}) {
+  const accessToken = String(tokens.accessToken || '').trim();
+  const refreshToken = String(tokens.refreshToken || '').trim();
+  const expiresAtNum = Number(tokens.expiresAt || 0);
+  const expiresAt = Number.isFinite(expiresAtNum) && expiresAtNum > 0 ? Math.floor(expiresAtNum) : 0;
+
+  if (accessToken) localStorage.setItem(STORAGE_KEYS.accessToken, accessToken);
+  else localStorage.removeItem(STORAGE_KEYS.accessToken);
+
+  if (refreshToken) localStorage.setItem(STORAGE_KEYS.refreshToken, refreshToken);
+  else localStorage.removeItem(STORAGE_KEYS.refreshToken);
+
+  if (expiresAt > 0) localStorage.setItem(STORAGE_KEYS.expiresAt, String(expiresAt));
+  else localStorage.removeItem(STORAGE_KEYS.expiresAt);
 }
 
 export function describeSpotifyAuthError(error) {

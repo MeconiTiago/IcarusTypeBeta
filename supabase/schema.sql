@@ -7,6 +7,9 @@ create table if not exists public.profiles (
   avatar_url text,
   bio text,
   preferred_player text not null default 'spotify',
+  spotify_access_token text,
+  spotify_refresh_token text,
+  spotify_expires_at bigint,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -14,6 +17,9 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists avatar_url text;
 alter table public.profiles add column if not exists bio text;
 alter table public.profiles add column if not exists preferred_player text not null default 'spotify';
+alter table public.profiles add column if not exists spotify_access_token text;
+alter table public.profiles add column if not exists spotify_refresh_token text;
+alter table public.profiles add column if not exists spotify_expires_at bigint;
 
 alter table public.profiles enable row level security;
 
@@ -69,6 +75,15 @@ begin
     alter table public.profiles
       add constraint profiles_preferred_player_chk
       check (preferred_player in ('spotify', 'deezer', 'youtube_music'));
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'profiles_spotify_expires_at_chk'
+  ) then
+    alter table public.profiles
+      add constraint profiles_spotify_expires_at_chk
+      check (spotify_expires_at is null or spotify_expires_at > 0);
   end if;
 end $$;
 
