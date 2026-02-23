@@ -294,6 +294,8 @@ bindLegacyInlineHandlers();
             isFetching: false,
             pendingNav: null,
             abortController: null,
+            activeLyricsFetchKey: '',
+            lyricsRequestSeq: 0,
             wordsCorrect: 0,
             wordsWrong: 0,
             currentCombo: 0,
@@ -4981,6 +4983,7 @@ bindLegacyInlineHandlers();
         function confirmNavigation() {
             if (state.abortController) { state.abortController.abort(); state.abortController = null; }
             state.isFetching = false;
+            state.activeLyricsFetchKey = '';
             updateFetchUI(false);
             elements.modal.classList.add('hidden');
             if (state.pendingNav) { switchTab(state.pendingNav); state.pendingNav = null; }
@@ -5086,6 +5089,54 @@ bindLegacyInlineHandlers();
             return encodeURIComponent(String(value || '').trim());
         }
 
+        function isAbortError(error) {
+            const name = String(error?.name || '');
+            const message = String(error?.message || '');
+            return name === 'AbortError' || /aborted|abort|cancel/i.test(message);
+        }
+
+        function getDurationSecondsFromAny(value) {
+            const n = Number(value || 0);
+            if (!Number.isFinite(n) || n <= 0) return 0;
+            if (n > 1000) return Math.round(n / 1000);
+            return Math.round(n);
+        }
+
+        function getSongDurationHintSec(artist, title) {
+            const targetArtist = normalizeLookupText(artist);
+            const targetTitle = normalizeLookupText(title);
+            if (!targetArtist || !targetTitle) return 0;
+            const row = (state.artistCatalogSongs || []).find((song) => (
+                normalizeLookupText(song?.artist) === targetArtist &&
+                normalizeLookupText(song?.title) === targetTitle
+            ));
+            return getDurationSecondsFromAny(row?.durationMs || row?.duration || 0);
+        }
+
+        async function fetchLrcLibGet(artist, track, signal, durationSec = 0) {
+            const url = new URL('https://lrclib.net/api/get');
+            url.searchParams.set('artist_name', String(artist || '').trim());
+            url.searchParams.set('track_name', String(track || '').trim());
+            if (durationSec > 0) {
+                url.searchParams.set('duration', String(Math.max(1, Math.round(durationSec))));
+            }
+            const row = await fetchJsonWithRetry(url.toString(), { signal }, 7600, 1, {
+                tolerateStatus: [404]
+            });
+            if (!row || row.__notFound) return null;
+            return row;
+        }
+
+        async function fetchLrcLibSearch(query, signal) {
+            const url = new URL('https://lrclib.net/api/search');
+            url.searchParams.set('q', String(query || '').trim());
+            const rows = await fetchJsonWithRetry(url.toString(), { signal }, 7600, 1, {
+                tolerateStatus: [404]
+            });
+            if (!rows || rows.__notFound) return [];
+            return Array.isArray(rows) ? rows : [];
+        }
+
         function scoreLrcLibMatch(item, targetArtistNorm, targetTitleNorm) {
             const artistNorm = normalizeLookupText(item?.artistName || '');
             const titleNorm = normalizeLookupText(item?.trackName || '');
@@ -5105,8 +5156,9 @@ bindLegacyInlineHandlers();
             return score;
         }
 
-        async function fetchJsonWithRetry(url, options = {}, timeoutMs = 7000, retries = 1) {
+        async function fetchJsonWithRetry(url, options = {}, timeoutMs = 7000, retries = 1, cfg = {}) {
             let lastError = null;
+            const tolerated = new Set(Array.isArray(cfg?.tolerateStatus) ? cfg.tolerateStatus : []);
             for (let attempt = 0; attempt <= retries; attempt++) {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -5116,11 +5168,19 @@ bindLegacyInlineHandlers();
                     if (upstream) upstream.addEventListener('abort', abortForwarder, { once: true });
                     const res = await fetch(url, { ...options, signal: controller.signal });
                     clearTimeout(timeoutId);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    if (!res.ok) {
+                        if (tolerated.has(res.status)) {
+                            return { __notFound: true, status: res.status };
+                        }
+                        throw new Error(`HTTP ${res.status}`);
+                    }
                     return await res.json();
                 } catch (err) {
                     clearTimeout(timeoutId);
                     lastError = err;
+                    if (isAbortError(err)) {
+                        throw err;
+                    }
                     if (attempt < retries) {
                         await new Promise((r) => setTimeout(r, 180 * (attempt + 1)));
                     }
@@ -5165,14 +5225,7 @@ bindLegacyInlineHandlers();
 
         async function fetchLrcLibSearchRaw(query) {
             try {
-                const params = new URLSearchParams({ q: query });
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5600);
-                const res = await fetch(`https://lrclib.net/api/search?${params}`, { signal: controller.signal });
-                clearTimeout(timeoutId);
-                if (!res.ok) return [];
-                const data = await res.json();
-                return Array.isArray(data) ? data : [];
+                return await fetchLrcLibSearch(query, null);
             } catch (e) {
                 return [];
             }
@@ -5193,6 +5246,8 @@ bindLegacyInlineHandlers();
                     trackName: r?.trackName || '',
                     artistName: r?.artistName || '',
                     albumName: r?.collectionName || '',
+                    duration: getDurationSecondsFromAny(r?.trackTimeMillis || 0),
+                    durationMs: Number(r?.trackTimeMillis || 0),
                     artworkUrl100: r?.artworkUrl100 || '',
                     trackViewUrl: r?.trackViewUrl || '',
                     artistViewUrl: r?.artistViewUrl || ''
@@ -5217,6 +5272,8 @@ bindLegacyInlineHandlers();
                     trackName: r?.trackName || '',
                     artistName: r?.artistName || '',
                     albumName: r?.collectionName || '',
+                    duration: getDurationSecondsFromAny(r?.trackTimeMillis || 0),
+                    durationMs: Number(r?.trackTimeMillis || 0),
                     artworkUrl100: r?.artworkUrl100 || '',
                     trackViewUrl: r?.trackViewUrl || '',
                     artistViewUrl: r?.artistViewUrl || ''
@@ -5228,16 +5285,7 @@ bindLegacyInlineHandlers();
 
         async function fetchLrcLibExactArtistTrack(artist, track) {
             try {
-                const params = new URLSearchParams({
-                    artist_name: String(artist || '').trim(),
-                    track_name: String(track || '').trim()
-                });
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5600);
-                const res = await fetch(`https://lrclib.net/api/get?${params}`, { signal: controller.signal });
-                clearTimeout(timeoutId);
-                if (!res.ok) return [];
-                const row = await res.json();
+                const row = await fetchLrcLibGet(artist, track, null, 0);
                 if (!row || typeof row !== 'object') return [];
                 return [row];
             } catch (e) {
@@ -5387,6 +5435,8 @@ bindLegacyInlineHandlers();
                     title: track,
                     artist,
                     album,
+                    duration: getDurationSecondsFromAny(row?.duration || row?.durationMs || row?.trackTimeMillis || 0),
+                    durationMs: Number(row?.durationMs || row?.trackTimeMillis || 0),
                     artworkUrl100: row?.artworkUrl100 || '',
                     trackViewUrl: row?.trackViewUrl || '',
                     artistViewUrl: row?.artistViewUrl || '',
@@ -5434,6 +5484,8 @@ bindLegacyInlineHandlers();
                     title: track,
                     artist: rowArtist,
                     album,
+                    duration: getDurationSecondsFromAny(row?.duration || row?.durationMs || row?.trackTimeMillis || 0),
+                    durationMs: Number(row?.durationMs || row?.trackTimeMillis || 0),
                     artworkUrl100: row?.artworkUrl100 || '',
                     trackViewUrl: row?.trackViewUrl || '',
                     artistViewUrl: row?.artistViewUrl || '',
@@ -5686,7 +5738,6 @@ bindLegacyInlineHandlers();
         }
 
         async function fetchLyrics() {
-            if (state.isFetching) return;
             invalidateSearchSuggestions();
             const artist = elements.artistInput.value.trim();
             const title = elements.titleInput.value.trim();
@@ -5695,11 +5746,23 @@ bindLegacyInlineHandlers();
                 showToast("Load a band and select one song first.", "error");
                 return;
             }
+            const requestKey = `${normalizeLookupText(artist)}|||${normalizeLookupText(title)}`;
+            if (state.isFetching) {
+                if (state.activeLyricsFetchKey === requestKey) {
+                    return;
+                }
+                if (state.abortController) {
+                    state.abortController.abort();
+                }
+            }
             elements.searchErrorContainer.classList.add('hidden');
             state.isFetching = true;
+            state.activeLyricsFetchKey = requestKey;
+            const requestSeq = ++state.lyricsRequestSeq;
             updateFetchUI(true, 5, "Connecting to database...");
             state.abortController = new AbortController();
             const signal = state.abortController.signal;
+            const durationHintSec = getSongDurationHintSec(artist, title);
             const cacheKey = `${artist}-${title}`.toLowerCase();
             if(state.searchCache.has(cacheKey)) {
                 const data = state.searchCache.get(cacheKey);
@@ -5708,31 +5771,52 @@ bindLegacyInlineHandlers();
             }
             try {
                 updateFetchUI(true, 30, "Searching LrcLib...");
-                const lrclibData = await fetchFromLrcLib(artist, title, signal);
+                const lrclibData = await fetchFromLrcLib(artist, title, signal, durationHintSec);
+                if (requestSeq !== state.lyricsRequestSeq) return;
                 if (lrclibData && lrclibData.lyrics) {
                     state.searchCache.set(cacheKey, { lyrics: lrclibData.lyrics, syncedLyrics: lrclibData.syncedLyrics || '' });
                     await handleLyricsSuccess(lrclibData.lyrics, title, artist, signal, lrclibData.syncedLyrics || '');
                     return;
                 }
-            } catch(e) { console.warn("LrcLib failed", e); }
+            } catch(e) {
+                if (!isAbortError(e)) console.warn("LrcLib failed", e);
+            }
             if (signal.aborted) {
                 hideSongLaunchOverlay();
+                if (requestSeq === state.lyricsRequestSeq) {
+                    state.isFetching = false;
+                    state.activeLyricsFetchKey = '';
+                    state.abortController = null;
+                    updateFetchUI(false);
+                }
                 return;
             }
             try {
                 updateFetchUI(true, 60, "Trying backup source...");
                 const lyrics2 = await fetchFromLyricsOvh(artist, title, signal);
+                if (requestSeq !== state.lyricsRequestSeq) return;
                 if (lyrics2) {
                     state.searchCache.set(cacheKey, { lyrics: lyrics2, syncedLyrics: '' });
                     await handleLyricsSuccess(lyrics2, title, artist, signal, '');
                     return;
                 }
-            } catch(e) { console.warn("OVH failed", e); }
+            } catch(e) {
+                if (!isAbortError(e)) console.warn("OVH failed", e);
+            }
             if (signal.aborted) {
                 hideSongLaunchOverlay();
+                if (requestSeq === state.lyricsRequestSeq) {
+                    state.isFetching = false;
+                    state.activeLyricsFetchKey = '';
+                    state.abortController = null;
+                    updateFetchUI(false);
+                }
                 return;
             }
+            if (requestSeq !== state.lyricsRequestSeq) return;
             state.isFetching = false;
+            state.activeLyricsFetchKey = '';
+            state.abortController = null;
             updateFetchUI(false);
             hideSongLaunchOverlay();
             const query = encodeURIComponent(`${artist} ${title} lyrics`);
@@ -5741,26 +5825,26 @@ bindLegacyInlineHandlers();
             elements.searchErrorContainer.classList.remove('hidden');
         }
 
-        async function fetchFromLrcLib(artist, title, signal) {
+        async function fetchFromLrcLib(artist, title, signal, durationHintSec = 0) {
             const artistClean = stripTrailingMeta(stripFeaturing(artist));
             const titleClean = stripTrailingMeta(stripFeaturing(title));
             // First try exact endpoint, then fallback to broader search.
             const exactPairs = [
-                { a: artist, t: title },
-                { a: artistClean, t: titleClean }
+                { a: artist, t: title, duration: durationHintSec },
+                { a: artistClean, t: titleClean, duration: durationHintSec },
+                { a: artistClean, t: titleClean, duration: 0 }
             ];
             for (const pair of exactPairs) {
                 try {
-                    const params = new URLSearchParams({
-                        artist_name: pair.a,
-                        track_name: pair.t
-                    });
-                    const row = await fetchJsonWithRetry(`https://lrclib.net/api/get?${params}`, { signal }, 7600, 1);
+                    const row = await fetchLrcLibGet(pair.a, pair.t, signal, pair.duration || 0);
+                    if (!row) continue;
                     const synced = (row?.syncedLyrics || '').trim();
                     const plain = (row?.plainLyrics || '').trim();
                     const lyrics = plain || syncedToPlainLyrics(synced);
                     if (lyrics) return { lyrics, syncedLyrics: synced };
-                } catch (e) {}
+                } catch (e) {
+                    if (isAbortError(e)) throw e;
+                }
             }
 
             const queries = [...new Set([
@@ -5773,10 +5857,9 @@ bindLegacyInlineHandlers();
 
             const searchCalls = queries.map(async (q) => {
                 try {
-                    const params = new URLSearchParams({ q });
-                    const data = await fetchJsonWithRetry(`https://lrclib.net/api/search?${params}`, { signal }, 7600, 1);
-                    return Array.isArray(data) ? data : [];
+                    return await fetchLrcLibSearch(q, signal);
                 } catch (e) {
+                    if (isAbortError(e)) throw e;
                     return [];
                 }
             });
@@ -5822,7 +5905,9 @@ bindLegacyInlineHandlers();
                         if (data?.lyrics && String(data.lyrics).trim()) {
                             return data.lyrics;
                         }
-                    } catch (e) {}
+                    } catch (e) {
+                        if (isAbortError(e)) throw e;
+                    }
                 }
             }
             throw new Error("No lyrics");
@@ -5832,6 +5917,8 @@ bindLegacyInlineHandlers();
             updateFetchUI(true, 80, "Processing text...");
             const cleanedLyrics = cleanLyrics(lyricsRaw);
             state.isFetching = false;
+            state.activeLyricsFetchKey = '';
+            state.abortController = null;
             updateFetchUI(false);
             await updateYouTubeSource(artist, title);
             if (isSongLaunchOverlayActive) {
