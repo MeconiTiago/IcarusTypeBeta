@@ -538,6 +538,7 @@ bindLegacyInlineHandlers();
             authActionsSection: document.getElementById('auth-actions-section'),
             authFavoritesList: document.getElementById('auth-favorites-list'),
             spotifySection: document.getElementById('spotify-section'),
+            spotifyLinkBtn: document.getElementById('spotify-link-btn'),
             spotifyAuthStatus: document.getElementById('spotify-auth-status'),
             spotifyTrackingBtn: document.getElementById('spotify-tracking-btn'),
             spotifyLastPlayed: document.getElementById('spotify-last-played'),
@@ -607,7 +608,7 @@ bindLegacyInlineHandlers();
                 auth: {
                     persistSession: false,
                     autoRefreshToken: true,
-                    detectSessionInUrl: true
+                    detectSessionInUrl: false
                 }
             })
             : null;
@@ -659,6 +660,7 @@ bindLegacyInlineHandlers();
         let spotifyLinkedToAccount = false;
         let spotifyLastSyncedSignature = '';
         let spotifyLinkPromptShownForUserId = '';
+        let authBootstrapCompleted = false;
 
         function normalizeEmail(email) {
             return (email || '').trim().toLowerCase();
@@ -817,6 +819,15 @@ bindLegacyInlineHandlers();
                     ? `Status: logado no Spotify.${linkedHint}`
                     : `Status: deslogado no Spotify.${linkedHint}`;
             }
+            if (elements.spotifyLinkBtn) {
+                if (!authCurrentUser) {
+                    elements.spotifyLinkBtn.textContent = 'Vincular Spotify';
+                } else if (spotifyLinkedToAccount && loggedIn) {
+                    elements.spotifyLinkBtn.textContent = 'Re-vincular Spotify';
+                } else {
+                    elements.spotifyLinkBtn.textContent = 'Vincular Spotify';
+                }
+            }
             if (elements.headerSpotifyStatus) {
                 const label = loggedIn ? `Spotify: on (${spotifyTracks.length})` : 'Spotify: off';
                 elements.headerSpotifyStatus.textContent = label;
@@ -845,6 +856,20 @@ bindLegacyInlineHandlers();
             if (spotifyLinkPromptShownForUserId === authCurrentUser.id) return;
             spotifyLinkPromptShownForUserId = authCurrentUser.id;
             elements.spotifyLinkModal?.classList.remove('hidden');
+        }
+
+        function hasSpotifyCallbackParams() {
+            const params = new URLSearchParams(window.location.search || '');
+            return Boolean(params.get('code') || params.get('error'));
+        }
+
+        function clearSpotifyCallbackParamsFromUrl() {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('code');
+            url.searchParams.delete('error');
+            url.searchParams.delete('state');
+            const next = `${url.pathname}${url.search}${url.hash}`;
+            window.history.replaceState({}, document.title, next || '/');
         }
 
         function renderSpotifyRecentList() {
@@ -3800,10 +3825,11 @@ bindLegacyInlineHandlers();
                 }
                 maybeOpenSpotifyLinkPrompt();
             } else {
-                spotifyLogoutTokens();
-                stopSpotifyTracking();
-                spotifyTracks = [];
-                spotifyLastPlayedAtKnown = '';
+                if (authBootstrapCompleted) {
+                    stopSpotifyTracking();
+                    spotifyTracks = [];
+                    spotifyLastPlayedAtKnown = '';
+                }
                 resetAuthDashboardUI();
                 setPreferredPlayer('spotify');
                 spotifyLinkedToAccount = false;
@@ -6732,11 +6758,22 @@ bindLegacyInlineHandlers();
             });
         }
         (async () => {
+            await bootstrapAuthSession();
+            authBootstrapCompleted = true;
+            await refreshAuthUI();
+
             try {
-                const callbackHandled = await spotifyHandleCallback();
-                if (callbackHandled) {
-                    showToast('Spotify conectado com sucesso.', 'info');
-                    await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
+                if (hasSpotifyCallbackParams()) {
+                    if (!authCurrentUser?.id) {
+                        clearSpotifyCallbackParamsFromUrl();
+                        showToast('Login principal necessario antes de vincular Spotify.', 'error');
+                    } else {
+                        const callbackHandled = await spotifyHandleCallback();
+                        if (callbackHandled) {
+                            showToast('Spotify vinculado com sucesso.', 'info');
+                            await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
+                        }
+                    }
                 }
             } catch (error) {
                 handleSpotifyAuthFailure(error);
@@ -6746,8 +6783,6 @@ bindLegacyInlineHandlers();
                 await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
             }
             renderSpotifyStatus();
-            await bootstrapAuthSession();
-            await refreshAuthUI();
             await maybeOpenSharedResultFromLink();
         })();
         renderSetupFavoritesTab();
