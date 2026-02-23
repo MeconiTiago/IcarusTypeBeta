@@ -6,6 +6,14 @@ import { toggleDyslexicMode as toggleDyslexicModeImpl } from './features/accessi
 import { THEMES } from './config/themes.js';
 import { presets } from './config/presets.js';
 import { PUBLIC_APP_URL } from './config/app.js';
+import {
+    spotifyLogin as spotifyLoginWithPkce,
+    spotifyHandleCallback,
+    spotifyLogout as spotifyLogoutTokens,
+    isSpotifyLoggedIn,
+    describeSpotifyAuthError
+} from './services/spotifyAuth.js';
+import { spotifyGetRecentlyPlayed, normalizeRecentlyPlayed } from './services/spotifyApi.js';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config/supabase.js';
 
@@ -20,6 +28,7 @@ const CUSTOM_TOTAL_MAX_CHARS = 6500;
 const CUSTOM_COVER_MAX_BYTES = 2 * 1024 * 1024;
 const RECENT_ARTISTS_KEY = 'icarus_recent_artists_v1';
 const DUEL_POLL_MS = 1800;
+const SPOTIFY_POLL_MS = 10 * 1000;
 const PLAYER_PROVIDERS = ['spotify', 'deezer', 'youtube_music'];
 
 bindLegacyInlineHandlers();
@@ -522,6 +531,10 @@ bindLegacyInlineHandlers();
             authDangerSection: document.getElementById('auth-danger-section'),
             authActionsSection: document.getElementById('auth-actions-section'),
             authFavoritesList: document.getElementById('auth-favorites-list'),
+            spotifyAuthStatus: document.getElementById('spotify-auth-status'),
+            spotifyTrackingBtn: document.getElementById('spotify-tracking-btn'),
+            spotifyLastPlayed: document.getElementById('spotify-last-played'),
+            spotifyRecentList: document.getElementById('spotify-recent-list'),
             profileHubOverlay: document.getElementById('profile-hub-overlay'),
             profileHubName: document.getElementById('profile-hub-name'),
             profileHubAvatar: document.getElementById('profile-hub-avatar'),
@@ -631,6 +644,10 @@ bindLegacyInlineHandlers();
         let duelRealtimeInvitesChannel = null;
         let duelRealtimeInvitesUserId = '';
         let duelSnapshotRefreshTimer = null;
+        let spotifyPollTimer = null;
+        let spotifyIsTrackingEnabled = false;
+        let spotifyLastPlayedAtKnown = '';
+        let spotifyTracks = [];
 
         function normalizeEmail(email) {
             return (email || '').trim().toLowerCase();
@@ -643,6 +660,182 @@ bindLegacyInlineHandlers();
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
+        }
+
+        function formatSpotifyPlayedAt(isoDate) {
+            if (!isoDate) return '-';
+            const dt = new Date(isoDate);
+            if (Number.isNaN(dt.getTime())) return isoDate;
+            return dt.toLocaleString();
+        }
+
+        function renderSpotifyStatus() {
+            const loggedIn = isSpotifyLoggedIn();
+            if (elements.spotifyAuthStatus) {
+                elements.spotifyAuthStatus.textContent = loggedIn ? 'Status: logado no Spotify.' : 'Status: deslogado no Spotify.';
+            }
+            if (elements.spotifyLastPlayed) {
+                elements.spotifyLastPlayed.textContent = `Ultimo played_at: ${spotifyLastPlayedAtKnown || '-'}`;
+            }
+            if (elements.spotifyTrackingBtn) {
+                elements.spotifyTrackingBtn.textContent = spotifyIsTrackingEnabled ? 'Tracking on' : 'Tracking off';
+            }
+        }
+
+        function renderSpotifyRecentList() {
+            if (!elements.spotifyRecentList) return;
+            if (!spotifyTracks.length) {
+                elements.spotifyRecentList.innerHTML = '<div class="auth-recent-empty">Nenhuma faixa carregada ainda.</div>';
+                return;
+            }
+            elements.spotifyRecentList.innerHTML = spotifyTracks.map((track) => {
+                const title = escapeHtml(track.trackName || 'Unknown track');
+                const artists = escapeHtml(track.artists || 'Unknown artist');
+                const playedAt = escapeHtml(formatSpotifyPlayedAt(track.playedAt));
+                const url = String(track.trackUrl || '').trim();
+                const titleHtml = url
+                    ? `<a class="auth-friend-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open</a>`
+                    : '';
+                return `<div class="auth-recent-item">
+                            <div>
+                                <div class="auth-recent-title">${title}</div>
+                                <div class="auth-recent-meta">${artists} - ${playedAt}</div>
+                            </div>
+                            <div class="auth-friend-actions">${titleHtml}</div>
+                        </div>`;
+            }).join('');
+        }
+
+        function saveSpotifyHistoryByDay(items) {
+            if (!Array.isArray(items) || !items.length) return;
+            const grouped = new Map();
+            items.forEach((item) => {
+                if (!item?.playedAt) return;
+                const dayKey = String(item.playedAt).slice(0, 10);
+                if (!grouped.has(dayKey)) grouped.set(dayKey, []);
+                grouped.get(dayKey).push(item);
+            });
+
+            grouped.forEach((dayItems, dayKey) => {
+                const storageKey = `sp_history_${dayKey}`;
+                const raw = localStorage.getItem(storageKey);
+                let existing = [];
+                if (raw) {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        existing = Array.isArray(parsed) ? parsed : [];
+                    } catch (error) {
+                        existing = [];
+                    }
+                }
+                const seen = new Set(existing.map((entry) => entry?.playedAt).filter(Boolean));
+                dayItems.forEach((entry) => {
+                    if (!seen.has(entry.playedAt)) {
+                        existing.push(entry);
+                        seen.add(entry.playedAt);
+                    }
+                });
+                localStorage.setItem(storageKey, JSON.stringify(existing));
+            });
+        }
+
+        function stopSpotifyTracking() {
+            spotifyIsTrackingEnabled = false;
+            if (spotifyPollTimer) {
+                clearInterval(spotifyPollTimer);
+                spotifyPollTimer = null;
+            }
+            renderSpotifyStatus();
+        }
+
+        function handleSpotifyAuthFailure(error) {
+            const status = Number(error?.status || 0);
+            if (status === 401 || status === 403 || error?.code === 'missing_refresh_token') {
+                spotifyLogoutTokens();
+                stopSpotifyTracking();
+                spotifyTracks = [];
+                spotifyLastPlayedAtKnown = '';
+                renderSpotifyRecentList();
+                renderSpotifyStatus();
+            }
+        }
+
+        async function spotifyFetchRecentlyPlayed(limit = 25, options = {}) {
+            const safeLimit = Math.min(50, Math.max(1, Number(limit) || 25));
+            const fromPolling = !!options.fromPolling;
+            const rethrow = !!options.rethrow;
+            try {
+                const response = await spotifyGetRecentlyPlayed(safeLimit);
+                const normalized = normalizeRecentlyPlayed(response?.items || []);
+                if (!fromPolling || normalized.length) {
+                    spotifyTracks = normalized;
+                    renderSpotifyRecentList();
+                }
+                const newestPlayedAt = normalized[0]?.playedAt || '';
+                const hasChanged = Boolean(newestPlayedAt && newestPlayedAt !== spotifyLastPlayedAtKnown);
+                if (newestPlayedAt) spotifyLastPlayedAtKnown = newestPlayedAt;
+                if (hasChanged || !fromPolling) {
+                    saveSpotifyHistoryByDay(normalized);
+                }
+                renderSpotifyStatus();
+                return { changed: hasChanged, items: normalized };
+            } catch (error) {
+                handleSpotifyAuthFailure(error);
+                const friendlyMessage = describeSpotifyAuthError(error);
+                if (!fromPolling) {
+                    showToast(friendlyMessage, 'error');
+                }
+                if (rethrow) throw error;
+                return { changed: false, items: [] };
+            }
+        }
+
+        async function spotifyLogin() {
+            try {
+                await spotifyLoginWithPkce();
+            } catch (error) {
+                showToast(describeSpotifyAuthError(error), 'error');
+            }
+        }
+
+        function spotifyLogout() {
+            spotifyLogoutTokens();
+            stopSpotifyTracking();
+            spotifyTracks = [];
+            spotifyLastPlayedAtKnown = '';
+            renderSpotifyRecentList();
+            renderSpotifyStatus();
+            showToast('Spotify desconectado.', 'info');
+        }
+
+        async function spotifyToggleTracking() {
+            if (spotifyIsTrackingEnabled) {
+                stopSpotifyTracking();
+                showToast('Tracking Spotify pausado.', 'info');
+                return;
+            }
+            if (!isSpotifyLoggedIn()) {
+                showToast('Faca login com Spotify antes de ativar o tracking.', 'error');
+                return;
+            }
+            try {
+                await spotifyFetchRecentlyPlayed(10, { fromPolling: true, rethrow: true });
+            } catch (error) {
+                return;
+            }
+            spotifyIsTrackingEnabled = true;
+            spotifyPollTimer = setInterval(async () => {
+                try {
+                    const result = await spotifyFetchRecentlyPlayed(10, { fromPolling: true, rethrow: true });
+                    if (result.changed) {
+                        showToast('Nova faixa detectada no Spotify.', 'info');
+                    }
+                } catch (error) {
+                    stopSpotifyTracking();
+                }
+            }, SPOTIFY_POLL_MS);
+            renderSpotifyStatus();
+            showToast('Tracking Spotify ativo (10s).', 'info');
         }
 
         function sanitizeAvatarUrl(url) {
@@ -6079,6 +6272,10 @@ bindLegacyInlineHandlers();
             addFavoriteFromCatalog,
             closeSharedResultModal,
             closeAvatarPreview,
+            spotifyLogin,
+            spotifyLogout,
+            spotifyFetchRecentlyPlayed,
+            spotifyToggleTracking,
         });
 
         elements.input.addEventListener('input', (e) => handleInput(elements.input.value));
@@ -6252,6 +6449,8 @@ bindLegacyInlineHandlers();
         }
         switchAuthTab('login');
         updateCustomInputCounters();
+        renderSpotifyStatus();
+        renderSpotifyRecentList();
         renderDuelPanel();
         pendingSharedResultId = parseShareIdFromLocation();
         bindAuthActivityWatchers();
@@ -6270,11 +6469,25 @@ bindLegacyInlineHandlers();
             });
         }
         (async () => {
+            try {
+                const callbackHandled = await spotifyHandleCallback();
+                if (callbackHandled) {
+                    showToast('Spotify conectado com sucesso.', 'info');
+                }
+            } catch (error) {
+                handleSpotifyAuthFailure(error);
+                showToast(describeSpotifyAuthError(error), 'error');
+            }
+            renderSpotifyStatus();
             await bootstrapAuthSession();
             await refreshAuthUI();
             await maybeOpenSharedResultFromLink();
         })();
         renderSetupFavoritesTab();
         switchTab('search'); 
+
+        window.addEventListener('beforeunload', () => {
+            if (spotifyPollTimer) clearInterval(spotifyPollTimer);
+        });
 
 
