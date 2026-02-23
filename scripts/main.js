@@ -32,6 +32,7 @@ const CUSTOM_COVER_MAX_BYTES = 2 * 1024 * 1024;
 const RECENT_ARTISTS_KEY = 'icarus_recent_artists_v1';
 const DUEL_POLL_MS = 1800;
 const SPOTIFY_POLL_MS = 10 * 1000;
+const LYRICS_FETCH_TIMEOUT_MS = 5 * 60 * 1000;
 const PLAYER_PROVIDERS = ['spotify', 'deezer', 'youtube_music'];
 
 bindLegacyInlineHandlers();
@@ -449,6 +450,7 @@ bindLegacyInlineHandlers();
             searchStatus: document.getElementById('search-status-text'),
             searchBar: document.getElementById('search-progress-bar'),
             searchStatusContainer: document.getElementById('search-status-container'),
+            searchCancelFetchBtn: document.getElementById('search-cancel-fetch-btn'),
             searchErrorContainer: document.getElementById('search-error-container'),
             searchError: document.getElementById('search-error'),
             googleFallbackLink: document.getElementById('google-fallback-link'),
@@ -473,6 +475,7 @@ bindLegacyInlineHandlers();
             songLaunchArtist: document.getElementById('song-launch-artist'),
             songLaunchStatus: document.getElementById('song-launch-status'),
             songLaunchProgress: document.getElementById('song-launch-progress'),
+            songLaunchCancelBtn: document.getElementById('song-launch-cancel-btn'),
             toastContainer: document.getElementById('toast-container'),
             headerAvatarButton: document.getElementById('header-avatar-button'),
             headerAvatarImage: document.getElementById('header-avatar-image'),
@@ -4980,11 +4983,22 @@ bindLegacyInlineHandlers();
         }
 
         function cancelNavigation() { state.pendingNav = null; elements.modal.classList.add('hidden'); }
-        function confirmNavigation() {
-            if (state.abortController) { state.abortController.abort(); state.abortController = null; }
+        function cancelLyricsFetch(showInfo = true) {
+            if (!state.isFetching) return;
+            if (state.abortController) {
+                state.abortController.abort();
+            }
+            state.abortController = null;
             state.isFetching = false;
             state.activeLyricsFetchKey = '';
             updateFetchUI(false);
+            hideSongLaunchOverlay();
+            if (showInfo) {
+                showToast('Busca de letra cancelada.', 'info');
+            }
+        }
+        function confirmNavigation() {
+            cancelLyricsFetch(false);
             elements.modal.classList.add('hidden');
             if (state.pendingNav) { switchTab(state.pendingNav); state.pendingNav = null; }
         }
@@ -5030,12 +5044,14 @@ bindLegacyInlineHandlers();
                 fetchBtn.classList.add('opacity-70', 'cursor-not-allowed');
                 elements.searchStatus.classList.remove('hidden');
                 elements.searchStatusContainer.classList.remove('hidden');
+                elements.searchCancelFetchBtn?.classList.remove('hidden');
                 elements.searchStatus.textContent = message || "Searching...";
                 elements.searchBar.style.width = `${progress}%`;
                 elements.searchErrorContainer.classList.add('hidden'); 
                 if (isSongLaunchOverlayActive) {
                     if (elements.songLaunchStatus) elements.songLaunchStatus.textContent = message || 'Searching...';
                     if (elements.songLaunchProgress) elements.songLaunchProgress.style.width = `${Math.max(6, Math.min(100, Number(progress) || 0))}%`;
+                    elements.songLaunchCancelBtn?.classList.remove('hidden');
                 }
             } else {
                 btnText.classList.remove('hidden');
@@ -5043,7 +5059,9 @@ bindLegacyInlineHandlers();
                 fetchBtn.classList.remove('opacity-70', 'cursor-not-allowed');
                 elements.searchStatus.classList.add('hidden');
                 elements.searchStatusContainer.classList.add('hidden');
+                elements.searchCancelFetchBtn?.classList.add('hidden');
                 elements.searchBar.style.width = `0%`;
+                elements.songLaunchCancelBtn?.classList.add('hidden');
             }
         }
 
@@ -5053,6 +5071,7 @@ bindLegacyInlineHandlers();
             if (elements.songLaunchArtist) elements.songLaunchArtist.textContent = artist || '';
             if (elements.songLaunchStatus) elements.songLaunchStatus.textContent = 'Preparing lyrics...';
             if (elements.songLaunchProgress) elements.songLaunchProgress.style.width = '8%';
+            elements.songLaunchCancelBtn?.classList.remove('hidden');
             elements.songLaunchOverlay?.classList.remove('hidden');
         }
 
@@ -5060,6 +5079,7 @@ bindLegacyInlineHandlers();
             isSongLaunchOverlayActive = false;
             elements.songLaunchOverlay?.classList.add('hidden');
             if (elements.songLaunchProgress) elements.songLaunchProgress.style.width = '0%';
+            elements.songLaunchCancelBtn?.classList.add('hidden');
         }
 
         function normalizeLookupText(value) {
@@ -5113,24 +5133,24 @@ bindLegacyInlineHandlers();
             return getDurationSecondsFromAny(row?.durationMs || row?.duration || 0);
         }
 
-        async function fetchLrcLibGet(artist, track, signal, durationSec = 0) {
+        async function fetchLrcLibGet(artist, track, signal, durationSec = 0, timeoutMs = 7600) {
             const url = new URL('https://lrclib.net/api/get');
             url.searchParams.set('artist_name', String(artist || '').trim());
             url.searchParams.set('track_name', String(track || '').trim());
             if (durationSec > 0) {
                 url.searchParams.set('duration', String(Math.max(1, Math.round(durationSec))));
             }
-            const row = await fetchJsonWithRetry(url.toString(), { signal }, 7600, 1, {
+            const row = await fetchJsonWithRetry(url.toString(), { signal }, timeoutMs, 1, {
                 tolerateStatus: [404]
             });
             if (!row || row.__notFound) return null;
             return row;
         }
 
-        async function fetchLrcLibSearch(query, signal) {
+        async function fetchLrcLibSearch(query, signal, timeoutMs = 7600) {
             const url = new URL('https://lrclib.net/api/search');
             url.searchParams.set('q', String(query || '').trim());
-            const rows = await fetchJsonWithRetry(url.toString(), { signal }, 7600, 1, {
+            const rows = await fetchJsonWithRetry(url.toString(), { signal }, timeoutMs, 1, {
                 tolerateStatus: [404]
             });
             if (!rows || rows.__notFound) return [];
@@ -5771,7 +5791,7 @@ bindLegacyInlineHandlers();
             }
             try {
                 updateFetchUI(true, 30, "Searching LrcLib...");
-                const lrclibData = await fetchFromLrcLib(artist, title, signal, durationHintSec);
+                const lrclibData = await fetchFromLrcLib(artist, title, signal, durationHintSec, LYRICS_FETCH_TIMEOUT_MS);
                 if (requestSeq !== state.lyricsRequestSeq) return;
                 if (lrclibData && lrclibData.lyrics) {
                     state.searchCache.set(cacheKey, { lyrics: lrclibData.lyrics, syncedLyrics: lrclibData.syncedLyrics || '' });
@@ -5793,7 +5813,7 @@ bindLegacyInlineHandlers();
             }
             try {
                 updateFetchUI(true, 60, "Trying backup source...");
-                const lyrics2 = await fetchFromLyricsOvh(artist, title, signal);
+                const lyrics2 = await fetchFromLyricsOvh(artist, title, signal, LYRICS_FETCH_TIMEOUT_MS);
                 if (requestSeq !== state.lyricsRequestSeq) return;
                 if (lyrics2) {
                     state.searchCache.set(cacheKey, { lyrics: lyrics2, syncedLyrics: '' });
@@ -5825,7 +5845,7 @@ bindLegacyInlineHandlers();
             elements.searchErrorContainer.classList.remove('hidden');
         }
 
-        async function fetchFromLrcLib(artist, title, signal, durationHintSec = 0) {
+        async function fetchFromLrcLib(artist, title, signal, durationHintSec = 0, timeoutMs = 7600) {
             const artistClean = stripTrailingMeta(stripFeaturing(artist));
             const titleClean = stripTrailingMeta(stripFeaturing(title));
             // First try exact endpoint, then fallback to broader search.
@@ -5836,7 +5856,7 @@ bindLegacyInlineHandlers();
             ];
             for (const pair of exactPairs) {
                 try {
-                    const row = await fetchLrcLibGet(pair.a, pair.t, signal, pair.duration || 0);
+                    const row = await fetchLrcLibGet(pair.a, pair.t, signal, pair.duration || 0, timeoutMs);
                     if (!row) continue;
                     const synced = (row?.syncedLyrics || '').trim();
                     const plain = (row?.plainLyrics || '').trim();
@@ -5857,7 +5877,7 @@ bindLegacyInlineHandlers();
 
             const searchCalls = queries.map(async (q) => {
                 try {
-                    return await fetchLrcLibSearch(q, signal);
+                    return await fetchLrcLibSearch(q, signal, timeoutMs);
                 } catch (e) {
                     if (isAbortError(e)) throw e;
                     return [];
@@ -5885,7 +5905,7 @@ bindLegacyInlineHandlers();
             return { lyrics, syncedLyrics: synced };
         }
 
-        async function fetchFromLyricsOvh(artist, title, signal) {
+        async function fetchFromLyricsOvh(artist, title, signal, timeoutMs = 7600) {
             const artistCandidates = [...new Set([
                 artist,
                 stripFeaturing(artist),
@@ -5901,7 +5921,7 @@ bindLegacyInlineHandlers();
                 for (const t of titleCandidates) {
                     try {
                         const url = `https://api.lyrics.ovh/v1/${encodePathSegment(a)}/${encodePathSegment(t)}`;
-                        const data = await fetchJsonWithRetry(url, { signal }, 7600, 1);
+                        const data = await fetchJsonWithRetry(url, { signal }, timeoutMs, 1);
                         if (data?.lyrics && String(data.lyrics).trim()) {
                             return data.lyrics;
                         }
@@ -6978,6 +6998,7 @@ bindLegacyInlineHandlers();
             openModal,
             closeModal,
             cancelNavigation,
+            cancelLyricsFetch,
             confirmNavigation,
             cancelRestart,
             confirmRestart,

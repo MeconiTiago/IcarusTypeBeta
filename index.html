@@ -602,6 +602,7 @@
             </div>
             <div class="song-launch-status-row">
                 <div id="song-launch-status" class="song-launch-status">Preparing lyrics...</div>
+                <button id="song-launch-cancel-btn" type="button" class="auth-friend-btn text-xs px-3 py-1" data-onclick="cancelLyricsFetch()">Cancel</button>
                 <div class="loader"></div>
             </div>
         </div>
@@ -627,6 +628,7 @@
                     <div id="search-progress-bar" class="bg-main h-1 rounded-full transition-all duration-300" style="width: 0%"></div>
                 </div>
                 <p id="search-status-text" class="text-main text-xs mt-1 hidden">Initializing...</p>
+                <button id="search-cancel-fetch-btn" type="button" class="hidden auth-friend-btn text-xs px-3 py-1 mt-2" data-onclick="cancelLyricsFetch()">Cancel search</button>
                 <div id="search-error-container" class="hidden mt-4 p-4 bg-surface rounded text-center border border-error">
                     <p id="search-error" class="text-error text-sm font-bold mb-2"></p>
                     <a id="google-fallback-link" href="#" target="_blank" class="text-xs text-base underline hover:text-white">Search on Google</a>
