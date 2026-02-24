@@ -944,6 +944,12 @@
             padding: 10px;
             background: color-mix(in srgb, var(--bg-color) 18%, transparent);
         }
+        .duel-room-meta-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
         .duel-room-meta {
             font-size: 0.8rem;
             color: var(--main-color);
@@ -1041,6 +1047,20 @@
             text-transform: uppercase;
             letter-spacing: 0.04em;
             color: var(--main-color);
+        }
+        .duel-nav-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 6px;
+            border-radius: 999px;
+            background: var(--error-color);
+            color: #fff;
+            font-size: 0.68rem;
+            font-weight: 700;
+            line-height: 1;
         }
         .duel-hud {
             display: grid;

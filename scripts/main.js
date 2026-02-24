@@ -456,6 +456,7 @@ bindLegacyInlineHandlers();
             navSearch: document.getElementById('nav-search'),
             navCustom: document.getElementById('nav-custom'),
             navDuel: document.getElementById('nav-duel'),
+            navDuelBadge: document.getElementById('nav-duel-badge'),
             btnToggleEasy: document.getElementById('btn-toggle-easy'),
             btnToggleSpeak: document.getElementById('btn-toggle-speak'),
             btnToggleVideo: document.getElementById('btn-toggle-video'),
@@ -625,6 +626,7 @@ bindLegacyInlineHandlers();
             duelInviteTarget: document.getElementById('duel-invite-target'),
             duelRoomBox: document.getElementById('duel-room-box'),
             duelRoomMeta: document.getElementById('duel-room-meta'),
+            duelCopyCodeBtn: document.getElementById('duel-copy-code-btn'),
             duelRoomStatus: document.getElementById('duel-room-status'),
             duelPresenceSummary: document.getElementById('duel-presence-summary'),
             duelRoomMembers: document.getElementById('duel-room-members'),
@@ -632,8 +634,10 @@ bindLegacyInlineHandlers();
             duelInviteList: document.getElementById('duel-invite-list'),
             duelReadyBtn: document.getElementById('duel-ready-btn'),
             duelViewReadyBtn: document.getElementById('duel-view-ready-btn'),
+            duelViewCopyCodeBtn: document.getElementById('duel-view-copy-code-btn'),
             duelViewPresenceSummary: document.getElementById('duel-view-presence-summary'),
             duelViewMembers: document.getElementById('duel-view-members'),
+            duelViewInviteList: document.getElementById('duel-view-invite-list'),
             authFavoritesSection: document.getElementById('auth-favorites-section'),
             authDangerSection: document.getElementById('auth-danger-section'),
             authActionsSection: document.getElementById('auth-actions-section'),
@@ -757,6 +761,8 @@ bindLegacyInlineHandlers();
         let duelRealtimeInvitesUserId = '';
         let duelSnapshotRefreshTimer = null;
         let duelPresenceLastPayloadSig = '';
+        let duelKnownInviteIds = new Set();
+        let duelInviteNotifPrimed = false;
         let spotifyPollTimer = null;
         let spotifyIsTrackingEnabled = false;
         let spotifyLastPlayedAtKnown = '';
@@ -3536,6 +3542,12 @@ bindLegacyInlineHandlers();
             if (elements.duelViewInviteBtn) {
                 elements.duelViewInviteBtn.disabled = !inRoom;
             }
+            if (elements.duelCopyCodeBtn) {
+                elements.duelCopyCodeBtn.disabled = !inRoom;
+            }
+            if (elements.duelViewCopyCodeBtn) {
+                elements.duelViewCopyCodeBtn.disabled = !inRoom;
+            }
             if (elements.duelReadyBtn) {
                 elements.duelReadyBtn.disabled = !inRoom;
                 elements.duelReadyBtn.textContent = state.duel.selfReady ? 'Unready' : 'Ready';
@@ -3745,11 +3757,26 @@ bindLegacyInlineHandlers();
             await invitePlayerToDuelRoomByIdentifier(username);
         }
 
+        function setDuelInviteListHtml(html) {
+            if (elements.duelInviteList) elements.duelInviteList.innerHTML = html;
+            if (elements.duelViewInviteList) elements.duelViewInviteList.innerHTML = html;
+        }
+
+        function setDuelInviteBadge(count) {
+            const safeCount = Math.max(0, Number(count) || 0);
+            if (!elements.navDuelBadge) return;
+            elements.navDuelBadge.textContent = String(safeCount);
+            elements.navDuelBadge.classList.toggle('hidden', safeCount <= 0);
+        }
+
         async function renderDuelInvites() {
-            if (!ensureSupabaseReady() || !elements.duelInviteList) return;
+            if (!ensureSupabaseReady() || (!elements.duelInviteList && !elements.duelViewInviteList)) return;
             const user = authCurrentUser || await syncCurrentUser();
             if (!user) {
-                elements.duelInviteList.innerHTML = '<div class="auth-recent-empty">Login required.</div>';
+                setDuelInviteListHtml('<div class="auth-recent-empty">Login required.</div>');
+                setDuelInviteBadge(0);
+                duelKnownInviteIds = new Set();
+                duelInviteNotifPrimed = false;
                 return;
             }
             const { data, error } = await supabase
@@ -3760,7 +3787,10 @@ bindLegacyInlineHandlers();
                 .order('created_at', { ascending: false })
                 .limit(20);
             if (error || !data || data.length === 0) {
-                elements.duelInviteList.innerHTML = '<div class="auth-recent-empty">No duel invites.</div>';
+                setDuelInviteListHtml('<div class="auth-recent-empty">No duel invites.</div>');
+                setDuelInviteBadge(0);
+                duelKnownInviteIds = new Set();
+                duelInviteNotifPrimed = true;
                 return;
             }
             const inviterIds = Array.from(new Set(data.map((row) => row.inviter_id).filter(Boolean)));
@@ -3772,7 +3802,19 @@ bindLegacyInlineHandlers();
                     .in('id', inviterIds);
                 inviterMap = new Map((inviterProfiles || []).map((p) => [p.id, p]));
             }
-            elements.duelInviteList.innerHTML = data.map((row) => {
+            const inviteIds = data.map((row) => Number(row.id)).filter((n) => Number.isFinite(n));
+            const currentInviteSet = new Set(inviteIds);
+            if (duelInviteNotifPrimed) {
+                const newInvite = data.find((row) => !duelKnownInviteIds.has(Number(row.id)));
+                if (newInvite) {
+                    const from = inviterMap.get(newInvite.inviter_id)?.username || 'player';
+                    showToast(`${from} invited you to a duel room.`, 'info');
+                }
+            }
+            duelKnownInviteIds = currentInviteSet;
+            duelInviteNotifPrimed = true;
+            setDuelInviteBadge(data.length);
+            setDuelInviteListHtml(data.map((row) => {
                 const from = inviterMap.get(row.inviter_id)?.username || 'player';
                 return `<div class="auth-friend-item">
                           <div>
@@ -3784,7 +3826,7 @@ bindLegacyInlineHandlers();
                             <button class="auth-friend-btn reject" data-onclick="respondDuelInvite(${row.id}, false)">Reject</button>
                           </div>
                         </div>`;
-            }).join('');
+            }).join(''));
         }
 
         async function fetchDuelRoomSnapshot(roomId) {
@@ -4065,6 +4107,20 @@ bindLegacyInlineHandlers();
             await joinDuelRoomByCodeFromView();
         }
 
+        async function copyCurrentDuelRoomCode() {
+            const code = String(state.duel.roomId || '').trim();
+            if (!code) {
+                showToast('No active room code to copy.', 'error');
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(code);
+                showToast('Room code copied.', 'info');
+            } catch (_err) {
+                window.prompt('Copy room code:', code);
+            }
+        }
+
         async function invitePlayerToDuelRoom() {
             const target = String(elements.duelInviteTarget?.value || '').trim();
             await invitePlayerToDuelRoomByIdentifier(target);
@@ -4206,10 +4262,14 @@ bindLegacyInlineHandlers();
             if (elements.duelViewFriendList) elements.duelViewFriendList.innerHTML = '<div class="auth-recent-empty">No friends added yet.</div>';
             if (elements.authFavoritesList) elements.authFavoritesList.innerHTML = '<div class="auth-recent-empty">No favorites yet.</div>';
             if (elements.duelInviteList) elements.duelInviteList.innerHTML = '<div class="auth-recent-empty">No duel invites.</div>';
+            if (elements.duelViewInviteList) elements.duelViewInviteList.innerHTML = '<div class="auth-recent-empty">No duel invites.</div>';
             if (elements.duelRoomMembers) elements.duelRoomMembers.innerHTML = '<div class="auth-recent-empty">No players.</div>';
             if (elements.duelViewMembers) elements.duelViewMembers.innerHTML = '<div class="auth-recent-empty">No players.</div>';
             if (elements.duelPresenceSummary) elements.duelPresenceSummary.textContent = 'Waiting players...';
             if (elements.duelViewPresenceSummary) elements.duelViewPresenceSummary.textContent = 'Waiting players...';
+            setDuelInviteBadge(0);
+            duelKnownInviteIds = new Set();
+            duelInviteNotifPrimed = false;
             authFriendsCache = [];
             authFriendRequestsCache = [];
             authFavoritesCache = [];
@@ -7669,6 +7729,7 @@ bindLegacyInlineHandlers();
             joinDuelRoomByCode,
             joinDuelRoomByCodeFromView,
             joinDuelRoomByCodeQuick,
+            copyCurrentDuelRoomCode,
             invitePlayerToDuelRoom,
             invitePlayerToDuelRoomFromView,
             inviteDuelFriendByUsername,
