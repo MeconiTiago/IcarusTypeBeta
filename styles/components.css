@@ -194,6 +194,12 @@
             background-color: color-mix(in srgb, var(--bg-color) 85%, transparent);
             backdrop-filter: blur(4px);
         }
+        #settings-modal-overlay {
+            z-index: 90 !important;
+        }
+        #artist-songs-modal-overlay {
+            z-index: 90 !important;
+        }
         .song-launch-overlay {
             position: fixed;
             inset: 0;
@@ -339,6 +345,18 @@
             font-size: 1rem;
             font-weight: 700;
         }
+        .app-modal-close--icon-only {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            justify-content: center;
+            border-color: color-mix(in srgb, var(--sub-color) 24%, transparent);
+            background: color-mix(in srgb, var(--bg-color) 16%, transparent);
+        }
+        .app-modal-close--icon-only .app-modal-close-icon {
+            font-size: 0.92rem;
+            opacity: 0.92;
+        }
         .app-modal-body {
             padding: 14px 20px 18px;
             overflow-y: auto;
@@ -366,6 +384,62 @@
             gap: 12px;
             padding: 8px 0;
             border-bottom: 1px solid color-mix(in srgb, var(--sub-color) 18%, transparent);
+        }
+        .settings-switch {
+            border: 0;
+            background: transparent;
+            color: var(--sub-color);
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+            padding: 2px 0;
+        }
+        .settings-switch-track {
+            width: 40px;
+            height: 22px;
+            border-radius: 999px;
+            border: 1px solid color-mix(in srgb, var(--sub-color) 35%, transparent);
+            background: color-mix(in srgb, var(--bg-color) 26%, transparent);
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        .settings-switch-thumb {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--text-color) 88%, transparent);
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+        .settings-switch.is-on .settings-switch-track {
+            border-color: color-mix(in srgb, var(--main-color) 55%, transparent);
+            background: color-mix(in srgb, var(--main-color) 28%, transparent);
+        }
+        .settings-switch.is-on .settings-switch-thumb {
+            transform: translateX(18px);
+            background: var(--main-color);
+        }
+        .settings-theme-search {
+            width: 100%;
+            margin-bottom: 12px;
+            border-radius: 10px;
+            border: 1px solid color-mix(in srgb, var(--sub-color) 24%, transparent);
+            background: color-mix(in srgb, var(--bg-color) 16%, transparent);
+            color: var(--text-color);
+            padding: 10px 12px;
+            font-size: 0.9rem;
+            transition: border-color 0.2s ease, background 0.2s ease;
+        }
+        .settings-theme-search::placeholder {
+            color: var(--sub-color);
+            opacity: 0.9;
+        }
+        .settings-theme-search:focus {
+            outline: none;
+            border-color: color-mix(in srgb, var(--main-color) 45%, transparent);
+            background: color-mix(in srgb, var(--bg-color) 22%, transparent);
         }
         .settings-row:last-child {
             border-bottom: 0;
@@ -670,21 +744,39 @@
             opacity: 0.92;
         }
         .header-actions {
-            padding: 2px 10px 2px 2px;
+            min-height: 56px;
+            padding: 6px 12px;
             border-radius: 999px;
             border: 1px solid color-mix(in srgb, var(--text-color) 14%, transparent);
             background: color-mix(in srgb, var(--text-color) 5%, transparent);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-sizing: border-box;
+        }
+        .header-actions > * {
+            align-self: center;
         }
         .btn-ghost {
-            width: 34px;
-            height: 34px;
+            width: 38px;
+            height: 38px;
             border-radius: 999px;
             border: 1px solid color-mix(in srgb, var(--text-color) 18%, transparent);
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            line-height: 0;
             color: color-mix(in srgb, var(--text-color) 72%, transparent);
             background: color-mix(in srgb, var(--bg-color) 28%, transparent);
+            box-sizing: border-box;
+        }
+        .btn-ghost svg {
+            width: 18px;
+            height: 18px;
+            display: block;
+            margin: 0;
+            transform: translateY(0);
         }
         .btn-ghost:hover {
             color: var(--text-color);
@@ -707,6 +799,80 @@
         }
         .mode-group { display: flex; gap: 8px; }
         .nav-icon { width: 18px; height: 18px; fill: currentColor; }
+        .mode-session-prefs {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+        .mode-session-prefs-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            border: 1px solid color-mix(in srgb, var(--text-color) 15%, transparent);
+            background: color-mix(in srgb, var(--bg-color) 28%, transparent);
+            color: color-mix(in srgb, var(--text-color) 72%, transparent);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+        }
+        .mode-session-prefs-btn:hover,
+        .mode-session-prefs-btn[aria-expanded="true"] {
+            color: var(--main-color);
+            border-color: color-mix(in srgb, var(--main-color) 45%, transparent);
+            background: color-mix(in srgb, var(--main-color) 10%, transparent);
+        }
+        .mode-session-prefs-btn svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+            display: block;
+        }
+        .mode-session-prefs-popover {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            min-width: 170px;
+            display: grid;
+            gap: 5px;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid color-mix(in srgb, var(--text-color) 14%, transparent);
+            background: color-mix(in srgb, var(--bg-color) 86%, transparent);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 10px 20px color-mix(in srgb, var(--bg-color) 50%, transparent);
+            z-index: 25;
+        }
+        .mode-session-prefs-title {
+            font-size: 0.64rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: color-mix(in srgb, var(--text-color) 58%, transparent);
+            margin-bottom: 2px;
+        }
+        .mode-session-prefs-option {
+            width: 100%;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            background: transparent;
+            color: color-mix(in srgb, var(--text-color) 84%, transparent);
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-align: left;
+            padding: 8px 9px;
+            cursor: pointer;
+            transition: all 0.18s ease;
+        }
+        .mode-session-prefs-option:hover {
+            background: color-mix(in srgb, var(--text-color) 8%, transparent);
+            color: var(--text-color);
+        }
+        .mode-session-prefs-option.active {
+            border-color: color-mix(in srgb, var(--main-color) 48%, transparent);
+            background: color-mix(in srgb, var(--main-color) 12%, transparent);
+            color: var(--main-color);
+        }
         
         /* Stats Header Layout */
         .stats-header {
@@ -760,6 +926,7 @@
             gap: 4px;
             justify-items: end;
             min-width: 120px;
+            align-self: center;
         }
         .header-status-pill {
             border: 1px solid color-mix(in srgb, var(--main-color) 40%, transparent);
@@ -881,8 +1048,10 @@
         }
 
         .search-controls {
-            max-width: 1080px;
+            width: 100%;
+            max-width: 1320px;
             margin: 0 auto;
+            align-items: center;
         }
         .search-input-icon {
             position: absolute;
@@ -912,11 +1081,12 @@
         .custom-input::placeholder { color: color-mix(in srgb, var(--text-color) 72%, transparent); opacity: 1; }
         #btn-fetch-action {
             min-height: 44px;
+            min-width: 180px;
             border-radius: 999px !important;
             background: #ffffff;
             color: #000000;
             border: 1px solid #ffffff;
-            padding: 0 26px !important;
+            padding: 0 20px !important;
             font-size: 0.92rem;
             font-weight: 800;
             line-height: 1;
@@ -955,6 +1125,9 @@
         }
         .header-notification-btn {
             position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         .header-notification-badge {
             position: absolute;
@@ -1777,6 +1950,78 @@
         .level-badge { background: var(--main-color); color: var(--btn-text-color); padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; }
         .xp-bar-container { width: 100%; height: 8px; background: var(--bg-color); border-radius: 4px; overflow: hidden; margin-top: 8px; }
         .xp-bar-fill { height: 100%; background: var(--main-color); transition: width 0.5s ease; }
+        .xp-session-card {
+            border: 1px solid color-mix(in srgb, var(--sub-color) 30%, transparent);
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--bg-color) 14%, transparent);
+            padding: 14px 16px;
+        }
+        .xp-session-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .xp-session-level {
+            color: var(--text-color);
+            font-size: 0.92rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+        }
+        .xp-session-meta {
+            color: var(--sub-color);
+            font-size: 0.78rem;
+        }
+        .xp-breakdown-list {
+            margin-top: 10px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 3px;
+        }
+        .xp-breakdown-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: 0.92rem;
+            color: var(--sub-color);
+        }
+        .xp-breakdown-row strong {
+            color: var(--main-color);
+            font-size: 1.02rem;
+            font-weight: 700;
+        }
+        .xp-breakdown-row strong.is-negative {
+            color: var(--error-color);
+        }
+        .xp-breakdown-row.total {
+            margin-top: 2px;
+            padding-top: 4px;
+            border-top: 1px solid color-mix(in srgb, var(--sub-color) 30%, transparent);
+            color: var(--text-color);
+        }
+        .xp-breakdown-row.total strong {
+            font-size: 1.12rem;
+        }
+        .profile-inline-xp {
+            margin-top: 6px;
+            min-width: 210px;
+            max-width: 300px;
+        }
+        .profile-inline-xp--hub {
+            margin-top: 10px;
+            max-width: 420px;
+        }
+        .profile-inline-xp-meta {
+            font-size: 0.72rem;
+            color: var(--sub-color);
+            margin-bottom: 4px;
+        }
+        .profile-inline-xp-bar {
+            margin-top: 0;
+            height: 7px;
+        }
         .badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; }
         .badge-item { width: 80px; height: 80px; background: var(--sub-alt-color); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--sub-color); border: 1px solid transparent; opacity: 0.5; transition: all 0.2s; position: relative; padding: 5px; }
         .badge-item.unlocked { opacity: 1; border-color: var(--gold-color); color: var(--gold-color); background: color-mix(in srgb, var(--gold-color) 10%, transparent); }
@@ -2368,11 +2613,12 @@
             background: color-mix(in srgb, var(--sub-alt-color) 94%, var(--bg-color) 6%);
             backdrop-filter: blur(6px);
             overflow-y: auto;
-            padding: 22px 14px;
+            padding: calc(72px + env(safe-area-inset-top)) 14px 24px;
+            box-sizing: border-box;
         }
         .profile-hub-shell {
             max-width: 1280px;
-            margin: 0 auto;
+            margin: 14px auto 0;
             border: 1px solid color-mix(in srgb, var(--main-color) 20%, transparent);
             border-radius: 16px;
             padding: 18px;
@@ -2422,9 +2668,32 @@
             padding: 18px;
             background: color-mix(in srgb, var(--theme-c1) 58%, var(--theme-c5) 42%);
             display: grid;
-            grid-template-columns: 124px minmax(0, 1fr);
+            grid-template-columns: 124px minmax(0, 1fr) minmax(140px, 220px);
             gap: 16px;
             align-items: center;
+            position: relative;
+            overflow: hidden;
+            isolation: isolate;
+        }
+        .profile-hub-hero-bg-wrap {
+            position: absolute;
+            inset: 0;
+            z-index: -2;
+        }
+        .profile-hub-hero-bg {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.2;
+            filter: saturate(0.85) contrast(1.05) brightness(0.8);
+        }
+        .profile-hub-hero::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(95deg, color-mix(in srgb, var(--theme-c1) 75%, transparent) 0%, color-mix(in srgb, var(--theme-c1) 68%, transparent) 52%, color-mix(in srgb, var(--theme-c1) 84%, transparent) 100%);
+            z-index: -1;
+            pointer-events: none;
         }
         .profile-hub-avatar {
             width: 124px;
@@ -2443,7 +2712,7 @@
             color: var(--text-color);
             font-size: clamp(2rem, 4.8vw, 4.3rem);
             font-weight: 800;
-            line-height: 0.96;
+            line-height: 1.03;
             margin-top: 4px;
         }
         .profile-hub-meta-row {
@@ -2470,6 +2739,59 @@
             margin-top: 10px;
             line-height: 1.38;
             max-width: 78ch;
+        }
+        .profile-hub-primary-track {
+            border: 1px solid color-mix(in srgb, var(--sub-color) 24%, transparent);
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--bg-color) 36%, transparent);
+            padding: 10px;
+            display: grid;
+            gap: 4px;
+            justify-items: start;
+            align-content: start;
+        }
+        .profile-hub-primary-kicker {
+            color: var(--sub-color);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+        }
+        .profile-hub-primary-title {
+            color: var(--text-color);
+            font-size: 1.55rem;
+            line-height: 1;
+            font-weight: 800;
+        }
+        .profile-hub-primary-artist {
+            color: color-mix(in srgb, var(--text-color) 86%, transparent);
+            font-size: 0.9rem;
+            line-height: 1.25;
+            min-height: 1.3em;
+        }
+        .profile-hub-primary-cover {
+            width: 84px;
+            height: 84px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 1px solid color-mix(in srgb, var(--sub-color) 26%, transparent);
+            background: color-mix(in srgb, var(--bg-color) 25%, transparent);
+            margin-top: 4px;
+        }
+        .profile-hub-primary-time {
+            margin-top: 4px;
+            width: 100%;
+            border-top: 1px solid color-mix(in srgb, var(--sub-color) 28%, transparent);
+            padding-top: 8px;
+            display: grid;
+            gap: 2px;
+        }
+        .profile-hub-typing-clock {
+            color: var(--text-color);
+            font-size: 1.7rem;
+            letter-spacing: 0.04em;
+            line-height: 1;
+            font-weight: 700;
         }
         .profile-hub-stats-grid {
             display: grid;
@@ -2608,17 +2930,33 @@
             font-size: 0.92rem;
             font-weight: 700;
             white-space: nowrap;
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+            padding: 0;
+            transition: color 0.2s ease;
+        }
+        .profile-hub-section-link:hover {
+            color: var(--text-color);
+        }
+        .profile-hub-section-link:disabled {
+            opacity: 0.45;
+            cursor: default;
         }
         .profile-hub-artist-rail {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(132px, 170px));
             gap: 14px;
+            justify-content: start;
         }
         .profile-hub-artist-item {
             min-width: 0;
+            width: 170px;
+            max-width: 100%;
         }
         .profile-hub-artist-cover {
             width: 100%;
+            max-width: 170px;
             aspect-ratio: 1 / 1;
             border-radius: 999px;
             object-fit: cover;
@@ -2683,12 +3021,16 @@
             font-weight: 700;
             text-align: right;
             white-space: nowrap;
+            padding-right: 10px;
         }
         .profile-hub-song-time {
             color: color-mix(in srgb, var(--text-color) 88%, transparent);
             font-size: 0.92rem;
             text-align: right;
             white-space: nowrap;
+            min-width: 58px;
+            padding-left: 10px;
+            border-left: 1px solid color-mix(in srgb, var(--sub-color) 20%, transparent);
         }
         .profile-hub-card canvas {
             width: 100%;
@@ -2719,6 +3061,18 @@
                 width: 86px;
                 height: 86px;
             }
+            .profile-hub-primary-track {
+                grid-column: 1 / -1;
+                width: 100%;
+                justify-items: start;
+            }
+            .profile-hub-primary-title {
+                font-size: 1.2rem;
+            }
+            .profile-hub-primary-cover {
+                width: 64px;
+                height: 64px;
+            }
             .profile-hub-title {
                 font-size: clamp(1.8rem, 8vw, 2.8rem);
             }
@@ -2739,8 +3093,14 @@
                 padding-top: 6px;
             }
             .profile-hub-artist-rail {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
+                grid-template-columns: repeat(auto-fill, minmax(110px, 124px));
                 gap: 10px;
+            }
+            .profile-hub-artist-item {
+                width: 124px;
+            }
+            .profile-hub-artist-cover {
+                max-width: 124px;
             }
             .profile-hub-song-item {
                 grid-template-columns: 24px minmax(0, 1fr);
@@ -2821,10 +3181,11 @@
             header {
                 display: flex;
                 flex-direction: row !important;
-                align-items: flex-start;
+                align-items: center;
                 justify-content: space-between;
-                gap: 10px;
+                gap: 8px;
                 flex-wrap: nowrap;
+                padding: 10px 12px !important;
             }
             #toast-container {
                 right: 12px;
@@ -2837,19 +3198,21 @@
                 justify-content: flex-start;
                 padding-right: 0;
                 margin-left: 0;
+                flex: 1 1 auto;
             }
             .header-actions {
                 width: auto;
-                max-width: 56%;
-                align-self: flex-start;
-                justify-content: flex-start;
-                gap: 8px;
-                padding: 0;
-                border-radius: 0;
-                background: transparent;
-                border: 0;
+                max-width: none;
+                align-self: center;
+                justify-content: flex-end;
+                gap: 6px;
+                padding: 4px 6px;
+                border-radius: 999px;
+                background: color-mix(in srgb, var(--text-color) 5%, transparent);
+                border: 1px solid color-mix(in srgb, var(--text-color) 14%, transparent);
                 overflow: visible;
-                flex-shrink: 0;
+                flex-shrink: 1;
+                margin-left: auto;
             }
             .mobile-config-bar {
                 width: fit-content;
@@ -2892,25 +3255,34 @@
                 gap: 0.35rem;
                 flex-shrink: 0;
             }
+            .mode-session-prefs-popover {
+                right: 0;
+                min-width: 150px;
+            }
+            .mode-session-prefs-btn {
+                width: 32px;
+                height: 32px;
+            }
             .nav-icon {
                 width: 15px;
                 height: 15px;
             }
             .header-avatar-btn {
-                width: 44px;
-                height: 44px;
+                width: 38px;
+                height: 38px;
                 flex-shrink: 0;
             }
             .header-status-stack {
-                min-width: 0;
-                justify-items: start;
+                display: none;
             }
             .header-status-pill {
                 font-size: 0.56rem;
                 padding: 3px 7px;
             }
             .btn-ghost {
-                padding: 3px;
+                width: 34px;
+                height: 34px;
+                padding: 0;
             }
             .artist-catalog-name {
                 font-size: 1.08rem;
@@ -2921,9 +3293,25 @@
             .search-discovery-chip {
                 font-size: 0.72rem;
                 padding: 6px 10px;
+                white-space: nowrap;
+                flex: 0 0 auto;
+            }
+            .search-discovery-chips {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                padding-bottom: 4px;
             }
             .artist-songs-list {
                 max-height: 44vh;
+            }
+            .search-controls {
+                gap: 10px;
+            }
+            .search-controls #btn-fetch-action {
+                width: 100%;
+                max-width: 320px;
+                align-self: center;
+                margin-top: 0;
             }
             .app-modal-card,
             .app-modal-card--profile,
@@ -3007,9 +3395,10 @@
                 align-items: stretch;
             }
             .search-controls #btn-fetch-action {
-                width: min(220px, 70vw);
+                width: 100%;
+                max-width: 320px;
                 align-self: center;
-                margin-top: 6px;
+                margin-top: 0;
             }
             #game-area {
                 gap: 0.65rem;

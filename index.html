@@ -163,6 +163,13 @@
                             <div id="auth-user-name" class="text-main font-bold text-lg">username</div>
                             <div id="auth-user-email" class="text-base text-sm">email@example.com</div>
                             <div id="auth-user-level" class="auth-level mt-1">Level 1</div>
+                            <div id="auth-user-typing-total" class="profile-inline-xp-meta">0 min typed</div>
+                            <div class="profile-inline-xp">
+                                <div id="auth-level-progress-meta" class="profile-inline-xp-meta">0 / 220 XP</div>
+                                <div class="xp-bar-container profile-inline-xp-bar">
+                                    <div id="auth-level-progress-fill" class="xp-bar-fill" style="width: 0%;"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div id="auth-profile-edit-panel" class="auth-profile-edit-panel hidden">
@@ -400,6 +407,9 @@
             </div>
 
             <div class="profile-hub-hero">
+                <div class="profile-hub-hero-bg-wrap" aria-hidden="true">
+                    <img id="profile-hub-hero-bg" class="profile-hub-hero-bg" src="https://placehold.co/1200x360/0B2D45/3EE39E?text=Favorite+Band" alt="">
+                </div>
                 <img id="profile-hub-avatar" class="profile-hub-avatar auth-avatar-clickable" src="https://placehold.co/96x96/0B2D45/3EE39E?text=IT" alt="avatar" data-onclick="openProfileHubAvatarPreview()">
                 <div class="profile-hub-meta">
                     <div class="profile-hub-label">Profile</div>
@@ -408,7 +418,24 @@
                         <div id="profile-hub-level" class="profile-hub-level">Level 1</div>
                         <div id="profile-hub-email" class="profile-hub-email">email@example.com</div>
                     </div>
+                    <div class="profile-inline-xp profile-inline-xp--hub">
+                        <div id="profile-hub-progress-meta" class="profile-inline-xp-meta">0 / 220 XP</div>
+                        <div class="xp-bar-container profile-inline-xp-bar">
+                            <div id="profile-hub-progress-fill" class="xp-bar-fill" style="width: 0%;"></div>
+                        </div>
+                    </div>
                     <p id="profile-hub-bio" class="profile-hub-bio">No bio yet.</p>
+                </div>
+                <div class="profile-hub-primary-track">
+                    <div class="profile-hub-primary-kicker">Primary Track</div>
+                    <div id="profile-hub-primary-title" class="profile-hub-primary-title">No track yet</div>
+                    <div id="profile-hub-primary-artist" class="profile-hub-primary-artist">Play more songs to set your highlight.</div>
+                    <img id="profile-hub-primary-cover" class="profile-hub-primary-cover" src="https://placehold.co/120x120/0B2D45/3EE39E?text=♪" alt="Primary track cover">
+                    <div class="profile-hub-primary-time">
+                        <div class="profile-hub-primary-kicker">Typing Time</div>
+                        <div id="profile-hub-typing-clock" class="profile-hub-typing-clock">00:00:00</div>
+                        <div id="profile-hub-typing-minutes" class="profile-hub-primary-artist">0 min total</div>
+                    </div>
                 </div>
             </div>
 
@@ -438,7 +465,7 @@
                             <h3 class="profile-hub-section-title">Most Typed Artists This Month</h3>
                             <p class="profile-hub-section-subtitle">Visible only to you</p>
                         </div>
-                        <span class="profile-hub-section-link">Show all</span>
+                        <button id="profile-hub-show-all-artists" type="button" class="profile-hub-section-link" data-onclick="toggleProfileHubArtistsExpanded()">Show all</button>
                     </div>
                     <div id="profile-hub-favorites" class="profile-hub-artist-rail">
                         <div class="auth-recent-empty">No artist stats yet.</div>
@@ -450,7 +477,7 @@
                             <h3 class="profile-hub-section-title">Most Typed Songs This Month</h3>
                             <p class="profile-hub-section-subtitle">Visible only to you</p>
                         </div>
-                        <span class="profile-hub-section-link">Show all</span>
+                        <button id="profile-hub-show-all-songs" type="button" class="profile-hub-section-link" data-onclick="toggleProfileHubSongsExpanded()">Show all</button>
                     </div>
                     <div id="profile-hub-recent" class="profile-hub-song-list">
                         <div class="auth-recent-empty">No song stats yet.</div>
@@ -518,9 +545,8 @@
                     <div class="app-modal-kicker">Configuration</div>
                     <h3 class="app-modal-title">Settings</h3>
                 </div>
-                <button data-onclick="closeModal('settings')" class="app-modal-close" type="button" aria-label="Close settings modal">
+                <button data-onclick="closeModal('settings')" class="app-modal-close app-modal-close--icon-only" type="button" aria-label="Close settings modal">
                     <span class="app-modal-close-icon" aria-hidden="true">&times;</span>
-                    <span>Close</span>
                 </button>
             </div>
             <div class="app-modal-body settings-modal-body">
@@ -528,19 +554,35 @@
                     <p class="text-xs text-sub uppercase font-bold mb-3">Gameplay</p>
                     <div class="settings-row">
                         <span class="text-base text-sm">Easy Mode (Translation)</span>
-                        <button data-onclick="toggleEasyMode(); closeModal('settings')" class="text-main hover:text-base text-xs uppercase font-bold">Toggle</button>
+                        <button id="settings-switch-easy" type="button" data-onclick="toggleEasyMode()" class="settings-switch" aria-pressed="false" aria-label="Toggle Easy Mode">
+                            <span class="settings-switch-track">
+                                <span class="settings-switch-thumb"></span>
+                            </span>
+                        </button>
                     </div>
                     <div class="settings-row">
                         <span class="text-base text-sm">Auto-Speak Words</span>
-                        <button data-onclick="toggleAutoSpeak(); closeModal('settings')" class="text-main hover:text-base text-xs uppercase font-bold">Toggle</button>
+                        <button id="settings-switch-speak" type="button" data-onclick="toggleAutoSpeak()" class="settings-switch" aria-pressed="false" aria-label="Toggle Auto-Speak">
+                            <span class="settings-switch-track">
+                                <span class="settings-switch-thumb"></span>
+                            </span>
+                        </button>
                     </div>
                     <div class="settings-row">
                         <span class="text-base text-sm">Sound FX</span>
-                        <button id="btn-toggle-sound" data-onclick="toggleSound();" class="text-main hover:text-base text-xs uppercase font-bold">OFF</button>
+                        <button id="btn-toggle-sound" type="button" data-onclick="toggleSound();" class="settings-switch" aria-pressed="false" aria-label="Toggle Sound FX">
+                            <span class="settings-switch-track">
+                                <span class="settings-switch-thumb"></span>
+                            </span>
+                        </button>
                     </div>
                     <div class="settings-row">
                         <span class="text-base text-sm">Dyslexic Font</span>
-                        <button id="btn-toggle-dyslexic" data-onclick="toggleDyslexicMode();" class="text-main hover:text-base text-xs uppercase font-bold">OFF</button>
+                        <button id="btn-toggle-dyslexic" type="button" data-onclick="toggleDyslexicMode();" class="settings-switch" aria-pressed="false" aria-label="Toggle Dyslexic Font">
+                            <span class="settings-switch-track">
+                                <span class="settings-switch-thumb"></span>
+                            </span>
+                        </button>
                     </div>
                 </section>
                 <section class="modal-surface-block mt-3">
@@ -549,7 +591,7 @@
                         id="theme-search-input"
                         type="text"
                         placeholder="Search theme..."
-                        class="w-full mb-3 rounded-md border border-sub-alt bg-sub-alt px-3 py-2 text-sm text-base placeholder:text-sub"
+                        class="settings-theme-search"
                         autocomplete="off"
                         autocapitalize="none"
                         autocorrect="off"
@@ -583,7 +625,7 @@
     </div>
 
     <!-- Header -->
-    <header class="w-full max-w-6xl px-4 py-5 sm:p-8 flex flex-col sm:flex-row sm:justify-between sm:items-end items-start gap-4 mb-3 sm:mb-4">
+    <header class="w-full max-w-6xl px-4 py-5 sm:p-8 flex flex-col sm:flex-row sm:justify-between sm:items-center items-center gap-4 mb-3 sm:mb-4">
         <div id="header-brand" class="header-brand flex items-center gap-3 cursor-pointer select-none" data-onclick="goHome()">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-main" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="5"></circle>
@@ -601,7 +643,7 @@
                 <span class="text-[10px] text-sub tracking-widest">learn english with music</span>
             </div>
         </div>
-        <div class="header-actions flex justify-start sm:justify-end items-center gap-3 sm:gap-4 text-sub flex-nowrap pb-1 sm:pb-0">
+        <div class="header-actions flex justify-start sm:justify-end items-center text-sub flex-nowrap">
             <button data-onclick="openProfileScreen()" class="btn-ghost transition" title="Full profile"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></button>
             <button data-onclick="openModal('about')" class="btn-ghost transition" title="About"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg></button>
             <button data-onclick="openModal('settings')" class="btn-ghost transition" title="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
@@ -634,6 +676,7 @@
         <div class="config-bar mobile-config-bar">
                 <div class="mode-group">
                     <div class="nav-link active" id="nav-search" data-onclick="trySwitchTab('search')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>search</div>
+                    <div class="nav-link" id="nav-quick" data-onclick="startQuickSnippetRun()"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M11 2a1 1 0 0 1 1 1v2.08a7.5 7.5 0 0 1 5.92 5.92H20a1 1 0 1 1 0 2h-2.08a7.5 7.5 0 0 1-5.92 5.92V21a1 1 0 1 1-2 0v-2.08A7.5 7.5 0 0 1 4.08 13H2a1 1 0 1 1 0-2h2.08A7.5 7.5 0 0 1 10 5.08V3a1 1 0 0 1 1-1zm0 5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>quick</div>
                     <div class="nav-link" id="nav-custom" data-onclick="trySwitchTab('custom')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>custom</div>
                     <div class="nav-link" id="nav-duel" data-onclick="trySwitchTab('duel')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M8 4l-3 8h5l-2 8 11-13h-6l2-3z"/></svg>duel <span id="nav-duel-badge" class="duel-nav-badge hidden">0</span></div>
                 </div>
@@ -642,6 +685,17 @@
                 <div class="nav-link active" id="mode-normal" data-onclick="setGameMode('normal')">normal</div>
                 <div class="nav-link" id="mode-cloze" data-onclick="setGameMode('cloze')">cloze</div>
                 <div class="nav-link" id="mode-rhythm" data-onclick="setGameMode('rhythm')">rhythm</div>
+                <div class="mode-session-prefs">
+                    <button id="mode-session-prefs-btn" class="mode-session-prefs-btn" type="button" title="Session preferences" aria-label="Session preferences" aria-haspopup="true" aria-expanded="false" aria-controls="mode-session-prefs-popover">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94a7.99 7.99 0 0 0 .05-.94c0-.32-.02-.63-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.3 7.3 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 2h-3.8a.5.5 0 0 0-.49.42l-.36 2.54c-.58.23-1.12.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.48a.5.5 0 0 0 .12.64l2.03 1.58c-.03.31-.05.62-.05.94 0 .32.02.63.05.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54c.04.24.25.42.49.42h3.8c.24 0 .45-.18.49-.42l.36-2.54c.58-.23 1.13-.54 1.63-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"/></svg>
+                    </button>
+                    <div id="mode-session-prefs-popover" class="mode-session-prefs-popover hidden" role="menu" aria-label="Session preferences">
+                        <div class="mode-session-prefs-title">Typing length</div>
+                        <button type="button" class="mode-session-prefs-option active" data-length-mode="full" role="menuitemradio" aria-checked="true">Full lyrics</button>
+                        <button type="button" class="mode-session-prefs-option" data-length-mode="short" role="menuitemradio" aria-checked="false">Short section</button>
+                        <button type="button" class="mode-session-prefs-option" data-length-mode="micro" role="menuitemradio" aria-checked="false">Micro section</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -703,11 +757,6 @@
         <!-- Setup Views and Game Area (Same as before) -->
         <div id="setup-area" class="w-full fade-in">
             <div id="view-search" class="w-full flex flex-col gap-6">
-                <div class="duel-quick-bar">
-                    <button class="auth-submit-btn" data-onclick="createDuelRoomFromCurrentSong()">Criar sala</button>
-                    <input id="duel-quick-room-code" type="text" class="auth-input" placeholder="Código da sala (uuid)">
-                    <button class="auth-submit-btn" data-onclick="joinDuelRoomByCodeQuick()">Entrar na sala</button>
-                </div>
                 <div class="search-controls flex flex-col sm:flex-row gap-3 sm:gap-4">
                     <div class="flex-1 relative">
                         <span class="search-input-icon" aria-hidden="true">
@@ -716,7 +765,7 @@
                                 <line x1="20" y1="20" x2="16.65" y2="16.65"></line>
                             </svg>
                         </span>
-                        <input type="text" id="input-artist" placeholder="Artist / Band" class="w-full custom-input p-2 outline-none" data-onkeydown="if(event.key === 'Enter') loadArtistCatalog()">
+                        <input type="text" id="input-artist" placeholder="Artist / Band" class="w-full custom-input p-2 outline-none">
                         <div id="artist-suggestions" class="search-suggest hidden"></div>
                     </div>
                     <input type="hidden" id="input-title">
@@ -1011,6 +1060,24 @@
             <div class="mb-6 w-full text-center">
                 <div class="text-sub text-sm uppercase tracking-widest mb-1">XP Gained</div>
                 <div id="xp-gained-display" class="text-4xl font-bold text-main">+0 XP</div>
+            </div>
+            <div class="xp-session-card mb-6 w-full">
+                <div class="xp-session-head">
+                    <div id="xp-progress-level-label" class="xp-session-level">Level 1</div>
+                    <div id="xp-progress-meta" class="xp-session-meta">0 / 220 XP</div>
+                </div>
+                <div class="xp-bar-container">
+                    <div id="xp-progress-fill" class="xp-bar-fill" style="width: 0%;"></div>
+                </div>
+                <div class="xp-breakdown-list">
+                    <div class="xp-breakdown-row"><span>Typing speed</span><strong id="xp-breakdown-speed">+0</strong></div>
+                    <div class="xp-breakdown-row"><span>Quote bonus</span><strong id="xp-breakdown-quote">+0</strong></div>
+                    <div class="xp-breakdown-row"><span>Accuracy bonus</span><strong id="xp-breakdown-accuracy">+0</strong></div>
+                    <div class="xp-breakdown-row"><span>Mode bonus</span><strong id="xp-breakdown-mode">x1.00</strong></div>
+                    <div class="xp-breakdown-row"><span>Error penalty</span><strong id="xp-breakdown-penalty" class="is-negative">-0</strong></div>
+                    <div class="xp-breakdown-row"><span>Practice recovery</span><strong id="xp-breakdown-recovered">+0</strong></div>
+                    <div class="xp-breakdown-row total"><span>Round total</span><strong id="xp-breakdown-total">+0</strong></div>
+                </div>
             </div>
 
             <div class="flex flex-col md:flex-row gap-8 mb-8 w-full h-64">

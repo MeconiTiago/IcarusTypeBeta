@@ -51,8 +51,16 @@ export function createAudioApi() {
   function toggleSound() {
     isSoundEnabled = !isSoundEnabled;
     const btn = document.getElementById("btn-toggle-sound");
-    if (btn) btn.textContent = isSoundEnabled ? "ON" : "OFF";
+    if (btn) {
+      if (btn.classList.contains("settings-switch")) {
+        btn.classList.toggle("is-on", isSoundEnabled);
+        btn.setAttribute("aria-pressed", isSoundEnabled ? "true" : "false");
+      } else {
+        btn.textContent = isSoundEnabled ? "ON" : "OFF";
+      }
+    }
     if (isSoundEnabled && audioCtx.state === "suspended") audioCtx.resume();
+    return isSoundEnabled;
   }
 
   function speakWord(wordToSpeak) {
@@ -71,5 +79,10 @@ export function createAudioApi() {
     window.speechSynthesis.speak(utterance);
   }
 
-  return { playSound, toggleSound, speakWord };
+  return {
+    playSound,
+    toggleSound,
+    speakWord,
+    isSoundEnabled: () => isSoundEnabled
+  };
 }
