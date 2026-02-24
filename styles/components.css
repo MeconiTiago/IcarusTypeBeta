@@ -540,6 +540,7 @@
             text-transform: none;
             opacity: 0.8;
             white-space: nowrap;
+            display: none;
         }
         .utility-summary-chevron {
             font-size: 0.9rem;
@@ -603,6 +604,15 @@
         .utility-compare-list {
             max-height: 178px;
             padding-right: 2px;
+        }
+        .utility-compare-list .auth-friend-actions {
+            display: grid;
+            gap: 4px;
+            justify-items: end;
+            align-items: center;
+        }
+        .utility-compare-list .auth-recent-score {
+            font-size: 0.75rem;
         }
         .utility-panel .auth-submit-btn,
         .utility-panel .auth-friend-btn,
@@ -2554,10 +2564,38 @@
         .auth-friend-meta {
             color: var(--sub-color);
             font-size: 0.7rem;
+            line-height: 1.3;
         }
         .auth-friend-actions {
             display: inline-flex;
             gap: 6px;
+        }
+        .auth-friend-item--request .auth-friend-actions {
+            justify-self: end;
+        }
+        .auth-status-chip {
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid color-mix(in srgb, var(--sub-color) 24%, transparent);
+            border-radius: 999px;
+            padding: 1px 7px;
+            font-size: 0.64rem;
+            letter-spacing: 0.03em;
+            margin-right: 5px;
+            color: var(--sub-color);
+            background: color-mix(in srgb, var(--bg-color) 18%, transparent);
+        }
+        .auth-status-chip.incoming {
+            color: var(--main-color);
+            border-color: color-mix(in srgb, var(--main-color) 38%, transparent);
+            background: color-mix(in srgb, var(--main-color) 10%, transparent);
+        }
+        .auth-status-chip.outgoing {
+            color: color-mix(in srgb, var(--text-color) 86%, transparent);
+            border-color: color-mix(in srgb, var(--sub-color) 30%, transparent);
+        }
+        .auth-status-chip.pending {
+            color: color-mix(in srgb, var(--text-color) 78%, transparent);
         }
         .auth-friend-btn {
             border: 1px solid color-mix(in srgb, var(--sub-color) 25%, transparent);
@@ -2613,6 +2651,8 @@
             background: color-mix(in srgb, var(--sub-alt-color) 94%, var(--bg-color) 6%);
             backdrop-filter: blur(6px);
             overflow-y: auto;
+            height: 100dvh;
+            overscroll-behavior: contain;
             padding: calc(72px + env(safe-area-inset-top)) 14px 24px;
             box-sizing: border-box;
         }
@@ -2985,7 +3025,7 @@
         }
         .profile-hub-song-item {
             display: grid;
-            grid-template-columns: 30px minmax(0, 1.1fr) minmax(120px, 0.8fr) 92px 52px;
+            grid-template-columns: 30px minmax(0, 1.1fr) minmax(132px, 0.85fr) minmax(126px, max-content) minmax(66px, max-content);
             gap: 10px;
             align-items: center;
             padding: 9px 6px;
@@ -3021,7 +3061,8 @@
             font-weight: 700;
             text-align: right;
             white-space: nowrap;
-            padding-right: 10px;
+            justify-self: end;
+            padding-right: 6px;
         }
         .profile-hub-song-time {
             color: color-mix(in srgb, var(--text-color) 88%, transparent);
@@ -3029,7 +3070,8 @@
             text-align: right;
             white-space: nowrap;
             min-width: 58px;
-            padding-left: 10px;
+            justify-self: end;
+            padding-left: 8px;
             border-left: 1px solid color-mix(in srgb, var(--sub-color) 20%, transparent);
         }
         .profile-hub-card canvas {

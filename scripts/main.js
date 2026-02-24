@@ -944,6 +944,8 @@ bindLegacyInlineHandlers();
         let spotifyTracks = [];
         let spotifyLinkedToAccount = false;
         let spotifyLastSyncedSignature = '';
+        const friendProfileSnapshotCache = new Map();
+        let friendProfileSnapshotSeq = 0;
         let spotifyLinkPromptShownForUserId = '';
         let spotifyLinkPromptPrefs = null;
         let spPlayer = null;
@@ -3520,8 +3522,10 @@ bindLegacyInlineHandlers();
                     elements.authFriendRequests.innerHTML = reqRows.map((r) => {
                         const username = escapeHtml(r.username);
                         const encodedUsername = encodeURIComponent(r.username || '');
-                        const direction = escapeHtml(r.direction);
-                        const status = escapeHtml(r.status);
+                        const isIncoming = String(r.direction || '').toLowerCase() === 'incoming';
+                        const directionLabel = isIncoming ? 'Incoming' : 'Outgoing';
+                        const statusLabel = String(r.status || 'pending').toLowerCase() === 'pending' ? 'Pending' : escapeHtml(r.status || '');
+                        const directionClass = isIncoming ? 'incoming' : 'outgoing';
                         const actions = r.direction === 'incoming' && r.status === 'pending'
                             ? `<div class="auth-friend-actions">
                                  <button class="auth-friend-btn accept" data-onclick="respondFriendRequest(${r.request_id}, true)">Accept</button>
@@ -3529,15 +3533,17 @@ bindLegacyInlineHandlers();
                                  <button class="auth-friend-btn" data-onclick="openFriendProfileFromList('${encodedUsername}','requests')">View profile</button>
                                </div>`
                             : `<div class="auth-friend-actions">
-                                 <div class="auth-friend-meta">${direction} - ${status}</div>
                                  <button class="auth-friend-btn" data-onclick="openFriendProfileFromList('${encodedUsername}','requests')">View profile</button>
                                </div>`;
                         const avatar = buildFriendAvatarButton(r.username, r.avatar_url);
-                        return `<div class="auth-friend-item">
+                        return `<div class="auth-friend-item auth-friend-item--request">
                                   ${avatar}
                                   <div>
                                     <div class="auth-friend-name">${username}</div>
-                                    <div class="auth-friend-meta">${direction} - ${status}</div>
+                                    <div class="auth-friend-meta">
+                                        <span class="auth-status-chip ${directionClass}">${directionLabel}</span>
+                                        <span class="auth-status-chip pending">${statusLabel}</span>
+                                    </div>
                                   </div>
                                   ${actions}
                                 </div>`;
@@ -5052,10 +5058,97 @@ bindLegacyInlineHandlers();
             return { topArtists, topSongs };
         }
 
+        async function loadFriendProfileSnapshot(friendId) {
+            const id = String(friendId || '').trim();
+            if (!supabase || !id) return null;
+            if (friendProfileSnapshotCache.has(id)) return friendProfileSnapshotCache.get(id);
+            try {
+                const { data, error } = await supabase.rpc('get_friend_profile_snapshot', { p_friend_id: id });
+                if (error) return null;
+                const row = Array.isArray(data) ? data[0] : data;
+                if (!row) return null;
+                friendProfileSnapshotCache.set(id, row);
+                return row;
+            } catch (_err) {
+                return null;
+            }
+        }
+
+        function renderProfileHubSongsFromRows(rows) {
+            const list = Array.isArray(rows) ? rows : [];
+            if (!list.length) return '<div class="auth-recent-empty">No typed songs found for this profile yet.</div>';
+            return list.map((row, idx) => {
+                const count = Number(row?.count || row?.runs || 0) || 0;
+                const avgWpm = Number(row?.avgWpm || row?.avg_wpm || 0) || 0;
+                const avgAcc = Number(row?.avgAcc || row?.avg_acc || 0) || 0;
+                const song = String(row?.song || row?.song_title || 'Unknown song');
+                const artist = String(row?.artist || 'Unknown artist');
+                return `<div class="profile-hub-song-item">
+                          <div class="profile-hub-song-rank">${idx + 1}</div>
+                          <div>
+                            <div class="profile-hub-song-title">${escapeHtml(song)}</div>
+                            <div class="profile-hub-song-artist">${escapeHtml(artist)}</div>
+                          </div>
+                          <div class="profile-hub-song-album">Profile stats</div>
+                          <div class="profile-hub-song-metric">${count} runs &nbsp;&bull;&nbsp; ${avgWpm} WPM</div>
+                          <div class="profile-hub-song-time">${avgAcc}%</div>
+                        </div>`;
+            }).join('');
+        }
+
+        function renderProfileHubArtistsFromRows(rows) {
+            const list = Array.isArray(rows) ? rows : [];
+            if (!list.length) return '<div class="auth-recent-empty">No typed artists found for this profile yet.</div>';
+            return list.map((row, idx) => {
+                const artist = String(row?.artist || 'Unknown artist');
+                const count = Number(row?.count || row?.runs || 0) || 0;
+                const avgWpm = Number(row?.avgWpm || row?.avg_wpm || 0) || 0;
+                const cover = getProfileHubArtistCover(artist);
+                return `<div class="profile-hub-artist-item">
+                          <img class="profile-hub-artist-cover" src="${escapeHtml(cover)}" alt="${escapeHtml(artist)} cover" loading="lazy">
+                          <div class="profile-hub-artist-name">${idx + 1}. ${escapeHtml(artist)}</div>
+                          <div class="profile-hub-artist-meta">${count} runs | ${avgWpm} avg WPM</div>
+                        </div>`;
+            }).join('');
+        }
+
+        function hydrateProfileHubArtistRail(rows, artworkSeq) {
+            const list = Array.isArray(rows) ? rows : [];
+            const rail = elements.profileHubFavorites;
+            if (!rail || !list.length) return;
+            const cards = Array.from(rail.querySelectorAll('.profile-hub-artist-item'));
+            if (!cards.length) return;
+
+            cards.forEach((card, idx) => {
+                const row = list[idx] || {};
+                const artist = String(row.artist || '').trim();
+                if (!artist) return;
+                const coverEl = card.querySelector('.profile-hub-artist-cover');
+                if (!coverEl) return;
+
+                const cachedCover = getProfileHubArtistCover(artist);
+                if (cachedCover && coverEl.src !== cachedCover) {
+                    coverEl.src = cachedCover;
+                }
+                if (!isPlaceholderArtwork(cachedCover)) return;
+
+                fetchProfileHubArtworkFromItunes(artist).then((cover) => {
+                    if (!cover || artworkSeq !== profileHubArtworkSeq) return;
+                    if (!elements.profileHubOverlay || elements.profileHubOverlay.classList.contains('hidden')) return;
+                    if (!coverEl.isConnected) return;
+                    coverEl.src = cover;
+                    if (idx === 0 && elements.profileHubHeroBg && isPlaceholderArtwork(elements.profileHubHeroBg.src)) {
+                        elements.profileHubHeroBg.src = cover;
+                    }
+                }).catch(() => {});
+            });
+        }
+
         function renderProfileHub() {
             if (!elements.profileHubOverlay || elements.profileHubOverlay.classList.contains('hidden')) return;
             if (profileHubContext.type === 'friend' && profileHubContext.friend) {
                 const f = profileHubContext.friend;
+                const artworkSeq = ++profileHubArtworkSeq;
                 const friendLookupKey = normalizeLookupText(f.username || '');
                 const friendFromCompare = authFriendsCache.find((x) => normalizeLookupText(x.username || '') === friendLookupKey);
                 const summarySource = friendFromCompare || f;
@@ -5077,22 +5170,22 @@ bindLegacyInlineHandlers();
                 if (elements.profileHubAvatar) elements.profileHubAvatar.src = avatar;
                 if (elements.profileHubHeroBg) elements.profileHubHeroBg.src = avatar || buildThemePlaceholderUrl(1200, 360, 'Friend');
                 if (elements.profileHubLevel) elements.profileHubLevel.textContent = `Level ${level}`;
-                if (elements.profileHubProgressMeta) elements.profileHubProgressMeta.textContent = 'Private';
+                if (elements.profileHubProgressMeta) elements.profileHubProgressMeta.textContent = 'Loading...';
                 if (elements.profileHubProgressFill) elements.profileHubProgressFill.style.width = '0%';
                 if (elements.profileHubEmail) elements.profileHubEmail.textContent = source;
-                if (elements.profileHubBio) elements.profileHubBio.textContent = 'Public summary from your social panel.';
-                if (elements.profileHubPrimaryTitle) elements.profileHubPrimaryTitle.textContent = 'Private';
-                if (elements.profileHubPrimaryArtist) elements.profileHubPrimaryArtist.textContent = 'Primary track is private for this profile.';
-                if (elements.profileHubTypingClock) elements.profileHubTypingClock.textContent = '--:--:--';
-                if (elements.profileHubTypingMinutes) elements.profileHubTypingMinutes.textContent = 'Private';
+                if (elements.profileHubBio) elements.profileHubBio.textContent = 'Loading friend profile...';
+                if (elements.profileHubPrimaryTitle) elements.profileHubPrimaryTitle.textContent = 'Loading...';
+                if (elements.profileHubPrimaryArtist) elements.profileHubPrimaryArtist.textContent = 'Loading friend stats...';
+                if (elements.profileHubTypingClock) elements.profileHubTypingClock.textContent = '00:00:00';
+                if (elements.profileHubTypingMinutes) elements.profileHubTypingMinutes.textContent = '0 min total';
                 if (elements.profileHubPrimaryCover) elements.profileHubPrimaryCover.src = avatar || buildThemePlaceholderUrl(120, 120, '♪');
                 if (elements.profileHubGames) elements.profileHubGames.textContent = String(stats.games);
                 if (elements.profileHubBest) elements.profileHubBest.textContent = String(stats.bestWpm);
                 if (elements.profileHubAvgWpm) elements.profileHubAvgWpm.textContent = String(stats.avgWpm);
                 if (elements.profileHubAvgAcc) elements.profileHubAvgAcc.textContent = `${stats.avgAcc}%`;
 
-                if (elements.profileHubRecent) elements.profileHubRecent.innerHTML = '<div class="auth-recent-empty">Most typed songs are private for other users.</div>';
-                if (elements.profileHubFavorites) elements.profileHubFavorites.innerHTML = '<div class="auth-recent-empty">Most typed artists are private for other users.</div>';
+                if (elements.profileHubRecent) elements.profileHubRecent.innerHTML = '<div class="auth-recent-empty">Loading friend songs...</div>';
+                if (elements.profileHubFavorites) elements.profileHubFavorites.innerHTML = '<div class="auth-recent-empty">Loading friend artists...</div>';
                 if (elements.profileHubShowAllArtists) {
                     elements.profileHubShowAllArtists.textContent = 'Show all';
                     elements.profileHubShowAllArtists.disabled = true;
@@ -5103,6 +5196,67 @@ bindLegacyInlineHandlers();
                 }
                 renderProfileHubComparison(getSelfSummaryStats(), f);
                 drawProfileHubChart([]);
+                const friendId = String(f.friend_id || friendFromCompare?.friend_id || '').trim();
+                if (friendId) {
+                    const seq = ++friendProfileSnapshotSeq;
+                    loadFriendProfileSnapshot(friendId).then((snapshot) => {
+                        if (!snapshot) return;
+                        if (seq !== friendProfileSnapshotSeq) return;
+                        if (profileHubContext.type !== 'friend' || !profileHubContext.friend) return;
+                        const currentKey = normalizeLookupText(profileHubContext.friend.username || '');
+                        if (currentKey !== friendLookupKey) return;
+                        if (!elements.profileHubOverlay || elements.profileHubOverlay.classList.contains('hidden')) return;
+
+                        const sLevel = Math.max(1, Number(snapshot.level) || 1);
+                        const sPrestige = Math.max(0, Number(snapshot.prestige) || 0);
+                        const sXpIn = Math.max(0, Number(snapshot.xp_in_level) || 0);
+                        const sXpToNext = Math.max(0, Number(snapshot.xp_to_next) || 0);
+                        const xpNeed = Math.max(1, sXpIn + sXpToNext);
+                        const xpPct = Math.max(0, Math.min(100, Math.round((sXpIn / xpNeed) * 100)));
+                        const levelLabel = sPrestige > 0 ? `Prestige ${sPrestige} | Level ${sLevel}` : `Level ${sLevel}`;
+
+                        if (elements.profileHubName) elements.profileHubName.textContent = String(snapshot.username || username);
+                        if (elements.profileHubAvatar) elements.profileHubAvatar.src = sanitizeAvatarUrl(snapshot.avatar_url || '') || avatar;
+                        if (elements.profileHubLevel) elements.profileHubLevel.textContent = levelLabel;
+                        if (elements.profileHubProgressMeta) elements.profileHubProgressMeta.textContent = `${sXpIn} / ${xpNeed} XP`;
+                        if (elements.profileHubProgressFill) elements.profileHubProgressFill.style.width = `${xpPct}%`;
+                        if (elements.profileHubBio) elements.profileHubBio.textContent = String(snapshot.bio || 'No bio yet.');
+
+                        const totalTypingSeconds = Math.max(0, Number(snapshot.total_typing_seconds) || 0);
+                        if (elements.profileHubTypingClock) elements.profileHubTypingClock.textContent = formatClockFromSeconds(totalTypingSeconds);
+                        if (elements.profileHubTypingMinutes) elements.profileHubTypingMinutes.textContent = `${Math.floor(totalTypingSeconds / 60)} min total`;
+
+                        const pTitle = String(snapshot.primary_song_title || '').trim();
+                        const pArtist = String(snapshot.primary_song_artist || '').trim();
+                        const pRuns = Math.max(0, Number(snapshot.primary_song_runs) || 0);
+                        if (elements.profileHubPrimaryTitle) elements.profileHubPrimaryTitle.textContent = pTitle || 'No track yet';
+                        if (elements.profileHubPrimaryArtist) {
+                            elements.profileHubPrimaryArtist.textContent = pTitle && pArtist
+                                ? `${pArtist} · ${pRuns} runs`
+                                : 'No primary track data yet.';
+                        }
+                        if (elements.profileHubPrimaryCover && pArtist) {
+                            elements.profileHubPrimaryCover.src = getProfileHubSongCover(pArtist, pTitle || pArtist);
+                        }
+
+                        const snapGames = Math.max(0, Number(snapshot.games) || 0);
+                        const snapBest = Math.max(0, Number(snapshot.best_wpm) || 0);
+                        const snapAvg = Math.max(0, Number(snapshot.avg_wpm) || 0);
+                        const snapAcc = Math.max(0, Number(snapshot.avg_acc) || 0);
+                        if (elements.profileHubGames) elements.profileHubGames.textContent = String(snapGames);
+                        if (elements.profileHubBest) elements.profileHubBest.textContent = String(snapBest);
+                        if (elements.profileHubAvgWpm) elements.profileHubAvgWpm.textContent = String(snapAvg);
+                        if (elements.profileHubAvgAcc) elements.profileHubAvgAcc.textContent = `${snapAcc}%`;
+
+                        const topSongs = Array.isArray(snapshot.top_songs) ? snapshot.top_songs : [];
+                        const topArtists = Array.isArray(snapshot.top_artists) ? snapshot.top_artists : [];
+                        if (elements.profileHubRecent) elements.profileHubRecent.innerHTML = renderProfileHubSongsFromRows(topSongs);
+                        if (elements.profileHubFavorites) {
+                            elements.profileHubFavorites.innerHTML = renderProfileHubArtistsFromRows(topArtists);
+                            hydrateProfileHubArtistRail(topArtists, artworkSeq);
+                        }
+                    }).catch(() => {});
+                }
                 return;
             }
             const username = elements.authUserName?.textContent || 'user';
@@ -5216,11 +5370,28 @@ bindLegacyInlineHandlers();
                                   <div class="profile-hub-artist-meta">${row.count} runs | ${avgWpm} avg WPM</div>
                                 </div>`;
                     }).join('');
+                    hydrateProfileHubArtistRail(artistsVisible, artworkSeq);
                 }
             }
 
             renderProfileHubComparison(getSelfSummaryStats());
             drawProfileHubChart(authGameResultsCache);
+        }
+
+        function setProfileHubScrollLock(locked) {
+            const body = document.body;
+            if (!body) return;
+            if (locked) {
+                if (body.dataset.profileHubScrollLock === '1') return;
+                body.dataset.profileHubPrevOverflow = body.style.overflow || '';
+                body.style.overflow = 'hidden';
+                body.dataset.profileHubScrollLock = '1';
+                return;
+            }
+            if (body.dataset.profileHubScrollLock !== '1') return;
+            body.style.overflow = body.dataset.profileHubPrevOverflow || '';
+            delete body.dataset.profileHubPrevOverflow;
+            delete body.dataset.profileHubScrollLock;
         }
 
         async function openProfileHub() {
@@ -5234,6 +5405,7 @@ bindLegacyInlineHandlers();
             profileHubContext = { type: 'self', friend: null, source: 'self' };
             if (elements.profileHubOverlay) {
                 elements.profileHubOverlay.classList.remove('hidden');
+                setProfileHubScrollLock(true);
                 renderProfileHub();
             }
         }
@@ -5273,6 +5445,7 @@ bindLegacyInlineHandlers();
 
         function closeProfileHub() {
             if (elements.profileHubOverlay) elements.profileHubOverlay.classList.add('hidden');
+            setProfileHubScrollLock(false);
             profileHubArtworkSeq++;
             profileHubContext = { type: 'self', friend: null, source: 'self' };
             profileHubCompareFriendKey = '';
@@ -6833,7 +7006,7 @@ bindLegacyInlineHandlers();
         async function fetchItunesSongsByArtist(artistName) {
             try {
                 const q = encodeURIComponent((artistName || '').trim());
-                const url = `https://itunes.apple.com/search?term=${q}&entity=song&limit=120`;
+                const url = `https://itunes.apple.com/search?term=${q}&entity=song&attribute=artistTerm&limit=200`;
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 2800);
                 const res = await fetch(url, { signal: controller.signal });
@@ -7016,18 +7189,17 @@ bindLegacyInlineHandlers();
                 fetchLrcLibSearchRaw(raw),
                 fetchItunesSongsByArtist(raw)
             ]);
-            const lrRowsWithLyrics = lrRows.filter((row) => rowHasLyrics(row));
-            // Prefer rows that already contain lyrics to avoid "song found but no lyrics".
-            const rows = lrRowsWithLyrics.length > 0 ? lrRowsWithLyrics : [...lrRows, ...itRows];
             const normArtist = normalizeLookupText(raw);
             const map = new Map();
-            rows.forEach((row) => {
-                const track = (row?.trackName || '').trim();
-                const artist = (row?.artistName || '').trim();
-                const album = (row?.albumName || row?.album || '').trim();
+
+            // 1) Build full catalog list from music catalog source first.
+            itRows.forEach((row) => {
+                const track = String(row?.trackName || '').trim();
+                const artist = String(row?.artistName || '').trim();
+                const album = String(row?.albumName || row?.album || '').trim();
                 if (!track || !artist) return;
                 const artistNorm = normalizeLookupText(artist);
-                if (!artistNorm.includes(normArtist)) return;
+                if (!artistMatchesLoosely(artistNorm, normArtist)) return;
                 const key = `${normalizeLookupText(track)}|||${normalizeLookupText(artist)}`;
                 if (!key || map.has(key)) return;
                 map.set(key, {
@@ -7043,6 +7215,46 @@ bindLegacyInlineHandlers();
                     syncedLyrics: (row?.syncedLyrics || '').trim()
                 });
             });
+
+            // 2) Enrich catalog rows with lyrics/sync from LrcLib when available.
+            lrRows.forEach((row) => {
+                const track = String(row?.trackName || '').trim();
+                const artist = String(row?.artistName || '').trim();
+                const album = String(row?.albumName || row?.album || '').trim();
+                if (!track || !artist) return;
+                const artistNorm = normalizeLookupText(artist);
+                if (!artistMatchesLoosely(artistNorm, normArtist)) return;
+                const key = `${normalizeLookupText(track)}|||${normalizeLookupText(artist)}`;
+                const existing = map.get(key);
+                if (existing) {
+                    const plainLyrics = String(row?.plainLyrics || '').trim();
+                    const syncedLyrics = String(row?.syncedLyrics || '').trim();
+                    if (plainLyrics) existing.plainLyrics = plainLyrics;
+                    if (syncedLyrics) existing.syncedLyrics = syncedLyrics;
+                    if (!existing.album && album) existing.album = album;
+                    const durationMs = Number(row?.durationMs || row?.trackTimeMillis || 0);
+                    if (!existing.durationMs && durationMs > 0) {
+                        existing.durationMs = durationMs;
+                        existing.duration = getDurationSecondsFromAny(durationMs);
+                    }
+                    map.set(key, existing);
+                    return;
+                }
+                // keep LrcLib-only songs that are not in catalog source
+                map.set(key, {
+                    title: track,
+                    artist,
+                    album,
+                    duration: getDurationSecondsFromAny(row?.duration || row?.durationMs || row?.trackTimeMillis || 0),
+                    durationMs: Number(row?.durationMs || row?.trackTimeMillis || 0),
+                    artworkUrl100: row?.artworkUrl100 || '',
+                    trackViewUrl: row?.trackViewUrl || '',
+                    artistViewUrl: row?.artistViewUrl || '',
+                    plainLyrics: String(row?.plainLyrics || '').trim(),
+                    syncedLyrics: String(row?.syncedLyrics || '').trim()
+                });
+            });
+
             const songs = Array.from(map.values()).sort((a, b) => a.title.localeCompare(b.title));
             state.artistSongsCache.set(cacheKey, songs);
             return songs;
@@ -7266,7 +7478,7 @@ bindLegacyInlineHandlers();
                 if (syncDiff !== 0) return syncDiff;
                 return String(a?.title || '').localeCompare(String(b?.title || ''));
             });
-            elements.artistSongsList.innerHTML = ranked.slice(0, 24).map((song, idx) => `
+            elements.artistSongsList.innerHTML = ranked.map((song, idx) => `
                 <button type="button" class="artist-spotlight-item" data-song-index="${idx}">
                     <span class="artist-spotlight-rank">${idx + 1}</span>
                     <span>
@@ -7315,11 +7527,11 @@ bindLegacyInlineHandlers();
                 artistSpotlightSongs = songs || [];
                 state.artistCatalogSongs = songs || [];
                 state.artistCatalogName = artistName;
-                const topCount = Math.min(24, artistSpotlightSongs.length);
+                const totalCount = artistSpotlightSongs.length;
                 const syncCount = artistSpotlightSongs.filter((song) => songHasSyncedLyrics(song)).length;
                 if (elements.artistSongsStatus) {
-                    elements.artistSongsStatus.textContent = topCount
-                        ? `${topCount} songs found. ${syncCount} com sync para Rhythm (SYNC READY).`
+                    elements.artistSongsStatus.textContent = totalCount
+                        ? `${totalCount} songs found. ${syncCount} with sync for Rhythm (SYNC READY).`
                         : 'No songs found.';
                 }
                 const cover = artistSpotlightSongs.find((s) => s?.artworkUrl100)?.artworkUrl100 || '';
