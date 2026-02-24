@@ -950,6 +950,55 @@
             justify-content: space-between;
             gap: 8px;
         }
+        .header-notification-wrap {
+            position: relative;
+        }
+        .header-notification-btn {
+            position: relative;
+        }
+        .header-notification-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            min-width: 17px;
+            height: 17px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: var(--error-color);
+            color: #fff;
+            font-size: 0.65rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .header-notifications-panel {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: min(360px, 92vw);
+            max-height: 340px;
+            overflow: auto;
+            border: 1px solid color-mix(in srgb, var(--sub-color) 22%, transparent);
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--bg-color) 95%, transparent);
+            box-shadow: 0 12px 28px color-mix(in srgb, #000 35%, transparent);
+            padding: 10px;
+            z-index: 80;
+        }
+        .header-notifications-title {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--sub-color);
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+        .header-notifications-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
         .duel-room-meta {
             font-size: 0.8rem;
             color: var(--main-color);
@@ -1047,6 +1096,25 @@
             text-transform: uppercase;
             letter-spacing: 0.04em;
             color: var(--main-color);
+        }
+        .duel-invitee-layout {
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid color-mix(in srgb, var(--main-color) 32%, transparent);
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--main-color) 8%, transparent);
+        }
+        .duel-invitee-title {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--main-color);
+            font-weight: 700;
+        }
+        .duel-invitee-meta {
+            margin-top: 6px;
+            font-size: 0.82rem;
+            color: var(--text-color);
         }
         .duel-nav-badge {
             display: inline-flex;

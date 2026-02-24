@@ -415,6 +415,7 @@ bindLegacyInlineHandlers();
                 uiStep: 'entry',
                 ownerId: '',
                 ownerName: '',
+                joinSource: '',
                 songTitle: '',
                 artist: '',
                 lyrics: '',
@@ -457,6 +458,10 @@ bindLegacyInlineHandlers();
             navCustom: document.getElementById('nav-custom'),
             navDuel: document.getElementById('nav-duel'),
             navDuelBadge: document.getElementById('nav-duel-badge'),
+            headerNotificationsButton: document.getElementById('header-notifications-button'),
+            headerNotificationsBadge: document.getElementById('header-notifications-badge'),
+            headerNotificationsPanel: document.getElementById('header-notifications-panel'),
+            headerNotificationsList: document.getElementById('header-notifications-list'),
             btnToggleEasy: document.getElementById('btn-toggle-easy'),
             btnToggleSpeak: document.getElementById('btn-toggle-speak'),
             btnToggleVideo: document.getElementById('btn-toggle-video'),
@@ -494,6 +499,8 @@ bindLegacyInlineHandlers();
             customCoverPreview: document.getElementById('custom-cover-preview'),
             duelViewState: document.getElementById('duel-view-state'),
             duelViewOpponent: document.getElementById('duel-view-opponent'),
+            duelInviteeLayout: document.getElementById('duel-invitee-layout'),
+            duelInviteeMeta: document.getElementById('duel-invitee-meta'),
             duelSlotOwner: document.getElementById('duel-slot-owner'),
             duelSlotOpponent: document.getElementById('duel-slot-opponent'),
             duelViewInviteTarget: document.getElementById('duel-view-invite-target'),
@@ -763,6 +770,7 @@ bindLegacyInlineHandlers();
         let duelPresenceLastPayloadSig = '';
         let duelKnownInviteIds = new Set();
         let duelInviteNotifPrimed = false;
+        let duelInviteRowsCache = [];
         let spotifyPollTimer = null;
         let spotifyIsTrackingEnabled = false;
         let spotifyLastPlayedAtKnown = '';
@@ -3444,6 +3452,7 @@ bindLegacyInlineHandlers();
                 uiStep: 'entry',
                 ownerId: '',
                 ownerName: '',
+                joinSource: '',
                 songTitle: '',
                 artist: '',
                 lyrics: '',
@@ -3541,6 +3550,24 @@ bindLegacyInlineHandlers();
             }
             if (elements.duelViewInviteBtn) {
                 elements.duelViewInviteBtn.disabled = !inRoom;
+            }
+            const isInviteeMode = inRoom && !state.duel.isOwner && state.duel.joinSource === 'invite';
+            if (elements.duelInviteeLayout) {
+                elements.duelInviteeLayout.classList.toggle('hidden', !isInviteeMode);
+            }
+            if (elements.duelInviteeMeta) {
+                const hostName = state.duel.ownerName || 'host';
+                const songLabel = isDuelSongConfigured()
+                    ? `${state.duel.artist || 'Unknown'} - ${state.duel.songTitle || 'Song'}`
+                    : 'Host is choosing the song';
+                elements.duelInviteeMeta.textContent = `Host: ${hostName} | ${songLabel}`;
+            }
+            const duelInviteRow = elements.duelViewInviteTarget?.closest('.auth-friend-add-row');
+            if (duelInviteRow) duelInviteRow.classList.toggle('hidden', isInviteeMode);
+            if (elements.duelViewFriendList) {
+                elements.duelViewFriendList.classList.toggle('hidden', isInviteeMode);
+                const subtitle = elements.duelViewFriendList.previousElementSibling;
+                if (subtitle) subtitle.classList.toggle('hidden', isInviteeMode);
             }
             if (elements.duelCopyCodeBtn) {
                 elements.duelCopyCodeBtn.disabled = !inRoom;
@@ -3764,9 +3791,46 @@ bindLegacyInlineHandlers();
 
         function setDuelInviteBadge(count) {
             const safeCount = Math.max(0, Number(count) || 0);
-            if (!elements.navDuelBadge) return;
-            elements.navDuelBadge.textContent = String(safeCount);
-            elements.navDuelBadge.classList.toggle('hidden', safeCount <= 0);
+            if (elements.navDuelBadge) {
+                elements.navDuelBadge.textContent = String(safeCount);
+                elements.navDuelBadge.classList.toggle('hidden', safeCount <= 0);
+            }
+            if (elements.headerNotificationsBadge) {
+                elements.headerNotificationsBadge.textContent = String(safeCount);
+                elements.headerNotificationsBadge.classList.toggle('hidden', safeCount <= 0);
+            }
+        }
+
+        function renderHeaderNotifications() {
+            if (!elements.headerNotificationsList) return;
+            if (!authCurrentUser) {
+                elements.headerNotificationsList.innerHTML = '<div class="auth-recent-empty">Login required.</div>';
+                return;
+            }
+            if (!Array.isArray(duelInviteRowsCache) || duelInviteRowsCache.length === 0) {
+                elements.headerNotificationsList.innerHTML = '<div class="auth-recent-empty">No notifications.</div>';
+                return;
+            }
+            elements.headerNotificationsList.innerHTML = duelInviteRowsCache.map((row) => `
+                <div class="auth-friend-item">
+                    <div>
+                        <div class="auth-friend-name">${escapeHtml(row.from || 'player')}</div>
+                        <div class="auth-friend-meta">Invited you to room ${escapeHtml(String(row.room_id || ''))}</div>
+                    </div>
+                    <div class="auth-friend-actions">
+                        <button class="auth-friend-btn accept" data-onclick="respondDuelInvite(${row.id}, true)">Accept</button>
+                        <button class="auth-friend-btn reject" data-onclick="respondDuelInvite(${row.id}, false)">Reject</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleNotificationsPanel(event) {
+            if (event?.stopPropagation) event.stopPropagation();
+            if (!elements.headerNotificationsPanel) return;
+            const willOpen = elements.headerNotificationsPanel.classList.contains('hidden');
+            elements.headerNotificationsPanel.classList.toggle('hidden');
+            if (willOpen) renderHeaderNotifications();
         }
 
         async function renderDuelInvites() {
@@ -3775,8 +3839,10 @@ bindLegacyInlineHandlers();
             if (!user) {
                 setDuelInviteListHtml('<div class="auth-recent-empty">Login required.</div>');
                 setDuelInviteBadge(0);
+                duelInviteRowsCache = [];
                 duelKnownInviteIds = new Set();
                 duelInviteNotifPrimed = false;
+                renderHeaderNotifications();
                 return;
             }
             const { data, error } = await supabase
@@ -3789,8 +3855,10 @@ bindLegacyInlineHandlers();
             if (error || !data || data.length === 0) {
                 setDuelInviteListHtml('<div class="auth-recent-empty">No duel invites.</div>');
                 setDuelInviteBadge(0);
+                duelInviteRowsCache = [];
                 duelKnownInviteIds = new Set();
                 duelInviteNotifPrimed = true;
+                renderHeaderNotifications();
                 return;
             }
             const inviterIds = Array.from(new Set(data.map((row) => row.inviter_id).filter(Boolean)));
@@ -3814,6 +3882,10 @@ bindLegacyInlineHandlers();
             duelKnownInviteIds = currentInviteSet;
             duelInviteNotifPrimed = true;
             setDuelInviteBadge(data.length);
+            duelInviteRowsCache = data.map((row) => ({
+                ...row,
+                from: inviterMap.get(row.inviter_id)?.username || 'player'
+            }));
             setDuelInviteListHtml(data.map((row) => {
                 const from = inviterMap.get(row.inviter_id)?.username || 'player';
                 return `<div class="auth-friend-item">
@@ -3827,6 +3899,7 @@ bindLegacyInlineHandlers();
                           </div>
                         </div>`;
             }).join(''));
+            renderHeaderNotifications();
         }
 
         async function fetchDuelRoomSnapshot(roomId) {
@@ -3951,6 +4024,11 @@ bindLegacyInlineHandlers();
             state.duel.status = room.status || 'waiting';
             state.duel.ownerId = room.owner_id || '';
             state.duel.isOwner = room.owner_id === user.id;
+            if (state.duel.isOwner) {
+                state.duel.joinSource = 'owner';
+            } else if (!state.duel.joinSource) {
+                state.duel.joinSource = 'manual';
+            }
             state.duel.songTitle = room.song_title || 'Duel song';
             state.duel.artist = room.artist || 'Duel';
             state.duel.lyrics = room.lyrics || '';
@@ -4048,6 +4126,7 @@ bindLegacyInlineHandlers();
             state.duel.uiStep = 'room';
             state.duel.gameLaunched = false;
             state.duel.resultShown = false;
+            state.duel.joinSource = 'owner';
             state.duel.selfReady = false;
             state.duel.presencePlayers = [];
             ensureDuelRealtimeRoomSubscription(state.duel.roomId);
@@ -4074,6 +4153,7 @@ bindLegacyInlineHandlers();
             state.duel.uiStep = 'room';
             state.duel.gameLaunched = false;
             state.duel.resultShown = false;
+            state.duel.joinSource = 'manual';
             state.duel.selfReady = false;
             state.duel.presencePlayers = [];
             if (elements.duelRoomCodeInput) elements.duelRoomCodeInput.value = '';
@@ -4143,6 +4223,7 @@ bindLegacyInlineHandlers();
                 state.duel.uiStep = 'room';
                 state.duel.gameLaunched = false;
                 state.duel.resultShown = false;
+                state.duel.joinSource = 'invite';
                 state.duel.selfReady = false;
                 state.duel.presencePlayers = [];
                 ensureDuelRealtimeRoomSubscription(state.duel.roomId);
@@ -4270,6 +4351,9 @@ bindLegacyInlineHandlers();
             setDuelInviteBadge(0);
             duelKnownInviteIds = new Set();
             duelInviteNotifPrimed = false;
+            duelInviteRowsCache = [];
+            renderHeaderNotifications();
+            if (elements.headerNotificationsPanel) elements.headerNotificationsPanel.classList.add('hidden');
             authFriendsCache = [];
             authFriendRequestsCache = [];
             authFavoritesCache = [];
@@ -7752,6 +7836,7 @@ bindLegacyInlineHandlers();
             openProfileScreen,
             openFriendsPanel,
             openAccountSettings,
+            toggleNotificationsPanel,
             handleHeaderAvatarClick,
             openArtistSongsModal,
             openRandomArtistSong,
@@ -7874,6 +7959,13 @@ bindLegacyInlineHandlers();
         }
         document.addEventListener('click', (event) => {
             const target = event.target;
+            if (elements.headerNotificationsPanel && elements.headerNotificationsButton) {
+                const insidePanel = elements.headerNotificationsPanel.contains(target);
+                const insideButton = elements.headerNotificationsButton.contains(target);
+                if (!insidePanel && !insideButton) {
+                    elements.headerNotificationsPanel.classList.add('hidden');
+                }
+            }
             const insideArtist = elements.artistInput?.parentElement?.contains(target);
             const insideTitle = elements.titleInput?.parentElement?.contains(target);
             if (!insideArtist) elements.artistSuggestions?.classList.add('hidden');
