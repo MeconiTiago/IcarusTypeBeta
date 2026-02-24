@@ -503,6 +503,7 @@ bindLegacyInlineHandlers();
             duelSongArtist: document.getElementById('duel-song-artist'),
             duelSongTitle: document.getElementById('duel-song-title'),
             duelSongStatus: document.getElementById('duel-song-status'),
+            duelQuickRoomCode: document.getElementById('duel-quick-room-code'),
             currentSongArtist: document.getElementById('current-song-artist'),
             missedWordsContainer: document.getElementById('missed-words-container'),
             missedWordsList: document.getElementById('missed-words-list'),
@@ -4035,6 +4036,7 @@ bindLegacyInlineHandlers();
             state.duel.presencePlayers = [];
             if (elements.duelRoomCodeInput) elements.duelRoomCodeInput.value = '';
             if (elements.duelRoomCodeInputView) elements.duelRoomCodeInputView.value = '';
+            if (elements.duelQuickRoomCode) elements.duelQuickRoomCode.value = '';
             ensureDuelRealtimeRoomSubscription(state.duel.roomId);
             await pollDuelRoom();
             showToast('Joined duel room.', 'info');
@@ -4050,6 +4052,17 @@ bindLegacyInlineHandlers();
             }
             if (elements.duelRoomCodeInput) elements.duelRoomCodeInput.value = code;
             await joinDuelRoomByCode();
+        }
+
+        async function joinDuelRoomByCodeQuick() {
+            const code = String(elements.duelQuickRoomCode?.value || '').trim();
+            if (!code) {
+                showToast('Digite o codigo da sala.', 'error');
+                return;
+            }
+            if (elements.duelRoomCodeInputView) elements.duelRoomCodeInputView.value = code;
+            if (elements.duelRoomCodeInput) elements.duelRoomCodeInput.value = code;
+            await joinDuelRoomByCodeFromView();
         }
 
         async function invitePlayerToDuelRoom() {
@@ -7655,6 +7668,7 @@ bindLegacyInlineHandlers();
             createDuelRoomFromCurrentSong,
             joinDuelRoomByCode,
             joinDuelRoomByCodeFromView,
+            joinDuelRoomByCodeQuick,
             invitePlayerToDuelRoom,
             invitePlayerToDuelRoomFromView,
             inviteDuelFriendByUsername,

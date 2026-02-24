@@ -1015,6 +1015,21 @@
             margin-top: 12px;
             flex-wrap: wrap;
         }
+        .duel-quick-bar {
+            display: grid;
+            grid-template-columns: auto minmax(220px, 1fr) auto;
+            gap: 8px;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid color-mix(in srgb, var(--main-color) 24%, transparent);
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--bg-color) 18%, transparent);
+        }
+        @media (max-width: 768px) {
+            .duel-quick-bar {
+                grid-template-columns: 1fr;
+            }
+        }
         .duel-member-meta {
             margin-top: 2px;
             font-size: 0.72rem;
