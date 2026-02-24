@@ -253,6 +253,286 @@
         #artist-songs-modal-overlay > div {
             border-color: rgba(62, 227, 158, 0.45);
         }
+
+        .app-modal-card {
+            width: min(760px, calc(100vw - 24px));
+            max-height: min(92vh, 920px);
+            margin: 12px;
+            border: 1px solid rgba(62, 227, 158, 0.45);
+            border-radius: 14px;
+            background:
+                radial-gradient(circle at 16% 10%, rgba(62, 227, 158, 0.1), transparent 44%),
+                linear-gradient(180deg, rgba(8, 22, 34, 0.96), rgba(4, 14, 24, 0.98));
+            box-shadow: 0 20px 48px rgba(0, 0, 0, 0.45);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .app-modal-card--profile {
+            width: min(1080px, calc(100vw - 24px));
+        }
+        .app-modal-card--settings {
+            width: min(700px, calc(100vw - 24px));
+        }
+        .app-modal-card--info {
+            width: min(640px, calc(100vw - 24px));
+        }
+        .app-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 18px 20px 14px;
+            border-bottom: 1px solid rgba(125, 125, 125, 0.2);
+            background: rgba(0, 0, 0, 0.15);
+        }
+        .app-modal-title-wrap {
+            display: grid;
+            gap: 3px;
+        }
+        .app-modal-kicker {
+            color: var(--sub-color);
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        .app-modal-title {
+            color: var(--text-color);
+            font-size: 1.5rem;
+            font-weight: 700;
+            line-height: 1.12;
+        }
+        .app-modal-close {
+            border: 1px solid rgba(125, 125, 125, 0.32);
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--sub-color);
+            padding: 6px 11px;
+            font-size: 0.78rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            line-height: 1;
+            cursor: pointer;
+            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+        }
+        .app-modal-close:hover {
+            color: var(--text-color);
+            border-color: rgba(62, 227, 158, 0.5);
+            background: rgba(62, 227, 158, 0.08);
+        }
+        .app-modal-close-icon {
+            color: var(--main-color);
+            font-size: 1rem;
+            font-weight: 700;
+        }
+        .app-modal-body {
+            padding: 14px 20px 18px;
+            overflow-y: auto;
+        }
+        .modal-surface-block {
+            border: 1px solid rgba(125, 125, 125, 0.24);
+            border-radius: 10px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.18);
+        }
+        .about-powered-list {
+            margin: 0;
+            padding-left: 18px;
+            display: grid;
+            gap: 5px;
+        }
+        .settings-modal-body {
+            display: grid;
+            gap: 0;
+        }
+        .settings-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(125, 125, 125, 0.18);
+        }
+        .settings-row:last-child {
+            border-bottom: 0;
+            padding-bottom: 0;
+        }
+        .settings-row:first-of-type {
+            padding-top: 0;
+        }
+        .settings-shortcuts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .account-modal-body {
+            display: grid;
+            gap: 12px;
+        }
+        #auth-user-view:not(.hidden) {
+            display: grid;
+            gap: 12px;
+        }
+        .account-sections-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .feature-temporary-hidden {
+            display: none !important;
+        }
+        #auth-stats-section.account-panel-section,
+        #auth-duel-section.account-panel-section {
+            grid-column: 1 / -1;
+        }
+        #auth-friends-section.account-panel-section {
+            grid-column: 1 / -1;
+        }
+        .account-panel-section {
+            margin-top: 0 !important;
+            border: 1px solid rgba(125, 125, 125, 0.22);
+            border-radius: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.16);
+        }
+        #auth-stats-section.account-panel-section {
+            padding: 10px;
+        }
+        #auth-actions-section.account-panel-section .auth-submit-btn,
+        #auth-actions-section.account-panel-section .auth-delete-btn {
+            width: 100%;
+        }
+        #spotify-section.account-panel-section {
+            margin-top: 0 !important;
+        }
+        .auth-friend-add-row > .auth-submit-btn:only-child {
+            grid-column: 1 / -1;
+        }
+        .friends-utilities-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.9fr);
+            gap: 10px;
+            align-items: start;
+        }
+        .account-utility-stack {
+            display: grid;
+            gap: 8px;
+        }
+        .utility-disclosure {
+            border: 1px solid rgba(125, 125, 125, 0.22);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+        .utility-disclosure > summary {
+            list-style: none;
+            cursor: pointer;
+            color: var(--sub-color);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 700;
+            padding: 10px 11px;
+            border-bottom: 1px solid transparent;
+            transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 8px;
+            align-items: center;
+        }
+        .utility-summary-title {
+            color: inherit;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .utility-summary-meta {
+            font-size: 0.62rem;
+            letter-spacing: 0.03em;
+            text-transform: none;
+            opacity: 0.8;
+            white-space: nowrap;
+        }
+        .utility-summary-chevron {
+            font-size: 0.9rem;
+            line-height: 1;
+            transition: transform 0.2s ease;
+        }
+        .utility-disclosure > summary::-webkit-details-marker {
+            display: none;
+        }
+        .utility-disclosure[open] > summary {
+            color: var(--text-color);
+            border-bottom-color: rgba(125, 125, 125, 0.2);
+            background: rgba(0, 0, 0, 0.14);
+        }
+        .utility-disclosure[open] .utility-summary-chevron {
+            transform: rotate(180deg);
+        }
+        .utility-disclosure-danger > summary {
+            color: #d0a7a7;
+        }
+        .utility-disclosure-danger[open] > summary {
+            color: #f0c4c4;
+            border-bottom-color: rgba(255, 89, 89, 0.25);
+        }
+        .utility-panel {
+            padding: 10px;
+            display: grid;
+            gap: 8px;
+        }
+        .utility-panel-title {
+            color: var(--sub-color);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 700;
+        }
+        .utility-mini-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 7px;
+        }
+        .utility-mini-stat {
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.18);
+            padding: 8px;
+            display: grid;
+            gap: 3px;
+        }
+        .utility-mini-stat span {
+            color: var(--sub-color);
+            font-size: 0.64rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .utility-mini-stat strong {
+            color: var(--text-color);
+            font-size: 0.88rem;
+            line-height: 1.1;
+        }
+        .utility-compare-list {
+            max-height: 178px;
+            padding-right: 2px;
+        }
+        .utility-panel .auth-submit-btn,
+        .utility-panel .auth-friend-btn,
+        .utility-panel .auth-delete-btn {
+            text-transform: none;
+            letter-spacing: 0.02em;
+            font-size: 0.78rem;
+            padding: 9px 10px;
+            border-radius: 7px;
+        }
+        .utility-panel .auth-delete-btn {
+            background: rgba(255, 89, 89, 0.08);
+        }
+        .utility-panel .auth-recent-list {
+            max-height: 120px;
+        }
         
         /* Transparent Overlay for Popover (Click outside to close) */
         #popover-overlay { background-color: transparent; }
@@ -736,6 +1016,53 @@
             border-left: 0;
             border-right: 0;
             border-top: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        body.artist-spotlight-open {
+            overflow: hidden;
+        }
+        .artist-spotlight-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .artist-spotlight-kicker {
+            color: var(--sub-color);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 4px;
+        }
+        .artist-spotlight-subtitle {
+            color: var(--sub-color);
+            font-size: 0.8rem;
+            margin-top: 4px;
+        }
+        .artist-spotlight-close {
+            border: 1px solid rgba(125, 125, 125, 0.34);
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.22);
+            color: var(--sub-color);
+            font-size: 0.78rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            line-height: 1;
+            transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+        .artist-spotlight-close:hover {
+            color: var(--text-color);
+            border-color: rgba(62, 227, 158, 0.5);
+            background: rgba(62, 227, 158, 0.1);
+        }
+        .artist-spotlight-close-icon {
+            color: var(--main-color);
+            font-size: 1rem;
+            font-weight: 700;
         }
         .artist-spotlight-hero {
             display: grid;
@@ -769,7 +1096,8 @@
             display: grid;
             gap: 8px 12px;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            max-height: 54vh;
+            flex: 1;
+            min-height: 0;
             overflow-y: auto;
             padding-right: 4px;
         }
@@ -1812,85 +2140,124 @@
             font-size: 0.7rem;
         }
         .profile-hub-overlay {
-            background: radial-gradient(circle at 20% 10%, rgba(62, 227, 158, 0.12), transparent 40%), rgba(3, 10, 16, 0.92);
+            background: radial-gradient(circle at 14% 8%, rgba(62, 227, 158, 0.12), transparent 40%), rgba(3, 10, 16, 0.94);
             backdrop-filter: blur(6px);
             overflow-y: auto;
-            padding: 28px 14px;
+            padding: 22px 14px;
         }
         .profile-hub-shell {
-            max-width: 1080px;
+            max-width: 1280px;
             margin: 0 auto;
-            border: 1px solid rgba(125, 125, 125, 0.25);
-            border-radius: 14px;
+            border: 1px solid rgba(62, 227, 158, 0.2);
+            border-radius: 16px;
             padding: 18px;
-            background: linear-gradient(180deg, rgba(9, 27, 41, 0.95), rgba(5, 16, 26, 0.96));
-            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+            background: linear-gradient(180deg, rgba(10, 26, 40, 0.94), rgba(4, 14, 24, 0.97));
+            box-shadow: 0 20px 56px rgba(0, 0, 0, 0.48);
+            display: grid;
+            gap: 12px;
         }
         .profile-hub-header {
             display: flex;
             justify-content: space-between;
+            align-items: center;
             gap: 12px;
-            align-items: flex-start;
-            margin-bottom: 12px;
         }
         .profile-hub-kicker {
             color: var(--sub-color);
-            font-size: 0.72rem;
+            font-size: 0.94rem;
             text-transform: uppercase;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.1em;
         }
-        .profile-hub-title {
+        .profile-hub-close {
+            border: 1px solid rgba(125, 125, 125, 0.3);
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--sub-color);
+            border-radius: 999px;
+            padding: 8px 14px;
+            font-size: 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .profile-hub-close:hover {
             color: var(--text-color);
-            font-size: 1.8rem;
+            border-color: rgba(62, 227, 158, 0.45);
+        }
+        .profile-hub-close-icon {
+            color: var(--main-color);
+            font-size: 0.94rem;
+            line-height: 1;
             font-weight: 700;
-            line-height: 1.1;
         }
         .profile-hub-hero {
+            border: 1px solid rgba(125, 125, 125, 0.2);
+            border-radius: 12px;
+            padding: 18px;
+            background:
+                linear-gradient(118deg, rgba(127, 34, 52, 0.78), rgba(53, 17, 30, 0.36) 34%, rgba(6, 17, 29, 0.86) 75%),
+                radial-gradient(circle at 70% 0%, rgba(255, 255, 255, 0.08), transparent 38%);
             display: grid;
-            grid-template-columns: 96px 1fr;
-            gap: 14px;
+            grid-template-columns: 124px minmax(0, 1fr);
+            gap: 16px;
             align-items: center;
-            border: 1px solid rgba(125, 125, 125, 0.18);
-            border-radius: 10px;
-            padding: 12px;
-            background: rgba(0, 0, 0, 0.18);
         }
         .profile-hub-avatar {
-            width: 96px;
-            height: 96px;
+            width: 124px;
+            height: 124px;
             border-radius: 50%;
             object-fit: cover;
-            border: 2px solid rgba(62, 227, 158, 0.45);
+            border: 3px solid rgba(255, 255, 255, 0.26);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+        }
+        .profile-hub-label {
+            color: rgba(240, 249, 255, 0.8);
+            font-size: 0.82rem;
+            letter-spacing: 0.06em;
+        }
+        .profile-hub-title {
+            color: #f8fcff;
+            font-size: clamp(2rem, 4.8vw, 4.3rem);
+            font-weight: 800;
+            line-height: 0.96;
+            margin-top: 4px;
+        }
+        .profile-hub-meta-row {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: baseline;
+            flex-wrap: wrap;
         }
         .profile-hub-level {
             color: var(--main-color);
-            font-size: 0.82rem;
+            font-size: 0.84rem;
             font-weight: 700;
             letter-spacing: 0.06em;
             text-transform: uppercase;
         }
         .profile-hub-email {
-            color: var(--sub-color);
-            font-size: 0.84rem;
-            margin-top: 2px;
+            color: rgba(222, 236, 244, 0.86);
+            font-size: 0.98rem;
         }
         .profile-hub-bio {
-            color: var(--text-color);
-            font-size: 0.9rem;
-            margin-top: 6px;
-            line-height: 1.35;
+            color: #e3edf3;
+            font-size: 1rem;
+            margin-top: 10px;
+            line-height: 1.38;
+            max-width: 78ch;
         }
         .profile-hub-stats-grid {
-            margin-top: 12px;
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
         }
         .profile-hub-stat {
-            border: 1px solid rgba(125, 125, 125, 0.2);
-            border-radius: 8px;
-            padding: 10px;
-            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(125, 125, 125, 0.22);
+            border-radius: 10px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.22);
             display: grid;
             gap: 4px;
             text-align: center;
@@ -1898,42 +2265,42 @@
         .profile-hub-stat span {
             color: var(--sub-color);
             text-transform: uppercase;
-            font-size: 0.68rem;
-            letter-spacing: 0.05em;
+            font-size: 0.72rem;
+            letter-spacing: 0.06em;
         }
         .profile-hub-stat strong {
             color: var(--text-color);
-            font-size: 1.2rem;
+            font-size: 2rem;
+            line-height: 1;
         }
         .profile-hub-compare {
-            margin-top: 12px;
-            border: 1px solid rgba(125, 125, 125, 0.22);
-            border-radius: 10px;
-            padding: 10px;
+            border: 1px solid rgba(125, 125, 125, 0.24);
+            border-radius: 12px;
+            padding: 12px;
             background: rgba(0, 0, 0, 0.2);
             display: grid;
-            gap: 8px;
+            gap: 10px;
         }
         .profile-hub-compare-head {
             display: grid;
-            grid-template-columns: 1fr minmax(180px, 260px);
+            grid-template-columns: 1fr minmax(210px, 300px);
             gap: 10px;
             align-items: center;
         }
         .profile-hub-compare-head h3 {
             color: var(--sub-color);
-            font-size: 0.74rem;
-            letter-spacing: 0.07em;
+            font-size: 0.82rem;
+            letter-spacing: 0.08em;
             text-transform: uppercase;
         }
         .profile-hub-compare-select {
             margin: 0;
             padding: 8px 10px;
             height: auto;
-            min-height: 34px;
+            min-height: 38px;
         }
         .profile-hub-compare-grid {
-            border: 1px solid rgba(125, 125, 125, 0.18);
+            border: 1px solid rgba(125, 125, 125, 0.2);
             border-radius: 8px;
             overflow: hidden;
             background: rgba(0, 0, 0, 0.14);
@@ -1943,19 +2310,19 @@
             grid-template-columns: 1.3fr repeat(3, minmax(0, 1fr));
             gap: 8px;
             align-items: center;
-            padding: 8px 10px;
+            padding: 10px 12px;
             border-top: 1px solid rgba(125, 125, 125, 0.14);
-            font-size: 0.78rem;
+            font-size: 0.94rem;
         }
         .profile-hub-compare-row:first-child {
             border-top: 0;
         }
         .profile-hub-compare-row.head {
-            background: rgba(0, 0, 0, 0.22);
+            background: rgba(0, 0, 0, 0.24);
             color: var(--sub-color);
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            font-size: 0.66rem;
+            font-size: 0.72rem;
             font-weight: 700;
         }
         .profile-hub-compare-metric {
@@ -1983,24 +2350,122 @@
             color: var(--sub-color);
         }
         .profile-hub-main-grid {
-            margin-top: 12px;
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            grid-template-columns: 1fr;
+            gap: 14px;
+            align-items: start;
         }
         .profile-hub-card {
-            border: 1px solid rgba(125, 125, 125, 0.22);
-            border-radius: 10px;
-            padding: 10px;
-            background: rgba(0, 0, 0, 0.2);
-            min-height: 168px;
+            border: 1px solid rgba(125, 125, 125, 0.18);
+            border-radius: 12px;
+            padding: 14px;
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.14));
+            min-width: 0;
         }
-        .profile-hub-card h3 {
+        .profile-hub-section-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: end;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .profile-hub-section-title {
+            color: #f3f9fd;
+            font-size: clamp(1.35rem, 2.3vw, 2rem);
+            font-weight: 800;
+            line-height: 1.05;
+        }
+        .profile-hub-section-subtitle {
+            color: rgba(187, 207, 219, 0.9);
+            font-size: 0.92rem;
+            margin-top: 2px;
+        }
+        .profile-hub-section-link {
+            color: rgba(225, 238, 245, 0.82);
+            font-size: 0.92rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .profile-hub-artist-rail {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+            gap: 14px;
+        }
+        .profile-hub-artist-item {
+            min-width: 0;
+        }
+        .profile-hub-artist-cover {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            border-radius: 999px;
+            object-fit: cover;
+            border: 2px solid rgba(255, 255, 255, 0.16);
+            box-shadow: 0 10px 18px rgba(0, 0, 0, 0.3);
+            margin-bottom: 9px;
+            display: block;
+        }
+        .profile-hub-artist-name {
+            color: #f0f8fc;
+            font-size: 1.01rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .profile-hub-artist-meta {
             color: var(--sub-color);
-            font-size: 0.74rem;
-            letter-spacing: 0.07em;
-            text-transform: uppercase;
-            margin-bottom: 8px;
+            font-size: 0.84rem;
+            margin-top: 2px;
+        }
+        .profile-hub-song-list {
+            display: grid;
+            gap: 2px;
+            max-height: none;
+            overflow: visible;
+            padding-right: 4px;
+        }
+        .profile-hub-song-item {
+            display: grid;
+            grid-template-columns: 30px minmax(0, 1.1fr) minmax(120px, 0.8fr) 92px 52px;
+            gap: 10px;
+            align-items: center;
+            padding: 9px 6px;
+            border-top: 1px solid rgba(125, 125, 125, 0.14);
+        }
+        .profile-hub-song-item:first-child {
+            border-top: 0;
+        }
+        .profile-hub-song-rank {
+            color: rgba(235, 244, 248, 0.86);
+            font-size: 1.02rem;
+            text-align: center;
+        }
+        .profile-hub-song-title {
+            color: #f5fbff;
+            font-size: 1.03rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .profile-hub-song-artist {
+            color: var(--sub-color);
+            font-size: 0.95rem;
+            margin-top: 1px;
+        }
+        .profile-hub-song-album {
+            color: rgba(205, 220, 229, 0.82);
+            font-size: 0.96rem;
+            line-height: 1.2;
+        }
+        .profile-hub-song-metric {
+            color: var(--main-color);
+            font-size: 0.86rem;
+            font-weight: 700;
+            text-align: right;
+            white-space: nowrap;
+        }
+        .profile-hub-song-time {
+            color: rgba(232, 241, 245, 0.88);
+            font-size: 0.92rem;
+            text-align: right;
+            white-space: nowrap;
         }
         .profile-hub-card canvas {
             width: 100%;
@@ -2015,15 +2480,27 @@
         .profile-hub-list {
             display: grid;
             gap: 6px;
-            max-height: 220px;
+            max-height: 260px;
             overflow-y: auto;
-        }
-        .profile-hub-card-wide {
-            grid-column: span 2;
+            padding-right: 2px;
         }
         @media (max-width: 900px) {
+            .profile-hub-shell {
+                padding: 14px;
+            }
+            .profile-hub-hero {
+                grid-template-columns: 86px 1fr;
+                padding: 12px;
+            }
+            .profile-hub-avatar {
+                width: 86px;
+                height: 86px;
+            }
+            .profile-hub-title {
+                font-size: clamp(1.8rem, 8vw, 2.8rem);
+            }
             .profile-hub-stats-grid {
-                grid-template-columns: repeat(2, 1fr);
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
             .profile-hub-compare-head {
                 grid-template-columns: 1fr;
@@ -2031,14 +2508,31 @@
             .profile-hub-main-grid {
                 grid-template-columns: 1fr;
             }
-            .profile-hub-card-wide {
-                grid-column: auto;
+            .profile-hub-section-head {
+                align-items: start;
+            }
+            .profile-hub-section-link {
+                font-size: 0.8rem;
+                padding-top: 6px;
+            }
+            .profile-hub-artist-rail {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 10px;
+            }
+            .profile-hub-song-item {
+                grid-template-columns: 24px minmax(0, 1fr);
+                gap: 8px;
+            }
+            .profile-hub-song-album,
+            .profile-hub-song-metric,
+            .profile-hub-song-time {
+                display: none;
             }
             .profile-hub-compare-row {
                 grid-template-columns: 1.2fr repeat(3, minmax(0, 1fr));
-                font-size: 0.72rem;
+                font-size: 0.76rem;
                 gap: 6px;
-                padding: 7px 8px;
+                padding: 8px;
             }
             .auth-file-row {
                 grid-template-columns: 1fr;
@@ -2208,6 +2702,51 @@
             .artist-songs-list {
                 max-height: 44vh;
             }
+            .app-modal-card,
+            .app-modal-card--profile,
+            .app-modal-card--settings,
+            .app-modal-card--info {
+                width: calc(100vw - 16px);
+                max-height: 93vh;
+                margin: 8px;
+            }
+            .app-modal-header {
+                padding: 14px 14px 12px;
+            }
+            .app-modal-body {
+                padding: 10px 14px 14px;
+            }
+            .app-modal-title {
+                font-size: 1.22rem;
+            }
+            .app-modal-close {
+                padding: 6px 9px;
+            }
+            .app-modal-close span:last-child {
+                display: none;
+            }
+            .modal-surface-block {
+                padding: 9px;
+            }
+            .settings-shortcuts-grid {
+                grid-template-columns: 1fr;
+            }
+            .account-sections-grid {
+                grid-template-columns: 1fr;
+            }
+            .friends-utilities-layout {
+                grid-template-columns: 1fr;
+            }
+            .utility-mini-stats-grid {
+                grid-template-columns: 1fr;
+            }
+            #auth-stats-section.account-panel-section,
+            #auth-duel-section.account-panel-section {
+                grid-column: auto;
+            }
+            #auth-friends-section.account-panel-section {
+                grid-column: auto;
+            }
             .favorites-tab-controls {
                 grid-template-columns: 1fr;
             }
@@ -2218,6 +2757,15 @@
                 grid-template-columns: 1fr;
                 justify-items: center;
                 text-align: center;
+            }
+            .artist-spotlight-header {
+                align-items: center;
+            }
+            .artist-spotlight-close {
+                padding: 7px 10px;
+            }
+            .artist-spotlight-close span:last-child {
+                display: none;
             }
             .artist-spotlight-grid {
                 grid-template-columns: 1fr;

@@ -142,12 +142,20 @@ bindLegacyInlineHandlers();
 
         const wordTranslationCache = new Map();
         let popoverWord = null;
+        let popoverContext = '';
 
         function closeWordPopover() {
             document.getElementById('word-popover').style.display = 'none';
             document.getElementById('popover-overlay').style.display = 'none';
             document.getElementById('popover-content').innerHTML = '<span class="text-sub text-xs italic">Loading...</span>';
+            popoverContext = '';
             focusTypingInput();
+        }
+
+        function normalizeWordToken(raw) {
+            return String(raw || '')
+                .replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, '')
+                .trim();
         }
 
         function handleWordClick(e, word) {
@@ -169,6 +177,23 @@ bindLegacyInlineHandlers();
             }
             
             const wordEl = e.target.closest('.word');
+            if (wordEl && Array.isArray(state.wordElements) && Array.isArray(state.words)) {
+                const idx = state.wordElements.indexOf(wordEl);
+                if (idx >= 0) {
+                    const start = Math.max(0, idx - 3);
+                    const end = Math.min(state.words.length - 1, idx + 3);
+                    const contextTokens = [];
+                    for (let i = start; i <= end; i++) {
+                        const token = normalizeWordToken(state.words[i]);
+                        if (token) contextTokens.push(token);
+                    }
+                    popoverContext = contextTokens.join(' ');
+                } else {
+                    popoverContext = '';
+                }
+            } else {
+                popoverContext = '';
+            }
             let isLocked = false;
             if (state.isClozeMode && wordEl && wordEl.classList.contains('cloze-target')) {
                  if (!wordEl.classList.contains('revealed')) {
@@ -255,15 +280,16 @@ bindLegacyInlineHandlers();
             const content = document.getElementById('popover-content');
             content.innerHTML = '<div class="loader mx-auto"></div>';
             
-            let cached = wordTranslationCache.get(popoverWord.toLowerCase());
+            const cacheKey = `${popoverWord.toLowerCase()}|||${popoverContext.toLowerCase()}`;
+            let cached = wordTranslationCache.get(cacheKey);
             if (cached) {
                 content.innerHTML = `<div class="text-center text-lg font-bold text-main">${cached}</div>`;
                 return;
             }
 
             try {
-                const trans = await fetchTranslation(popoverWord);
-                wordTranslationCache.set(popoverWord.toLowerCase(), trans);
+                const trans = await fetchTranslation(popoverWord, { singleWord: true });
+                wordTranslationCache.set(cacheKey, trans);
                 content.innerHTML = `<div class="text-center text-lg font-bold text-main">${trans}</div>`;
             } catch (e) {
                 content.innerHTML = '<div class="text-center text-error">Translation error.</div>';
@@ -440,6 +466,7 @@ bindLegacyInlineHandlers();
             practiceModal: document.getElementById('practice-modal-overlay'),
             artistSongsModal: document.getElementById('artist-songs-modal-overlay'),
             artistSongsTitle: document.getElementById('artist-songs-title'),
+            artistSongsSubtitle: document.getElementById('artist-songs-subtitle'),
             artistSongsStatus: document.getElementById('artist-songs-status'),
             artistSongsList: document.getElementById('artist-songs-list'),
             artistSongsCover: document.getElementById('artist-songs-cover'),
@@ -522,6 +549,10 @@ bindLegacyInlineHandlers();
             authStatBestWpm: document.getElementById('auth-stat-best-wpm'),
             authStatAvgWpm: document.getElementById('auth-stat-avg-wpm'),
             authStatAvgAcc: document.getElementById('auth-stat-avg-acc'),
+            profileQuickGames: document.getElementById('profile-quick-games'),
+            profileQuickBest: document.getElementById('profile-quick-best'),
+            profileQuickAvg: document.getElementById('profile-quick-avg'),
+            profileQuickAcc: document.getElementById('profile-quick-acc'),
             authRecentResults: document.getElementById('auth-recent-results'),
             authRecentSection: document.getElementById('auth-recent-section'),
             authHistorySong: document.getElementById('auth-history-song'),
@@ -552,6 +583,7 @@ bindLegacyInlineHandlers();
             spotifyLastPlayed: document.getElementById('spotify-last-played'),
             spotifyRecentList: document.getElementById('spotify-recent-list'),
             spotifyLinkModal: document.getElementById('spotify-link-modal-overlay'),
+            spotifyLinkDontAsk: document.getElementById('spotify-link-dont-ask'),
             profileHubOverlay: document.getElementById('profile-hub-overlay'),
             profileHubName: document.getElementById('profile-hub-name'),
             profileHubAvatar: document.getElementById('profile-hub-avatar'),
@@ -609,6 +641,7 @@ bindLegacyInlineHandlers();
         const AUTH_WINDOW_MS = 10 * 60 * 1000;
         const AUTH_LOCK_MS = 60 * 1000;
         const AUTH_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+        const SPOTIFY_LINK_PROMPT_PREFS_KEY = 'icarus_spotify_link_prompt_prefs_v1';
         let authTab = 'login';
         const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
         const supabase = hasSupabaseConfig
@@ -668,6 +701,7 @@ bindLegacyInlineHandlers();
         let spotifyLinkedToAccount = false;
         let spotifyLastSyncedSignature = '';
         let spotifyLinkPromptShownForUserId = '';
+        let spotifyLinkPromptPrefs = null;
         let spPlayer = null;
         let spDeviceId = '';
         let spSdkReadyPromise = null;
@@ -699,6 +733,49 @@ bindLegacyInlineHandlers();
             const dt = new Date(isoDate);
             if (Number.isNaN(dt.getTime())) return isoDate;
             return dt.toLocaleString();
+        }
+
+        function loadSpotifyLinkPromptPrefs() {
+            if (spotifyLinkPromptPrefs && typeof spotifyLinkPromptPrefs === 'object') return spotifyLinkPromptPrefs;
+            try {
+                const raw = localStorage.getItem(SPOTIFY_LINK_PROMPT_PREFS_KEY) || '{}';
+                const parsed = JSON.parse(raw);
+                spotifyLinkPromptPrefs = parsed && typeof parsed === 'object' ? parsed : {};
+            } catch (_err) {
+                spotifyLinkPromptPrefs = {};
+            }
+            return spotifyLinkPromptPrefs;
+        }
+
+        function saveSpotifyLinkPromptPrefs() {
+            try {
+                localStorage.setItem(SPOTIFY_LINK_PROMPT_PREFS_KEY, JSON.stringify(loadSpotifyLinkPromptPrefs()));
+            } catch (_err) {}
+        }
+
+        function getSpotifyLinkPromptPref(userId) {
+            const uid = String(userId || '').trim();
+            if (!uid) return { seenOnce: false, dontAskAgain: false };
+            const prefs = loadSpotifyLinkPromptPrefs();
+            const current = prefs[uid];
+            if (!current || typeof current !== 'object') return { seenOnce: false, dontAskAgain: false };
+            return {
+                seenOnce: Boolean(current.seenOnce),
+                dontAskAgain: Boolean(current.dontAskAgain)
+            };
+        }
+
+        function setSpotifyLinkPromptPref(userId, patch = {}) {
+            const uid = String(userId || '').trim();
+            if (!uid) return;
+            const prefs = loadSpotifyLinkPromptPrefs();
+            const prev = prefs[uid] && typeof prefs[uid] === 'object' ? prefs[uid] : {};
+            prefs[uid] = {
+                seenOnce: patch.seenOnce !== undefined ? Boolean(patch.seenOnce) : Boolean(prev.seenOnce),
+                dontAskAgain: patch.dontAskAgain !== undefined ? Boolean(patch.dontAskAgain) : Boolean(prev.dontAskAgain),
+                updatedAt: Date.now()
+            };
+            saveSpotifyLinkPromptPrefs();
         }
 
         function renderHeaderAuthStatus() {
@@ -895,19 +972,19 @@ bindLegacyInlineHandlers();
             const linkedEffective = isSpotifyLinkedEffective();
             if (elements.spotifyAuthStatus) {
                 const linkedHint = authCurrentUser
-                    ? (linkedEffective ? ' Vinculado a sua conta.' : ' Nao vinculado.')
+                    ? (linkedEffective ? ' Linked to your account.' : ' Not linked.')
                     : '';
                 elements.spotifyAuthStatus.textContent = loggedIn
-                    ? `Status: logado no Spotify.${linkedHint}`
-                    : `Status: deslogado no Spotify.${linkedHint}`;
+                    ? `Status: logged in to Spotify.${linkedHint}`
+                    : `Status: logged out of Spotify.${linkedHint}`;
             }
             if (elements.spotifyLinkBtn) {
                 if (!authCurrentUser) {
-                    elements.spotifyLinkBtn.textContent = 'Vincular Spotify';
+                    elements.spotifyLinkBtn.textContent = 'Link Spotify';
                 } else if (linkedEffective && loggedIn) {
-                    elements.spotifyLinkBtn.textContent = 'Re-vincular Spotify';
+                    elements.spotifyLinkBtn.textContent = 'Relink Spotify';
                 } else {
-                    elements.spotifyLinkBtn.textContent = 'Vincular Spotify';
+                    elements.spotifyLinkBtn.textContent = 'Link Spotify';
                 }
             }
             if (elements.headerSpotifyStatus) {
@@ -916,19 +993,26 @@ bindLegacyInlineHandlers();
                 elements.headerSpotifyStatus.classList.toggle('muted', !loggedIn);
             }
             if (elements.spotifyLastPlayed) {
-                elements.spotifyLastPlayed.textContent = `Ultimo played_at: ${spotifyLastPlayedAtKnown || '-'}`;
+                elements.spotifyLastPlayed.textContent = `Last played_at: ${spotifyLastPlayedAtKnown || '-'}`;
             }
             if (elements.spotifyTrackingBtn) {
                 elements.spotifyTrackingBtn.textContent = spotifyIsTrackingEnabled ? 'Tracking on' : 'Tracking off';
             }
         }
 
-        function closeSpotifyLinkPrompt() {
+        function closeSpotifyLinkPrompt(persistDismiss = false) {
+            if (persistDismiss && authCurrentUser?.id) {
+                const dontAskAgain = Boolean(elements.spotifyLinkDontAsk?.checked);
+                setSpotifyLinkPromptPref(authCurrentUser.id, {
+                    seenOnce: true,
+                    dontAskAgain
+                });
+            }
             elements.spotifyLinkModal?.classList.add('hidden');
         }
 
         async function confirmSpotifyLinkPrompt() {
-            closeSpotifyLinkPrompt();
+            closeSpotifyLinkPrompt(false);
             await spotifyLogin();
         }
 
@@ -937,8 +1021,12 @@ bindLegacyInlineHandlers();
             if (hasSpotifyCallbackParams()) return;
             if (isSpotifyLoggedIn()) return;
             if (isSpotifyLinkedEffective()) return;
+            const pref = getSpotifyLinkPromptPref(authCurrentUser.id);
+            if (pref.dontAskAgain || pref.seenOnce) return;
             if (spotifyLinkPromptShownForUserId === authCurrentUser.id) return;
+            setSpotifyLinkPromptPref(authCurrentUser.id, { seenOnce: true });
             spotifyLinkPromptShownForUserId = authCurrentUser.id;
+            if (elements.spotifyLinkDontAsk) elements.spotifyLinkDontAsk.checked = false;
             elements.spotifyLinkModal?.classList.remove('hidden');
         }
 
@@ -1314,7 +1402,7 @@ bindLegacyInlineHandlers();
         function renderSpotifyRecentList() {
             if (!elements.spotifyRecentList) return;
             if (!spotifyTracks.length) {
-                elements.spotifyRecentList.innerHTML = '<div class="auth-recent-empty">Nenhuma faixa carregada ainda.</div>';
+                elements.spotifyRecentList.innerHTML = '<div class="auth-recent-empty">No tracks loaded yet.</div>';
                 return;
             }
             elements.spotifyRecentList.innerHTML = spotifyTracks.map((track) => {
@@ -1331,8 +1419,15 @@ bindLegacyInlineHandlers();
                                 <div class="auth-recent-meta">${artists} - ${playedAt}</div>
                             </div>
                             <div class="auth-friend-actions">${titleHtml}</div>
-                        </div>`;
+                                </div>`;
             }).join('');
+        }
+
+        function renderProfileQuickStats() {
+            if (elements.profileQuickGames) elements.profileQuickGames.textContent = String(authStatsSummary.games || 0);
+            if (elements.profileQuickBest) elements.profileQuickBest.textContent = String(authStatsSummary.bestWpm || 0);
+            if (elements.profileQuickAvg) elements.profileQuickAvg.textContent = String(authStatsSummary.avgWpm || 0);
+            if (elements.profileQuickAcc) elements.profileQuickAcc.textContent = `${authStatsSummary.avgAcc || 0}%`;
         }
 
         function saveSpotifyHistoryByDay(items) {
@@ -1436,7 +1531,7 @@ bindLegacyInlineHandlers();
 
         async function spotifyLogin() {
             if (!authCurrentUser) {
-                showToast('Primeiro faca login na conta principal para vincular Spotify.', 'error');
+                showToast('Sign in to your main account first to link Spotify.', 'error');
                 openModal('profile');
                 return;
             }
@@ -1472,21 +1567,21 @@ bindLegacyInlineHandlers();
             renderSpotifyRecentList();
             renderSpotifyStatus();
             renderSearchDiscoveryPanel().catch(() => {});
-            showToast('Spotify desconectado.', 'info');
+            showToast('Spotify disconnected.', 'info');
         }
 
         async function spotifyToggleTracking() {
             if (!authCurrentUser) {
-                showToast('Faca login na conta principal para usar tracking Spotify.', 'error');
+                showToast('Sign in to your main account to use Spotify tracking.', 'error');
                 return;
             }
             if (spotifyIsTrackingEnabled) {
                 stopSpotifyTracking();
-                showToast('Tracking Spotify pausado.', 'info');
+                showToast('Spotify tracking paused.', 'info');
                 return;
             }
             if (!isSpotifyLoggedIn()) {
-                showToast('Faca login com Spotify antes de ativar o tracking.', 'error');
+                showToast('Sign in with Spotify before enabling tracking.', 'error');
                 return;
             }
             try {
@@ -1499,14 +1594,14 @@ bindLegacyInlineHandlers();
                 try {
                     const result = await spotifyFetchRecentlyPlayed(10, { fromPolling: true, rethrow: true });
                     if (result.changed) {
-                        showToast('Nova faixa detectada no Spotify.', 'info');
+                        showToast('New Spotify track detected.', 'info');
                     }
                 } catch (error) {
                     stopSpotifyTracking();
                 }
             }, SPOTIFY_POLL_MS);
             renderSpotifyStatus();
-            showToast('Tracking Spotify ativo (10s).', 'info');
+            showToast('Spotify tracking active (10s).', 'info');
         }
 
         function sanitizeAvatarUrl(url) {
@@ -3795,6 +3890,7 @@ bindLegacyInlineHandlers();
             if (elements.authStatAvgWpm) elements.authStatAvgWpm.textContent = '0';
             if (elements.authStatAvgAcc) elements.authStatAvgAcc.textContent = '0%';
             authStatsSummary = { games: 0, bestWpm: 0, avgWpm: 0, avgAcc: 0 };
+            renderProfileQuickStats();
             if (elements.authRecentResults) {
                 elements.authRecentResults.innerHTML = '<div class="auth-recent-empty">No saved games yet.</div>';
             }
@@ -3898,6 +3994,70 @@ bindLegacyInlineHandlers();
             ctx.stroke();
         }
 
+        function formatProfileHubModeLabel(modeRaw) {
+            const raw = String(modeRaw || '').trim().toLowerCase();
+            if (!raw) return 'Normal';
+            return raw.split(/[\s_-]+/).map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1)).join(' ');
+        }
+
+        function getProfileHubArtistCover(artistName) {
+            const artist = String(artistName || '').trim();
+            if (!artist) return buildFavoriteArtworkFallback('A', 'R');
+            const artistKey = normalizeLookupText(artist);
+            const favorite = (authFavoritesCache || []).find((f) => normalizeLookupText(f?.artist || '') === artistKey);
+            if (favorite) {
+                const customCover = sanitizeAvatarUrl(favorite.custom_cover_url || '');
+                if (customCover) return customCover;
+                const artKey = favoriteArtworkKey(favorite.artist, favorite.song_title);
+                const cached = favoriteArtworkCache.get(artKey) || '';
+                if (cached) return cached;
+                return buildFavoriteArtworkFallback(favorite.artist, favorite.song_title);
+            }
+            const recentCover = recentArtistArtworkCache.get(artistKey) || '';
+            if (recentCover) return recentCover;
+            return buildFavoriteArtworkFallback(artist, 'AR');
+        }
+
+        function buildProfileHubTypingRanking(rows, limit = 12, monthOnly = false) {
+            const now = new Date();
+            const artistMap = new Map();
+            const songMap = new Map();
+            (rows || []).forEach((row) => {
+                if (monthOnly) {
+                    const createdAt = row?.created_at ? new Date(row.created_at) : null;
+                    if (!createdAt || Number.isNaN(createdAt.getTime())) return;
+                    if (createdAt.getMonth() !== now.getMonth() || createdAt.getFullYear() !== now.getFullYear()) return;
+                }
+                const artist = String(row?.artist || '').trim();
+                const song = String(row?.song_title || '').trim();
+                const wpm = Number(row?.wpm) || 0;
+                const acc = Number(row?.accuracy) || 0;
+                const mode = String(row?.mode || 'normal').trim();
+                if (artist) {
+                    const artistKey = normalizeLookupText(artist);
+                    const artistEntry = artistMap.get(artistKey) || { artist, count: 0, totalWpm: 0, totalAcc: 0 };
+                    artistEntry.count += 1;
+                    artistEntry.totalWpm += wpm;
+                    artistEntry.totalAcc += acc;
+                    artistMap.set(artistKey, artistEntry);
+                }
+                if (artist && song) {
+                    const songKey = `${normalizeLookupText(artist)}|||${normalizeLookupText(song)}`;
+                    const songEntry = songMap.get(songKey) || { artist, song, count: 0, totalWpm: 0, totalAcc: 0, modeCounts: {} };
+                    songEntry.count += 1;
+                    songEntry.totalWpm += wpm;
+                    songEntry.totalAcc += acc;
+                    songEntry.modeCounts[mode] = (songEntry.modeCounts[mode] || 0) + 1;
+                    songMap.set(songKey, songEntry);
+                }
+            });
+
+            const byCount = (a, b) => (b.count - a.count) || String(a.artist || a.song).localeCompare(String(b.artist || b.song));
+            const topArtists = Array.from(artistMap.values()).sort(byCount).slice(0, limit);
+            const topSongs = Array.from(songMap.values()).sort(byCount).slice(0, limit);
+            return { topArtists, topSongs };
+        }
+
         function renderProfileHub() {
             if (!elements.profileHubOverlay || elements.profileHubOverlay.classList.contains('hidden')) return;
             if (profileHubContext.type === 'friend' && profileHubContext.friend) {
@@ -3915,7 +4075,6 @@ bindLegacyInlineHandlers();
                 const username = String(f.username || 'friend');
                 const avatar = sanitizeAvatarUrl(f.avatar_url || '') || 'https://placehold.co/96x96/0B2D45/3EE39E?text=IT';
                 const level = computeProfileLevel(stats);
-                const achievements = computeAchievements(stats);
                 const source = profileHubContext.source === 'requests'
                     ? `${f.direction || 'request'} - ${f.status || 'pending'}`
                     : 'Friend profile';
@@ -3930,27 +4089,8 @@ bindLegacyInlineHandlers();
                 if (elements.profileHubAvgWpm) elements.profileHubAvgWpm.textContent = String(stats.avgWpm);
                 if (elements.profileHubAvgAcc) elements.profileHubAvgAcc.textContent = `${stats.avgAcc}%`;
 
-                if (elements.profileHubAchievements) {
-                    if (achievements.length === 0) {
-                        elements.profileHubAchievements.innerHTML = '<div class="auth-recent-empty">No achievements yet.</div>';
-                    } else {
-                        elements.profileHubAchievements.innerHTML = achievements.map((a) => `<span class="auth-achievement">${escapeHtml(a)}</span>`).join('');
-                    }
-                }
-                if (elements.profileHubRecent) elements.profileHubRecent.innerHTML = '<div class="auth-recent-empty">Detailed run history is private.</div>';
-                if (elements.profileHubFavorites) elements.profileHubFavorites.innerHTML = '<div class="auth-recent-empty">Favorites are private.</div>';
-                if (elements.profileHubFriends) {
-                    const encodedUsername = encodeURIComponent(username);
-                    elements.profileHubFriends.innerHTML = `<div class="auth-friend-item">
-                        ${buildFriendAvatarButton(username, f.avatar_url)}
-                        <div>
-                          <div class="auth-friend-name">${escapeHtml(username)}</div>
-                          <div class="auth-friend-meta">${escapeHtml(source)}</div>
-                        </div>
-                        <button class="auth-friend-btn" data-onclick="openFriendProfileFromList('${encodedUsername}','compare')">Refresh</button>
-                    </div>`;
-                    bindFriendAvatarPreview(elements.profileHubFriends);
-                }
+                if (elements.profileHubRecent) elements.profileHubRecent.innerHTML = '<div class="auth-recent-empty">Most typed songs are private for other users.</div>';
+                if (elements.profileHubFavorites) elements.profileHubFavorites.innerHTML = '<div class="auth-recent-empty">Most typed artists are private for other users.</div>';
                 renderProfileHubComparison(getSelfSummaryStats(), f);
                 drawProfileHubChart([]);
                 return;
@@ -3960,7 +4100,6 @@ bindLegacyInlineHandlers();
             const avatar = elements.authUserAvatar?.src || 'https://placehold.co/96x96/0B2D45/3EE39E?text=IT';
             const bio = (elements.authUserBio?.value || '').trim() || 'No bio yet.';
             const level = computeProfileLevel(authStatsSummary);
-            const achievements = computeAchievements(authStatsSummary);
 
             if (elements.profileHubName) elements.profileHubName.textContent = username;
             if (elements.profileHubAvatar) elements.profileHubAvatar.src = avatar;
@@ -3972,71 +4111,43 @@ bindLegacyInlineHandlers();
             if (elements.profileHubAvgWpm) elements.profileHubAvgWpm.textContent = String(authStatsSummary.avgWpm || 0);
             if (elements.profileHubAvgAcc) elements.profileHubAvgAcc.textContent = `${authStatsSummary.avgAcc || 0}%`;
 
-            if (elements.profileHubAchievements) {
-                if (achievements.length === 0) {
-                    elements.profileHubAchievements.innerHTML = '<div class="auth-recent-empty">No achievements yet.</div>';
-                } else {
-                    elements.profileHubAchievements.innerHTML = achievements.map((a) => `<span class="auth-achievement">${escapeHtml(a)}</span>`).join('');
-                }
-            }
+            const ranking = buildProfileHubTypingRanking(authGameResultsCache, 14, true);
 
             if (elements.profileHubRecent) {
-                if (!authGameResultsCache.length) {
-                    elements.profileHubRecent.innerHTML = '<div class="auth-recent-empty">No saved games yet.</div>';
+                if (!ranking.topSongs.length) {
+                    elements.profileHubRecent.innerHTML = '<div class="auth-recent-empty">No typed songs found for this month yet.</div>';
                 } else {
-                    elements.profileHubRecent.innerHTML = authGameResultsCache.slice(0, 12).map((r) => {
-                        const title = escapeHtml((r.artist && r.song_title) ? `${r.artist} - ${r.song_title}` : (r.song_title || r.artist || 'Custom lyrics'));
-                        const mode = escapeHtml((r.mode || 'normal').toUpperCase());
-                        return `<div class="auth-recent-item">
+                    elements.profileHubRecent.innerHTML = ranking.topSongs.map((row, idx) => {
+                        const avgWpm = row.count > 0 ? Math.round(row.totalWpm / row.count) : 0;
+                        const avgAcc = row.count > 0 ? Math.round(row.totalAcc / row.count) : 0;
+                        const topMode = Object.entries(row.modeCounts || {}).sort((a, b) => (b[1] - a[1]))[0]?.[0] || 'normal';
+                        return `<div class="profile-hub-song-item">
+                                  <div class="profile-hub-song-rank">${idx + 1}</div>
                                   <div>
-                                    <div class="auth-recent-title">${title}</div>
-                                    <div class="auth-recent-meta">${mode}</div>
+                                    <div class="profile-hub-song-title">${escapeHtml(row.song)}</div>
+                                    <div class="profile-hub-song-artist">${escapeHtml(row.artist)}</div>
                                   </div>
-                                  <div class="auth-recent-score">${r.wpm || 0} WPM - ${r.accuracy || 0}%</div>
+                                  <div class="profile-hub-song-album">${escapeHtml(formatProfileHubModeLabel(topMode))} mode</div>
+                                  <div class="profile-hub-song-metric">${row.count} runs | ${avgWpm} WPM</div>
+                                  <div class="profile-hub-song-time">${avgAcc}%</div>
                                 </div>`;
                     }).join('');
                 }
             }
 
             if (elements.profileHubFavorites) {
-                if (!authFavoritesCache.length) {
-                    elements.profileHubFavorites.innerHTML = '<div class="auth-recent-empty">No favorites yet.</div>';
+                if (!ranking.topArtists.length) {
+                    elements.profileHubFavorites.innerHTML = '<div class="auth-recent-empty">No typed artists found for this month yet.</div>';
                 } else {
-                    elements.profileHubFavorites.innerHTML = authFavoritesCache.slice(0, 18).map((f) => {
-                        const title = escapeHtml(f.song_title || 'Unknown Song');
-                        const artist = escapeHtml(f.artist || 'Unknown Artist');
-                        return `<div class="auth-favorite-item">
-                                  <div>
-                                    <div class="auth-favorite-title">${artist} - ${title}</div>
-                                  </div>
+                    elements.profileHubFavorites.innerHTML = ranking.topArtists.map((row, idx) => {
+                        const avgWpm = row.count > 0 ? Math.round(row.totalWpm / row.count) : 0;
+                        const cover = getProfileHubArtistCover(row.artist);
+                        return `<div class="profile-hub-artist-item">
+                                  <img class="profile-hub-artist-cover" src="${escapeHtml(cover)}" alt="${escapeHtml(row.artist)} cover" loading="lazy">
+                                  <div class="profile-hub-artist-name">${idx + 1}. ${escapeHtml(row.artist)}</div>
+                                  <div class="profile-hub-artist-meta">${row.count} runs | ${avgWpm} avg WPM</div>
                                 </div>`;
                     }).join('');
-                }
-            }
-
-            if (elements.profileHubFriends) {
-                if (!authFriendsCache.length) {
-                    elements.profileHubFriends.innerHTML = '<div class="auth-recent-empty">No friends added yet.</div>';
-                } else {
-                    const myAvg = authStatsSummary.avgWpm || 0;
-                    elements.profileHubFriends.innerHTML = authFriendsCache.map((f) => {
-                        const diff = (Number(f.avg_wpm) || 0) - myAvg;
-                        const diffText = `${diff > 0 ? '+' : ''}${diff} vs you`;
-                        const avatar = buildFriendAvatarButton(f.username, f.avatar_url);
-                        const encodedUsername = encodeURIComponent(f.username || '');
-                        return `<div class="auth-friend-item">
-                                  ${avatar}
-                                  <div>
-                                    <div class="auth-friend-name">${escapeHtml(f.username)}</div>
-                                    <div class="auth-friend-meta">${f.games} games | avg ${f.avg_wpm} | best ${f.best_wpm} | acc ${f.avg_acc}%</div>
-                                  </div>
-                                  <div class="auth-friend-actions">
-                                    <div class="auth-recent-score">${escapeHtml(diffText)}</div>
-                                    <button class="auth-friend-btn" data-onclick="openFriendProfileFromList('${encodedUsername}','hub')">View profile</button>
-                                  </div>
-                                </div>`;
-                    }).join('');
-                    bindFriendAvatarPreview(elements.profileHubFriends);
                 }
             }
 
@@ -4122,6 +4233,7 @@ bindLegacyInlineHandlers();
             if (elements.authStatBestWpm) elements.authStatBestWpm.textContent = String(bestWpm);
             if (elements.authStatAvgWpm) elements.authStatAvgWpm.textContent = String(avgWpm);
             if (elements.authStatAvgAcc) elements.authStatAvgAcc.textContent = `${avgAcc}%`;
+            renderProfileQuickStats();
             if (elements.authUserLevel) elements.authUserLevel.textContent = `Level ${computeProfileLevel(authStatsSummary)}`;
             renderAchievements(authStatsSummary);
             authGameResultsCache = data;
@@ -5005,13 +5117,68 @@ bindLegacyInlineHandlers();
              });
         }
         
-        async function fetchTranslation(text) {
-             if (!text.includes('\n') && text.length < 100) {
+        function scoreWordCandidate(candidateRaw, sourceWordRaw) {
+            const sourceWord = normalizeWordToken(sourceWordRaw).toLowerCase();
+            const candidate = normalizeWordToken(candidateRaw);
+            if (!candidate) return -Infinity;
+            const lower = candidate.toLowerCase();
+            if (lower === sourceWord) return -Infinity;
+            if (/\b(query length|mymemory)\b/i.test(candidate)) return -Infinity;
+
+            const tokenCount = candidate.split(/\s+/).filter(Boolean).length;
+            let score = 0;
+            if (tokenCount === 1) score += 35;
+            else if (tokenCount <= 3) score += 12;
+            else score -= 25;
+
+            if (/^[\p{L}\p{M}\s'-]+$/u.test(candidate)) score += 15;
+            if (/[\u00C0-\u024F]/.test(candidate)) score += 8;
+            if (candidate.length > 22) score -= 20;
+            return score;
+        }
+
+        function pickBestWordTranslation(transData, sourceWordRaw) {
+            const candidates = [];
+            const base = String(transData?.responseData?.translatedText || '').trim();
+            if (base) candidates.push({ text: base, score: 40 });
+
+            const matches = Array.isArray(transData?.matches) ? transData.matches : [];
+            matches.forEach((m) => {
+                const text = String(m?.translation || '').trim();
+                if (!text) return;
+                const matchScore = Number(m?.match || 0) * 100;
+                const qualityScore = Math.min(Number(m?.quality || 0), 100) * 0.18;
+                candidates.push({ text, score: matchScore + qualityScore });
+            });
+
+            const ranked = candidates
+                .map((c) => ({ ...c, score: c.score + scoreWordCandidate(c.text, sourceWordRaw) }))
+                .filter((c) => Number.isFinite(c.score))
+                .sort((a, b) => b.score - a.score);
+
+            const seen = new Set();
+            for (const item of ranked) {
+                const norm = normalizeWordToken(item.text).toLowerCase();
+                if (!norm || seen.has(norm)) continue;
+                seen.add(norm);
+                return normalizeWordToken(item.text);
+            }
+            return '';
+        }
+
+        async function fetchTranslation(text, options = {}) {
+             const shortText = !text.includes('\n') && text.length < 100;
+             const singleWord = options?.singleWord || /^\s*[\p{L}\p{M}'-]+\s*$/u.test(text);
+             if (shortText) {
                  const encodedText = encodeURIComponent(text);
                  const pair = "en|pt";
                  try {
                     const transRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodedText}&langpair=${pair}`);
                     const transData = await transRes.json();
+                    if (singleWord) {
+                        const best = pickBestWordTranslation(transData, text);
+                        if (best) return best;
+                    }
                     if (transData?.responseData?.translatedText) return transData.responseData.translatedText;
                  } catch (e) { console.warn(e); }
                  return "Translation unavailable";
@@ -5851,6 +6018,8 @@ bindLegacyInlineHandlers();
             }
             elements.artistSongsModal?.classList.remove('hidden');
             if (elements.artistSongsTitle) elements.artistSongsTitle.textContent = artistName;
+            if (elements.artistSongsSubtitle) elements.artistSongsSubtitle.textContent = `Band/Singer: ${artistName}`;
+            document.body.classList.add('artist-spotlight-open');
             if (elements.artistSongsStatus) elements.artistSongsStatus.textContent = 'Loading top songs...';
             if (elements.artistSongsList) elements.artistSongsList.innerHTML = '<div class="auth-recent-empty">Loading...</div>';
             if (elements.artistSongsCover) {
@@ -5893,6 +6062,7 @@ bindLegacyInlineHandlers();
 
         function closeArtistSongsModal() {
             elements.artistSongsModal?.classList.add('hidden');
+            document.body.classList.remove('artist-spotlight-open');
             renderSearchDiscoveryPanel().catch(() => {});
         }
 
@@ -7443,7 +7613,7 @@ bindLegacyInlineHandlers();
                 if (hasSpotifyCallbackParams()) {
                     if (!authCurrentUser?.id) {
                         clearSpotifyCallbackParamsFromUrl();
-                        showToast('Login principal necessario antes de vincular Spotify.', 'error');
+                        showToast('Main account login required before linking Spotify.', 'error');
                     } else {
                         const callbackHandled = await spotifyHandleCallback();
                         if (callbackHandled) {
@@ -7454,10 +7624,10 @@ bindLegacyInlineHandlers();
                                 closeSpotifyLinkPrompt();
                                 const synced = await saveSpotifyTokensToProfile(authCurrentUser.id, localTokens);
                                 if (!synced) {
-                                    showToast('Spotify conectado localmente. Faltou sincronizar o vinculo no perfil.', 'info');
+                                    showToast('Spotify linked locally. Could not sync link to profile.', 'info');
                                 }
                             }
-                            showToast('Spotify vinculado com sucesso.', 'info');
+                            showToast('Spotify linked successfully.', 'info');
                             await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
                         }
                     }

@@ -72,13 +72,20 @@
 
     <!-- Account Modal -->
     <div id="profile-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" data-onclick="if(event.target === this) closeModal('profile')">
-        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-md w-full mx-4 border border-sub max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-main font-bold text-xl">Account</h3>
-                <button data-onclick="closeModal('profile')" class="text-sub hover:text-base text-sm">Close</button>
+        <div class="app-modal-card app-modal-card--profile">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-kicker">Profile & Social</div>
+                    <h3 class="app-modal-title">Account</h3>
+                </div>
+                <button data-onclick="closeModal('profile')" class="app-modal-close" type="button" aria-label="Close account modal">
+                    <span class="app-modal-close-icon" aria-hidden="true">&times;</span>
+                    <span>Close</span>
+                </button>
             </div>
 
-            <div id="auth-guest-view">
+            <div class="app-modal-body account-modal-body">
+            <div id="auth-guest-view" class="modal-surface-block">
                 <div class="auth-tabs mb-4">
                     <button id="auth-tab-login" class="auth-tab active" data-onclick="switchAuthTab('login')">Login</button>
                     <button id="auth-tab-register" class="auth-tab" data-onclick="switchAuthTab('register')">Register</button>
@@ -189,8 +196,8 @@
                     </div>
                 </div>
 
-                <div id="auth-nonedit-sections">
-                <div id="auth-stats-section" class="auth-stats-grid mt-4">
+                <div id="auth-nonedit-sections" class="account-sections-grid">
+                <div id="auth-stats-section" class="auth-stats-grid mt-4 account-panel-section">
                     <div class="auth-stat-box">
                         <div class="auth-stat-label">Games</div>
                         <div id="auth-stat-games" class="auth-stat-value">0</div>
@@ -209,14 +216,14 @@
                     </div>
                 </div>
 
-                <div id="auth-recent-section" class="mt-4">
+                <div id="auth-recent-section" class="mt-4 account-panel-section">
                     <div class="text-sub text-xs uppercase mb-2">Recent results</div>
                     <div id="auth-recent-results" class="auth-recent-list">
                         <div class="auth-recent-empty">No saved games yet.</div>
                     </div>
                 </div>
 
-                <div id="auth-history-section" class="mt-4">
+                <div id="auth-history-section" class="mt-4 account-panel-section">
                     <div class="text-sub text-xs uppercase mb-2">Song history</div>
                     <div class="auth-history-wrap">
                         <select id="auth-history-song" class="auth-input">
@@ -227,25 +234,87 @@
                     </div>
                 </div>
 
-                <div id="auth-friends-section" class="mt-4">
+                <div id="auth-friends-section" class="mt-4 account-panel-section">
                     <div class="text-sub text-xs uppercase mb-2">Friends</div>
-                    <div class="auth-friends-wrap">
-                        <div class="auth-friend-add-row">
-                            <input id="auth-friend-username" type="text" class="auth-input" placeholder="friend email or username">
-                            <button class="auth-submit-btn" data-onclick="sendFriendRequest()">Add</button>
+                    <div class="friends-utilities-layout">
+                        <div class="auth-friends-wrap">
+                            <div class="auth-friend-add-row">
+                                <input id="auth-friend-username" type="text" class="auth-input" placeholder="friend email or username">
+                                <button class="auth-submit-btn" data-onclick="sendFriendRequest()">Add</button>
+                            </div>
+                            <div class="auth-subtitle">Requests</div>
+                            <div id="auth-friend-requests" class="auth-friend-list">
+                                <div class="auth-recent-empty">No requests.</div>
+                            </div>
                         </div>
-                        <div class="auth-subtitle">Requests</div>
-                        <div id="auth-friend-requests" class="auth-friend-list">
-                            <div class="auth-recent-empty">No requests.</div>
-                        </div>
-                        <div class="auth-subtitle">Compare</div>
-                        <div id="auth-friend-compare" class="auth-friend-list">
-                            <div class="auth-recent-empty">No friends added yet.</div>
+
+                        <div class="account-utility-stack">
+                            <details class="utility-disclosure" open>
+                                <summary>
+                                    <span class="utility-summary-title">Profile details</span>
+                                    <span class="utility-summary-meta">Expand</span>
+                                    <span class="utility-summary-chevron" aria-hidden="true">&#9662;</span>
+                                </summary>
+                                <div class="utility-panel">
+                                    <div class="utility-panel-title">Performance snapshot</div>
+                                    <div class="utility-mini-stats-grid">
+                                        <div class="utility-mini-stat"><span>Games</span><strong id="profile-quick-games">0</strong></div>
+                                        <div class="utility-mini-stat"><span>Best WPM</span><strong id="profile-quick-best">0</strong></div>
+                                        <div class="utility-mini-stat"><span>Avg WPM</span><strong id="profile-quick-avg">0</strong></div>
+                                        <div class="utility-mini-stat"><span>Avg Acc</span><strong id="profile-quick-acc">0%</strong></div>
+                                    </div>
+                                    <div class="utility-panel-title mt-1">Compare with friends</div>
+                                    <div id="auth-friend-compare" class="auth-friend-list utility-compare-list">
+                                        <div class="auth-recent-empty">No friends added yet.</div>
+                                    </div>
+                                </div>
+                            </details>
+
+                            <details class="utility-disclosure" open>
+                                <summary>
+                                    <span class="utility-summary-title">Spotify tools</span>
+                                    <span class="utility-summary-meta">Expand</span>
+                                    <span class="utility-summary-chevron" aria-hidden="true">&#9662;</span>
+                                </summary>
+                                <div id="spotify-section" class="utility-panel">
+                                    <div id="spotify-auth-status" class="auth-subtitle">Status: logged out of Spotify.</div>
+                                    <div class="auth-friend-add-row mt-2">
+                                        <button id="spotify-link-btn" class="auth-submit-btn" data-onclick="spotifyLogin()">Link Spotify</button>
+                                        <button id="spotify-logout-btn" class="auth-friend-btn reject" data-onclick="spotifyLogout()">Disconnect</button>
+                                    </div>
+                                    <div class="auth-friend-add-row mt-2">
+                                        <button class="auth-submit-btn" data-onclick="spotifyFetchRecentlyPlayed(25)">Fetch recently played</button>
+                                        <button id="spotify-tracking-btn" class="auth-friend-btn" data-onclick="spotifyToggleTracking()">Tracking off</button>
+                                    </div>
+                                    <div id="spotify-last-played" class="auth-subtitle mt-2">Last played_at: -</div>
+                                    <div id="spotify-recent-list" class="auth-recent-list mt-2">
+                                        <div class="auth-recent-empty">No tracks loaded yet.</div>
+                                    </div>
+                                </div>
+                            </details>
+
+                            <details class="utility-disclosure utility-disclosure-danger">
+                                <summary>
+                                    <span class="utility-summary-title">Account safety</span>
+                                    <span class="utility-summary-meta">Expand</span>
+                                    <span class="utility-summary-chevron" aria-hidden="true">&#9662;</span>
+                                </summary>
+                                <div class="utility-panel">
+                                    <div id="auth-danger-section" class="auth-field-group">
+                                        <label class="auth-label" for="auth-delete-password">Confirm password to delete account</label>
+                                        <input id="auth-delete-password" type="password" class="auth-input" placeholder="Current password" autocomplete="current-password">
+                                    </div>
+                                    <div id="auth-actions-section" class="auth-actions mt-3">
+                                        <button class="auth-submit-btn" data-onclick="logoutAccount()">Sign out of account</button>
+                                        <button class="auth-delete-btn" data-onclick="deleteAccount()">Delete account</button>
+                                    </div>
+                                </div>
+                            </details>
                         </div>
                     </div>
                 </div>
 
-                <div id="auth-duel-section" class="mt-4">
+                <div id="auth-duel-section" class="mt-4 account-panel-section feature-temporary-hidden">
                     <div class="text-sub text-xs uppercase mb-2">Duel rooms</div>
                     <div class="auth-friends-wrap">
                         <div class="auth-friend-add-row">
@@ -282,7 +351,7 @@
                     </div>
                 </div>
 
-                <div id="auth-favorites-section" class="mt-4">
+                <div id="auth-favorites-section" class="mt-4 account-panel-section">
                     <div class="text-sub text-xs uppercase mb-2">Favorites playlist</div>
                     <div class="auth-favorites-wrap">
                         <button class="auth-submit-btn" data-onclick="addCurrentSongToFavorites()">Add current song</button>
@@ -292,48 +361,25 @@
                     </div>
                 </div>
 
-                <div id="auth-danger-section" class="auth-field-group mt-4">
-                    <label class="auth-label" for="auth-delete-password">Confirm password to delete account</label>
-                    <input id="auth-delete-password" type="password" class="auth-input" placeholder="Current password" autocomplete="current-password">
-                </div>
-
-                <div id="auth-actions-section" class="auth-actions mt-6">
-                    <button class="auth-submit-btn" data-onclick="logoutAccount()">Deslogar conta inteira</button>
-                    <button class="auth-delete-btn" data-onclick="deleteAccount()">Excluir conta inteira</button>
-                </div>
                 </div>
             </div>
-
-            <div id="spotify-section" class="mt-4">
-                <div class="text-sub text-xs uppercase mb-2">Spotify</div>
-                <div class="auth-friends-wrap">
-                    <div id="spotify-auth-status" class="auth-subtitle">Status: deslogado no Spotify.</div>
-                    <div class="auth-friend-add-row mt-2">
-                        <button id="spotify-link-btn" class="auth-submit-btn" data-onclick="spotifyLogin()">Vincular Spotify</button>
-                        <button id="spotify-logout-btn" class="auth-friend-btn reject" data-onclick="spotifyLogout()">Logout Spotify</button>
-                    </div>
-                    <div class="auth-friend-add-row mt-2">
-                        <button class="auth-submit-btn" data-onclick="spotifyFetchRecentlyPlayed(25)">Buscar ultimas tocadas</button>
-                        <button id="spotify-tracking-btn" class="auth-friend-btn" data-onclick="spotifyToggleTracking()">Tracking off</button>
-                    </div>
-                    <div id="spotify-last-played" class="auth-subtitle mt-2">Ultimo played_at: -</div>
-                    <div id="spotify-recent-list" class="auth-recent-list mt-2">
-                        <div class="auth-recent-empty">Nenhuma faixa carregada ainda.</div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
 
-    <div id="spotify-link-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" data-onclick="if(event.target === this) closeSpotifyLinkPrompt()">
+    <div id="spotify-link-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" data-onclick="if(event.target === this) closeSpotifyLinkPrompt(true)">
         <div class="bg-surface p-6 rounded-lg shadow-2xl max-w-md w-full mx-4 border border-sub">
-            <h3 class="text-main font-bold text-lg mb-2">Vincular Spotify</h3>
+            <h3 class="text-main font-bold text-lg mb-2">Link Spotify</h3>
             <p class="text-sub text-sm mb-4">
-                Sua conta principal esta ativa. Deseja vincular Spotify agora para liberar historico e sincronizacao automatica?
+                Your main account is active. Do you want to link Spotify now to enable history and auto sync?
             </p>
+            <label class="auth-checkbox-row mb-3">
+                <input id="spotify-link-dont-ask" type="checkbox">
+                <span>Don't ask again</span>
+            </label>
             <div class="flex gap-2">
-                <button class="auth-submit-btn" data-onclick="confirmSpotifyLinkPrompt()">Vincular agora</button>
-                <button class="auth-friend-btn" data-onclick="closeSpotifyLinkPrompt()">Agora nao</button>
+                <button class="auth-submit-btn" data-onclick="confirmSpotifyLinkPrompt()">Link now</button>
+                <button class="auth-friend-btn" data-onclick="closeSpotifyLinkPrompt(true)">Not now</button>
             </div>
         </div>
     </div>
@@ -341,18 +387,22 @@
     <div id="profile-hub-overlay" class="fixed inset-0 z-50 hidden fade-in profile-hub-overlay" data-onclick="if(event.target === this) closeProfileHub()">
         <div class="profile-hub-shell">
             <div class="profile-hub-header">
-                <div>
-                    <div class="profile-hub-kicker">Icarus Profile</div>
-                    <h2 id="profile-hub-name" class="profile-hub-title">username</h2>
-                </div>
-                <button class="auth-friend-btn" data-onclick="closeProfileHub()">Close</button>
+                <div class="profile-hub-kicker">Icarus Profile</div>
+                <button class="profile-hub-close" type="button" data-onclick="closeProfileHub()">
+                    <span class="profile-hub-close-icon" aria-hidden="true">&times;</span>
+                    <span>Close</span>
+                </button>
             </div>
 
             <div class="profile-hub-hero">
                 <img id="profile-hub-avatar" class="profile-hub-avatar auth-avatar-clickable" src="https://placehold.co/96x96/0B2D45/3EE39E?text=IT" alt="avatar" data-onclick="openProfileHubAvatarPreview()">
                 <div class="profile-hub-meta">
-                    <div id="profile-hub-level" class="profile-hub-level">Level 1</div>
-                    <div id="profile-hub-email" class="profile-hub-email">email@example.com</div>
+                    <div class="profile-hub-label">Profile</div>
+                    <h2 id="profile-hub-name" class="profile-hub-title">username</h2>
+                    <div class="profile-hub-meta-row">
+                        <div id="profile-hub-level" class="profile-hub-level">Level 1</div>
+                        <div id="profile-hub-email" class="profile-hub-email">email@example.com</div>
+                    </div>
                     <p id="profile-hub-bio" class="profile-hub-bio">No bio yet.</p>
                 </div>
             </div>
@@ -378,31 +428,27 @@
 
             <div class="profile-hub-main-grid">
                 <section class="profile-hub-card">
-                    <h3>Performance</h3>
-                    <canvas id="profile-hub-chart" height="140"></canvas>
-                </section>
-                <section class="profile-hub-card">
-                    <h3>Achievements</h3>
-                    <div id="profile-hub-achievements" class="profile-hub-achievements">
-                        <div class="auth-recent-empty">No achievements yet.</div>
+                    <div class="profile-hub-section-head">
+                        <div>
+                            <h3 class="profile-hub-section-title">Most Typed Artists This Month</h3>
+                            <p class="profile-hub-section-subtitle">Visible only to you</p>
+                        </div>
+                        <span class="profile-hub-section-link">Show all</span>
+                    </div>
+                    <div id="profile-hub-favorites" class="profile-hub-artist-rail">
+                        <div class="auth-recent-empty">No artist stats yet.</div>
                     </div>
                 </section>
                 <section class="profile-hub-card">
-                    <h3>Recent Results</h3>
-                    <div id="profile-hub-recent" class="profile-hub-list">
-                        <div class="auth-recent-empty">No saved games yet.</div>
+                    <div class="profile-hub-section-head">
+                        <div>
+                            <h3 class="profile-hub-section-title">Most Typed Songs This Month</h3>
+                            <p class="profile-hub-section-subtitle">Visible only to you</p>
+                        </div>
+                        <span class="profile-hub-section-link">Show all</span>
                     </div>
-                </section>
-                <section class="profile-hub-card">
-                    <h3>Favorite Playlist</h3>
-                    <div id="profile-hub-favorites" class="profile-hub-list">
-                        <div class="auth-recent-empty">No favorites yet.</div>
-                    </div>
-                </section>
-                <section class="profile-hub-card profile-hub-card-wide">
-                    <h3>Friends Comparison</h3>
-                    <div id="profile-hub-friends" class="profile-hub-list">
-                        <div class="auth-recent-empty">No friends added yet.</div>
+                    <div id="profile-hub-recent" class="profile-hub-song-list">
+                        <div class="auth-recent-empty">No song stats yet.</div>
                     </div>
                 </section>
             </div>
@@ -433,70 +479,79 @@
     </div>
 
     <div id="about-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" data-onclick="if(event.target === this) closeModal('about')">
-        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-md w-full mx-4 text-center border border-sub">
-            <h3 class="text-main font-bold text-2xl mb-4">About Icarus Type</h3>
-            <div class="text-base text-sm space-y-4 text-left">
-                <p>Icarus Type is a minimalist typing practice tool designed to help you learn English through music.</p>
-                <div class="pt-4 border-t border-sub">
-                    <p class="text-xs text-sub mb-1">Powered by:</p>
-                    <ul class="list-disc list-inside text-xs text-main">
+        <div class="app-modal-card app-modal-card--info">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-kicker">About</div>
+                    <h3 class="app-modal-title">About Icarus Type</h3>
+                </div>
+                <button data-onclick="closeModal('about')" class="app-modal-close" type="button" aria-label="Close about modal">
+                    <span class="app-modal-close-icon" aria-hidden="true">&times;</span>
+                    <span>Close</span>
+                </button>
+            </div>
+            <div class="app-modal-body">
+                <section class="modal-surface-block">
+                    <p class="text-base text-sm">Icarus Type is a minimalist typing practice tool designed to help you learn English through music.</p>
+                </section>
+                <section class="modal-surface-block mt-3">
+                    <p class="text-xs text-sub uppercase mb-2">Powered by</p>
+                    <ul class="about-powered-list text-xs text-main">
                         <li>LrcLib.net (Lyrics)</li>
                         <li>Lyrics.ovh (Backup)</li>
                         <li>MyMemory (Translation)</li>
                     </ul>
-                </div>
+                </section>
             </div>
-            <button data-onclick="closeModal('about')" class="mt-6 text-sub hover:text-base text-sm">Close</button>
         </div>
     </div>
 
     <div id="settings-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" data-onclick="if(event.target === this) closeModal('settings')">
-        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-md w-full mx-4 border border-sub">
-            <h3 class="text-main font-bold text-xl mb-6 text-center">Settings</h3>
-            
-            <div class="space-y-6">
-                <!-- Toggles -->
-                <div>
+        <div class="app-modal-card app-modal-card--settings">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-kicker">Configuration</div>
+                    <h3 class="app-modal-title">Settings</h3>
+                </div>
+                <button data-onclick="closeModal('settings')" class="app-modal-close" type="button" aria-label="Close settings modal">
+                    <span class="app-modal-close-icon" aria-hidden="true">&times;</span>
+                    <span>Close</span>
+                </button>
+            </div>
+            <div class="app-modal-body settings-modal-body">
+                <section class="modal-surface-block">
                     <p class="text-xs text-sub uppercase font-bold mb-3">Gameplay</p>
-                    <div class="flex justify-between items-center pb-2 border-b border-sub border-opacity-30">
+                    <div class="settings-row">
                         <span class="text-base text-sm">Easy Mode (Translation)</span>
                         <button data-onclick="toggleEasyMode(); closeModal('settings')" class="text-main hover:text-base text-xs uppercase font-bold">Toggle</button>
                     </div>
-                    <div class="flex justify-between items-center pt-2 border-b border-sub border-opacity-30 pb-2">
+                    <div class="settings-row">
                         <span class="text-base text-sm">Auto-Speak Words</span>
                         <button data-onclick="toggleAutoSpeak(); closeModal('settings')" class="text-main hover:text-base text-xs uppercase font-bold">Toggle</button>
                     </div>
-                    <div class="flex justify-between items-center pt-2">
+                    <div class="settings-row">
                         <span class="text-base text-sm">Sound FX</span>
                         <button id="btn-toggle-sound" data-onclick="toggleSound();" class="text-main hover:text-base text-xs uppercase font-bold">OFF</button>
                     </div>
-                    <div class="flex justify-between items-center pt-2">
+                    <div class="settings-row">
                         <span class="text-base text-sm">Dyslexic Font</span>
                         <button id="btn-toggle-dyslexic" data-onclick="toggleDyslexicMode();" class="text-main hover:text-base text-xs uppercase font-bold">OFF</button>
                     </div>
-                </div>
-
-                <!-- Themes -->
-                <div>
+                </section>
+                <section class="modal-surface-block mt-3">
                     <p class="text-xs text-sub uppercase font-bold mb-3">Theme</p>
                     <div class="theme-grid" id="theme-selector">
                         <!-- Injected by JS -->
                     </div>
-                </div>
-
-                <!-- Shortcuts -->
-                <div>
+                </section>
+                <section class="modal-surface-block mt-3">
                     <p class="text-xs text-sub uppercase font-bold mb-3">Shortcuts</p>
-                    <div class="grid grid-cols-2 gap-2 text-sm text-base">
+                    <div class="settings-shortcuts-grid text-sm text-base">
                         <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Tab</kbd> Restart</div>
                         <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Ctrl</kbd> Speak</div>
                         <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Alt</kbd> Free Look</div>
                     </div>
-                </div>
-            </div>
-            
-            <div class="text-center mt-6">
-                <button data-onclick="closeModal('settings')" class="text-sub hover:text-base text-sm">Close</button>
+                </section>
             </div>
         </div>
     </div>
@@ -532,7 +587,6 @@
             </div>
         </div>
         <div class="header-actions flex justify-start sm:justify-end items-center gap-3 sm:gap-4 text-sub flex-nowrap pb-1 sm:pb-0">
-            <button data-onclick="goHome()" class="btn-ghost transition" title="Home"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><path d="M6 8h.001"></path><path d="M10 8h.001"></path><path d="M14 8h.001"></path><path d="M18 8h.001"></path><path d="M6 12h.001"></path><path d="M10 12h.001"></path><path d="M14 12h.001"></path><path d="M18 12h.001"></path><path d="M7 16h10"></path></svg></button>
             <button data-onclick="openProfileScreen()" class="btn-ghost transition" title="Full profile"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></button>
             <button data-onclick="openModal('about')" class="btn-ghost transition" title="About"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg></button>
             <button data-onclick="openModal('settings')" class="btn-ghost transition" title="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
@@ -551,7 +605,7 @@
                 <div class="mode-group">
                     <div class="nav-link active" id="nav-search" data-onclick="trySwitchTab('search')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>search</div>
                     <div class="nav-link" id="nav-custom" data-onclick="trySwitchTab('custom')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>custom</div>
-                    <div class="nav-link" id="nav-duel" data-onclick="trySwitchTab('duel')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M8 4l-3 8h5l-2 8 11-13h-6l2-3z"/></svg>duel</div>
+                    <div class="nav-link feature-temporary-hidden" id="nav-duel" data-onclick="trySwitchTab('duel')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M8 4l-3 8h5l-2 8 11-13h-6l2-3z"/></svg>duel</div>
                 </div>
             <div class="separator"></div>
             <div class="mode-group">
@@ -563,10 +617,17 @@
     </div>
 
     <div id="artist-songs-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" data-onclick="if(event.target === this) closeArtistSongsModal()">
-        <div class="artist-spotlight-modal bg-surface p-6 rounded-lg shadow-2xl w-full border border-sub overflow-y-auto">
-            <div class="flex items-center justify-between mb-4">
-                <h3 id="artist-songs-title" class="text-main font-bold text-xl">Artist spotlight</h3>
-                <button data-onclick="closeArtistSongsModal()" class="text-sub hover:text-base text-sm">Close</button>
+        <div class="artist-spotlight-modal bg-surface p-6 rounded-lg shadow-2xl w-full border border-sub">
+            <div class="artist-spotlight-header mb-4">
+                <div>
+                    <div class="artist-spotlight-kicker">Artist spotlight</div>
+                    <h3 id="artist-songs-title" class="text-main font-bold text-xl">Bon Jovi</h3>
+                    <p id="artist-songs-subtitle" class="artist-spotlight-subtitle">Band/Singer</p>
+                </div>
+                <button data-onclick="closeArtistSongsModal()" class="artist-spotlight-close" type="button" aria-label="Close artist songs">
+                    <span class="artist-spotlight-close-icon" aria-hidden="true">&times;</span>
+                    <span>Close</span>
+                </button>
             </div>
             <div class="artist-spotlight-hero">
                 <img id="artist-songs-cover" class="artist-spotlight-cover" src="https://placehold.co/96x96/0B2D45/3EE39E?text=AR" alt="Artist cover">
