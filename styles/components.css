@@ -1151,8 +1151,9 @@
             border: 1px solid color-mix(in srgb, var(--sub-color) 22%, transparent);
             border-radius: 14px;
             background:
-                radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--main-color) 15%, transparent), transparent 36%),
-                linear-gradient(180deg, color-mix(in srgb, var(--sub-alt-color) 95%, transparent), color-mix(in srgb, var(--sub-alt-color) 74%, transparent));
+                radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--theme-c3) 24%, transparent), transparent 42%),
+                radial-gradient(circle at 92% 120%, color-mix(in srgb, var(--theme-c5) 18%, transparent), transparent 50%),
+                linear-gradient(180deg, color-mix(in srgb, var(--theme-c2) 92%, var(--theme-c1) 8%), color-mix(in srgb, var(--theme-c1) 84%, var(--theme-c2) 16%));
             padding: 12px;
             display: grid;
             gap: 12px;
@@ -1185,7 +1186,7 @@
         .search-discovery-section {
             border: 1px solid color-mix(in srgb, var(--sub-color) 18%, transparent);
             border-radius: 10px;
-            background: color-mix(in srgb, var(--bg-color) 22%, transparent);
+            background: linear-gradient(180deg, color-mix(in srgb, var(--theme-c1) 26%, transparent), color-mix(in srgb, var(--theme-c2) 28%, transparent));
             padding: 10px;
             display: grid;
             gap: 8px;

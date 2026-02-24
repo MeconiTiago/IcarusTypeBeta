@@ -58,6 +58,7 @@ bindLegacyInlineHandlers();
             }
 
             localStorage.setItem('icarus_theme', themeName);
+            refreshThemePlaceholderImages();
             renderThemeSelector(); 
         }
 
@@ -88,6 +89,38 @@ bindLegacyInlineHandlers();
         function getThemeColor(varName, fallback = '') {
             const color = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
             return color || fallback;
+        }
+
+        function toHexNoHash(color, fallback = '0B2D45') {
+            const value = String(color || '').trim();
+            if (!value) return fallback;
+            if (value.startsWith('#')) return value.slice(1);
+            const match = value.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+            if (!match) return fallback;
+            return [match[1], match[2], match[3]]
+                .map((n) => Number(n).toString(16).padStart(2, '0'))
+                .join('');
+        }
+
+        function buildThemePlaceholderUrl(width, height, label) {
+            const bgHex = toHexNoHash(getThemeColor('--sub-alt-color', '#0B2D45'), '0B2D45');
+            const fgHex = toHexNoHash(getThemeColor('--main-color', '#3EE39E'), '3EE39E');
+            return `https://placehold.co/${width}x${height}/${bgHex}/${fgHex}?text=${encodeURIComponent(label)}`;
+        }
+
+        function refreshThemePlaceholderImages() {
+            document.querySelectorAll('img[src*="placehold.co/"]').forEach((img) => {
+                try {
+                    const u = new URL(img.src);
+                    const pathParts = u.pathname.split('/').filter(Boolean);
+                    const size = pathParts[0] || '80x80';
+                    const [w, h] = size.split('x');
+                    const width = Math.max(1, Number(w) || 80);
+                    const height = Math.max(1, Number(h) || width);
+                    const label = decodeURIComponent(u.searchParams.get('text') || 'IT');
+                    img.src = buildThemePlaceholderUrl(width, height, label);
+                } catch (_err) {}
+            });
         }
 
         // --- VIRTUAL KEYBOARD ---
@@ -1641,7 +1674,7 @@ bindLegacyInlineHandlers();
                 if (authPendingAvatarFile) {
                     const fallback = sanitizeAvatarUrl(authStoredAvatarUrl || '');
                     if (elements.authUserAvatar) {
-                        elements.authUserAvatar.src = fallback || 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
+                        elements.authUserAvatar.src = fallback || buildThemePlaceholderUrl(80, 80, 'IT');
                     }
                 }
                 authPendingAvatarFile = null;
@@ -1978,10 +2011,10 @@ bindLegacyInlineHandlers();
                 return;
             }
             if (elements.authUserAvatar) {
-                elements.authUserAvatar.src = avatarUrl || 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
+                elements.authUserAvatar.src = avatarUrl || buildThemePlaceholderUrl(80, 80, 'IT');
             }
             if (elements.headerAvatarImage) {
-                elements.headerAvatarImage.src = avatarUrl || 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
+                elements.headerAvatarImage.src = avatarUrl || buildThemePlaceholderUrl(80, 80, 'IT');
             }
             authStoredAvatarUrl = avatarUrl || '';
             authPendingAvatarFile = null;
@@ -2195,7 +2228,7 @@ bindLegacyInlineHandlers();
         function buildFavoriteArtworkFallback(artist, title) {
             const a = String(artist || 'A').trim().charAt(0).toUpperCase() || 'A';
             const t = String(title || 'S').trim().charAt(0).toUpperCase() || 'S';
-            return `https://placehold.co/200x200/0B2D45/3EE39E?text=${encodeURIComponent(a + t)}`;
+            return buildThemePlaceholderUrl(200, 200, a + t);
         }
 
         function favoriteArtworkKey(artist, title) {
@@ -2308,7 +2341,7 @@ bindLegacyInlineHandlers();
                         const name = String(row.name || '').trim();
                         const encodedName = encodeURIComponent(name);
                         const cover = await resolveRecentArtistArtwork(name);
-                        const fallback = `https://placehold.co/120x120/0B2D45/3EE39E?text=${encodeURIComponent((name.charAt(0) || 'A').toUpperCase())}`;
+                        const fallback = buildThemePlaceholderUrl(120, 120, (name.charAt(0) || 'A').toUpperCase());
                         const thumb = escapeHtml(cover || fallback);
                         return `
                             <button type="button" class="search-mini-artist-card" data-onclick="openRecentArtistFromHub('${encodedName}')">
@@ -2810,7 +2843,7 @@ bindLegacyInlineHandlers();
             const name = String(username || 'U').trim() || 'U';
             const initial = escapeHtml(name.charAt(0).toUpperCase());
             const safeUrl = sanitizeAvatarUrl(avatarUrl || '');
-            const src = safeUrl || `https://placehold.co/80x80/0B2D45/3EE39E?text=${encodeURIComponent(initial)}`;
+            const src = safeUrl || buildThemePlaceholderUrl(80, 80, initial);
             const encodedSrc = encodeURIComponent(src);
             const encodedName = encodeURIComponent(name);
             return `<button type="button" class="auth-friend-avatar-btn" data-avatar-src="${encodedSrc}" data-avatar-name="${encodedName}" title="View avatar">
@@ -4075,7 +4108,7 @@ bindLegacyInlineHandlers();
                     avgAcc: Number(friendSummary.avgAcc ?? 0) || 0
                 };
                 const username = String(f.username || 'friend');
-                const avatar = sanitizeAvatarUrl(f.avatar_url || '') || 'https://placehold.co/96x96/0B2D45/3EE39E?text=IT';
+                const avatar = sanitizeAvatarUrl(f.avatar_url || '') || buildThemePlaceholderUrl(96, 96, 'IT');
                 const level = computeProfileLevel(stats);
                 const source = profileHubContext.source === 'requests'
                     ? `${f.direction || 'request'} - ${f.status || 'pending'}`
@@ -4099,7 +4132,7 @@ bindLegacyInlineHandlers();
             }
             const username = elements.authUserName?.textContent || 'user';
             const email = elements.authUserEmail?.textContent || '';
-            const avatar = elements.authUserAvatar?.src || 'https://placehold.co/96x96/0B2D45/3EE39E?text=IT';
+            const avatar = elements.authUserAvatar?.src || buildThemePlaceholderUrl(96, 96, 'IT');
             const bio = (elements.authUserBio?.value || '').trim() || 'No bio yet.';
             const level = computeProfileLevel(authStatsSummary);
 
@@ -4348,8 +4381,8 @@ bindLegacyInlineHandlers();
                 if (elements.authUserName) elements.authUserName.textContent = username;
                 if (elements.authUserEmail) elements.authUserEmail.textContent = email;
                 if (elements.authUserBio) elements.authUserBio.value = bio;
-                if (elements.authUserAvatar) elements.authUserAvatar.src = avatarUrl || 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
-                if (elements.headerAvatarImage) elements.headerAvatarImage.src = avatarUrl || 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
+                if (elements.authUserAvatar) elements.authUserAvatar.src = avatarUrl || buildThemePlaceholderUrl(80, 80, 'IT');
+                if (elements.headerAvatarImage) elements.headerAvatarImage.src = avatarUrl || buildThemePlaceholderUrl(80, 80, 'IT');
                 setPreferredPlayer(preferredPlayer);
                 authStoredAvatarUrl = avatarUrl || '';
                 if (elements.authDeletePassword) elements.authDeletePassword.value = '';
@@ -4423,7 +4456,7 @@ bindLegacyInlineHandlers();
                 closeProfileHub();
                 authStoredAvatarUrl = '';
                 resetCustomCoverInput();
-                if (elements.headerAvatarImage) elements.headerAvatarImage.src = 'https://placehold.co/80x80/0B2D45/3EE39E?text=IT';
+                if (elements.headerAvatarImage) elements.headerAvatarImage.src = buildThemePlaceholderUrl(80, 80, 'IT');
                 clearDuelState();
                 renderSetupFavoritesTab();
                 renderSearchDiscoveryPanel().catch(() => {});
@@ -6025,7 +6058,7 @@ bindLegacyInlineHandlers();
             if (elements.artistSongsStatus) elements.artistSongsStatus.textContent = 'Loading top songs...';
             if (elements.artistSongsList) elements.artistSongsList.innerHTML = '<div class="auth-recent-empty">Loading...</div>';
             if (elements.artistSongsCover) {
-                elements.artistSongsCover.src = 'https://placehold.co/96x96/0B2D45/3EE39E?text=AR';
+                elements.artistSongsCover.src = buildThemePlaceholderUrl(96, 96, 'AR');
             }
             if (elements.artistSongsOpenPlayer) {
                 elements.artistSongsOpenPlayer.href = buildProviderSearchLink(state.preferredPlayer, artistName);
@@ -6070,7 +6103,7 @@ bindLegacyInlineHandlers();
 
         function openAvatarPreview(src = '', label = '') {
             if (!elements.avatarPreviewOverlay || !elements.avatarPreviewImage || !elements.avatarPreviewName) return;
-            const fallback = 'https://placehold.co/320x320/0B2D45/3EE39E?text=IT';
+            const fallback = buildThemePlaceholderUrl(320, 320, 'IT');
             const imageSrc = String(src || '').trim() || elements.authUserAvatar?.src || fallback;
             const imageLabel = String(label || '').trim() || elements.authUserName?.textContent || 'User avatar';
             elements.avatarPreviewImage.src = imageSrc;
@@ -7650,5 +7683,6 @@ bindLegacyInlineHandlers();
         window.addEventListener('beforeunload', () => {
             if (spotifyPollTimer) clearInterval(spotifyPollTimer);
         });
+
 
 
