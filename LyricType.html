@@ -655,6 +655,16 @@
                 <!-- Themes -->
                 <div>
                     <p class="text-xs text-sub uppercase font-bold mb-3">Theme</p>
+                    <input
+                        id="theme-search-input"
+                        type="text"
+                        placeholder="Search theme..."
+                        class="w-full mb-3 rounded-md border border-sub-alt bg-sub-alt px-3 py-2 text-sm text-base placeholder:text-sub"
+                        autocomplete="off"
+                        autocapitalize="none"
+                        autocorrect="off"
+                        spellcheck="false"
+                    />
                     <div class="theme-grid" id="theme-selector">
                         <!-- Injected by JS -->
                     </div>
@@ -1227,78 +1237,145 @@
         window.toggleSound = toggleSound;
 
         // --- THEME LOGIC ---
+        const COLOR_SECTIONS = Object.freeze({
+            surfaces: Object.freeze({
+                background: '--bg-color',
+                layer: '--sub-alt-color'
+            }),
+            accents: Object.freeze({
+                primary: '--main-color',
+                secondary: '--sub-color',
+                caret: '--caret-color',
+                muted: '--trans-color'
+            }),
+            feedback: Object.freeze({
+                success: '--success-color',
+                error: '--error-color',
+                errorDeep: '--error-extra-color',
+                reward: '--gold-color'
+            }),
+            text: Object.freeze({
+                primary: '--text-color',
+                button: '--btn-text-color'
+            })
+        });
+
         const THEMES = {
             'icarus': {
-                '--bg-color': '#0d2f45',
-                '--main-color': '#3EE39E',
-                '--caret-color': '#3EE39E',
-                '--sub-color': '#5e8396',
-                '--sub-alt-color': '#082030',
-                '--text-color': '#e6f4f1',
-                '--error-color': '#ca4754',
-                '--error-extra-color': '#7e2a33',
-                '--trans-color': '#4a7a96',
-                '--success-color': '#3EE39E',
-                '--gold-color': '#e2b714',
-                '--btn-text-color': '#0d2f45'
+                name: 'Aether Bloom',
+                section: 'Signature',
+                sections: {
+                    surfaces: { background: '#0d2f45', layer: '#082030' },
+                    accents: { primary: '#3EE39E', secondary: '#5e8396', muted: '#4a7a96' },
+                    feedback: { success: '#3EE39E', error: '#ca4754', errorDeep: '#7e2a33', reward: '#e2b714' },
+                    text: { primary: '#e6f4f1', button: '#0d2f45' }
+                }
             },
             'midnight': {
-                '--bg-color': '#111111',
-                '--main-color': '#6495ed',
-                '--caret-color': '#6495ed',
-                '--sub-color': '#555555',
-                '--sub-alt-color': '#1a1a1a',
-                '--text-color': '#cccccc',
-                '--error-color': '#ff4444',
-                '--error-extra-color': '#880000',
-                '--trans-color': '#666666',
-                '--success-color': '#6495ed',
-                '--gold-color': '#ffd700',
-                '--btn-text-color': '#111111'
+                name: 'Moonwave Core',
+                section: 'Dark',
+                sections: {
+                    surfaces: { background: '#111111', layer: '#1a1a1a' },
+                    accents: { primary: '#6495ed', secondary: '#555555', muted: '#666666' },
+                    feedback: { success: '#6495ed', error: '#ff4444', errorDeep: '#880000', reward: '#ffd700' },
+                    text: { primary: '#cccccc', button: '#111111' }
+                }
             },
             'paper': {
-                '--bg-color': '#f5f5f5',
-                '--main-color': '#444444',
-                '--caret-color': '#000000',
-                '--sub-color': '#999999',
-                '--sub-alt-color': '#e0e0e0',
-                '--text-color': '#333333',
-                '--error-color': '#d32f2f',
-                '--error-extra-color': '#b71c1c',
-                '--trans-color': '#777777',
-                '--success-color': '#388e3c',
-                '--gold-color': '#fbc02d',
-                '--btn-text-color': '#ffffff'
+                name: 'Paper Forge',
+                section: 'Light',
+                sections: {
+                    surfaces: { background: '#f5f5f5', layer: '#e0e0e0' },
+                    accents: { primary: '#444444', secondary: '#999999', muted: '#777777' },
+                    feedback: { success: '#388e3c', error: '#d32f2f', errorDeep: '#b71c1c', reward: '#fbc02d' },
+                    text: { primary: '#333333', button: '#ffffff' }
+                }
             },
             'matrix': {
-                '--bg-color': '#000000',
-                '--main-color': '#00ff00',
-                '--caret-color': '#00ff00',
-                '--sub-color': '#005500',
-                '--sub-alt-color': '#001100',
-                '--text-color': '#00aa00',
-                '--error-color': '#ff0000',
-                '--error-extra-color': '#880000',
-                '--trans-color': '#004400',
-                '--success-color': '#00ff00',
-                '--gold-color': '#ffff00',
-                '--btn-text-color': '#000000'
+                name: 'Neon Grid',
+                section: 'Retro',
+                sections: {
+                    surfaces: { background: '#000000', layer: '#001100' },
+                    accents: { primary: '#00ff00', secondary: '#005500', muted: '#004400' },
+                    feedback: { success: '#00ff00', error: '#ff0000', errorDeep: '#880000', reward: '#ffff00' },
+                    text: { primary: '#00aa00', button: '#000000' }
+                }
             },
             'sunset': {
-                '--bg-color': '#2d1b2e',
-                '--main-color': '#ff9e64',
-                '--caret-color': '#ff9e64',
-                '--sub-color': '#b45a6c',
-                '--sub-alt-color': '#1f1020',
-                '--text-color': '#fff0f5',
-                '--error-color': '#ff456a',
-                '--error-extra-color': '#802030',
-                '--trans-color': '#904050',
-                '--success-color': '#ff9e64',
-                '--gold-color': '#ffd700',
-                '--btn-text-color': '#2d1b2e'
+                name: 'Dusk Ember',
+                section: 'Warm',
+                sections: {
+                    surfaces: { background: '#2d1b2e', layer: '#1f1020' },
+                    accents: { primary: '#ff9e64', secondary: '#b45a6c', muted: '#904050' },
+                    feedback: { success: '#ff9e64', error: '#ff456a', errorDeep: '#802030', reward: '#ffd700' },
+                    text: { primary: '#fff0f5', button: '#2d1b2e' }
+                }
             }
         };
+
+        function normalizeHexColor(value, fallback = '#000000') {
+            const raw = String(value || '').trim();
+            const match = raw.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+            if (!match) return fallback;
+            const hex = match[1];
+            if (hex.length === 3) {
+                return `#${hex
+                    .split('')
+                    .map((ch) => `${ch}${ch}`)
+                    .join('')
+                    .toUpperCase()}`;
+            }
+            return `#${hex.toUpperCase()}`;
+        }
+
+        function normalizeInlineThemes() {
+            for (const theme of Object.values(THEMES)) {
+                if (!theme?.sections) continue;
+                const { surfaces, accents, feedback, text } = theme.sections;
+                surfaces.background = normalizeHexColor(surfaces.background);
+                surfaces.layer = normalizeHexColor(surfaces.layer);
+                accents.primary = normalizeHexColor(accents.primary);
+                accents.secondary = normalizeHexColor(accents.secondary);
+                accents.muted = normalizeHexColor(accents.muted);
+                feedback.success = normalizeHexColor(feedback.success);
+                feedback.error = normalizeHexColor(feedback.error);
+                feedback.errorDeep = normalizeHexColor(feedback.errorDeep);
+                feedback.reward = normalizeHexColor(feedback.reward);
+                text.primary = normalizeHexColor(text.primary);
+                text.button = normalizeHexColor(text.button);
+            }
+        }
+
+        normalizeInlineThemes();
+
+        function normalizeThemeSearchTerm(value) {
+            return String(value || '').trim().toLowerCase();
+        }
+
+        function getThemeSearchTerm() {
+            const input = document.getElementById('theme-search-input');
+            return normalizeThemeSearchTerm(input?.value);
+        }
+
+        function buildThemeTokens(themeName) {
+            const theme = THEMES[themeName];
+            if (!theme?.sections) return null;
+            const { surfaces, accents, feedback, text } = theme.sections;
+            return {
+                [COLOR_SECTIONS.surfaces.background]: surfaces.background,
+                [COLOR_SECTIONS.surfaces.layer]: surfaces.layer,
+                [COLOR_SECTIONS.accents.primary]: accents.primary,
+                [COLOR_SECTIONS.accents.secondary]: accents.secondary,
+                [COLOR_SECTIONS.accents.caret]: accents.primary,
+                [COLOR_SECTIONS.accents.muted]: accents.muted,
+                [COLOR_SECTIONS.feedback.success]: feedback.success,
+                [COLOR_SECTIONS.feedback.error]: feedback.error,
+                [COLOR_SECTIONS.feedback.errorDeep]: feedback.errorDeep,
+                [COLOR_SECTIONS.feedback.reward]: feedback.reward,
+                [COLOR_SECTIONS.text.primary]: text.primary,
+                [COLOR_SECTIONS.text.button]: text.button
+            };
+        }
 
         function loadTheme() {
             const savedTheme = localStorage.getItem('icarus_theme') || 'icarus';
@@ -1307,7 +1384,7 @@
         }
 
         function setTheme(themeName) {
-            const theme = THEMES[themeName];
+            const theme = buildThemeTokens(themeName);
             if (!theme) return;
             
             const root = document.documentElement;
@@ -1325,21 +1402,34 @@
             container.innerHTML = '';
             
             const currentTheme = localStorage.getItem('icarus_theme') || 'icarus';
+            const searchTerm = getThemeSearchTerm();
             
             for (const [key, val] of Object.entries(THEMES)) {
+                const themeName = val?.name || key;
+                const themeSection = val?.section || 'General';
+                const searchBlob = `${key} ${themeName} ${themeSection}`.toLowerCase();
+                if (searchTerm && !searchBlob.includes(searchTerm)) continue;
+
                 const btn = document.createElement('div');
                 btn.className = `theme-btn ${key === currentTheme ? 'active' : ''}`;
                 btn.onclick = () => setTheme(key);
                 
-                const previewColor = val['--main-color'];
-                const previewBg = val['--bg-color'];
+                const previewColor = val?.sections?.accents?.primary || '#888888';
+                const previewBg = val?.sections?.surfaces?.background || '#111111';
+                btn.setAttribute('aria-label', `${themeName} (${themeSection})`);
+                btn.title = `${themeName} - ${themeSection}`;
                 
                 btn.innerHTML = `
                     <div class="theme-preview" style="background:${previewColor}; border: 2px solid ${previewBg};"></div>
-                    <span class="capitalize text-sub">${key}</span>
+                    <span class="capitalize text-sub">${themeName}</span>
                 `;
                 container.appendChild(btn);
             }
+        }
+
+        const themeSearchInput = document.getElementById('theme-search-input');
+        if (themeSearchInput) {
+            themeSearchInput.addEventListener('input', renderThemeSelector);
         }
 
         loadTheme();

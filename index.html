@@ -540,6 +540,16 @@
                 </section>
                 <section class="modal-surface-block mt-3">
                     <p class="text-xs text-sub uppercase font-bold mb-3">Theme</p>
+                    <input
+                        id="theme-search-input"
+                        type="text"
+                        placeholder="Search theme..."
+                        class="w-full mb-3 rounded-md border border-sub-alt bg-sub-alt px-3 py-2 text-sm text-base placeholder:text-sub"
+                        autocomplete="off"
+                        autocapitalize="none"
+                        autocorrect="off"
+                        spellcheck="false"
+                    />
                     <div class="theme-grid" id="theme-selector">
                         <!-- Injected by JS -->
                     </div>
@@ -600,7 +610,7 @@
         </div>
     </header>
 
-    <div class="w-full max-w-4xl flex justify-start sm:justify-center mb-4 sm:mb-8 px-2 sm:px-0">
+    <div class="w-full max-w-7xl flex justify-start sm:justify-center mb-4 sm:mb-8 px-2 sm:px-0">
         <div class="config-bar mobile-config-bar">
                 <div class="mode-group">
                     <div class="nav-link active" id="nav-search" data-onclick="trySwitchTab('search')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>search</div>
@@ -669,12 +679,18 @@
         </div>
     </div>
 
-    <main class="flex-1 w-full max-w-4xl relative flex flex-col justify-start items-center p-4 min-h-[400px]">
+    <main class="flex-1 w-full max-w-7xl relative flex flex-col justify-start items-center p-4 min-h-[400px]">
         <!-- Setup Views and Game Area (Same as before) -->
         <div id="setup-area" class="w-full fade-in">
             <div id="view-search" class="w-full flex flex-col gap-6">
                 <div class="search-controls flex flex-col sm:flex-row gap-3 sm:gap-4">
                     <div class="flex-1 relative">
+                        <span class="search-input-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="7"></circle>
+                                <line x1="20" y1="20" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        </span>
                         <input type="text" id="input-artist" placeholder="Artist / Band" class="w-full custom-input p-2 outline-none" data-onkeydown="if(event.key === 'Enter') loadArtistCatalog()">
                         <div id="artist-suggestions" class="search-suggest hidden"></div>
                     </div>
