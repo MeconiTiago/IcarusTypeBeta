@@ -1015,6 +1015,18 @@
             margin-top: 12px;
             flex-wrap: wrap;
         }
+        .duel-member-meta {
+            margin-top: 2px;
+            font-size: 0.72rem;
+            color: var(--sub-color);
+        }
+        .duel-member-status {
+            margin-left: 8px;
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--main-color);
+        }
         .duel-hud {
             display: grid;
             grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);

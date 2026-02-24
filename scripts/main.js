@@ -426,6 +426,9 @@ bindLegacyInlineHandlers();
                 isOwner: false,
                 opponentId: '',
                 opponentName: '',
+                selfReady: false,
+                presencePlayers: [],
+                progressByUserId: {},
                 gameLaunched: false,
                 resultShown: false
             },
@@ -622,9 +625,14 @@ bindLegacyInlineHandlers();
             duelRoomBox: document.getElementById('duel-room-box'),
             duelRoomMeta: document.getElementById('duel-room-meta'),
             duelRoomStatus: document.getElementById('duel-room-status'),
+            duelPresenceSummary: document.getElementById('duel-presence-summary'),
             duelRoomMembers: document.getElementById('duel-room-members'),
             duelFriendList: document.getElementById('duel-friend-list'),
             duelInviteList: document.getElementById('duel-invite-list'),
+            duelReadyBtn: document.getElementById('duel-ready-btn'),
+            duelViewReadyBtn: document.getElementById('duel-view-ready-btn'),
+            duelViewPresenceSummary: document.getElementById('duel-view-presence-summary'),
+            duelViewMembers: document.getElementById('duel-view-members'),
             authFavoritesSection: document.getElementById('auth-favorites-section'),
             authDangerSection: document.getElementById('auth-danger-section'),
             authActionsSection: document.getElementById('auth-actions-section'),
@@ -747,6 +755,7 @@ bindLegacyInlineHandlers();
         let duelRealtimeInvitesChannel = null;
         let duelRealtimeInvitesUserId = '';
         let duelSnapshotRefreshTimer = null;
+        let duelPresenceLastPayloadSig = '';
         let spotifyPollTimer = null;
         let spotifyIsTrackingEnabled = false;
         let spotifyLastPlayedAtKnown = '';
@@ -3137,6 +3146,171 @@ bindLegacyInlineHandlers();
             duelRealtimeInvitesUserId = '';
         }
 
+        function buildDuelPresencePayload(overrides = {}) {
+            const userId = String(authCurrentUser?.id || '');
+            if (!userId) return null;
+            const userName = String(
+                overrides.name
+                || elements.authUserName?.textContent
+                || authProfileCache?.username
+                || 'Player'
+            ).trim();
+            const nowIso = new Date().toISOString();
+            const payload = {
+                id: userId,
+                roomId: state.duel.roomId || '',
+                name: userName || 'Player',
+                ready: !!(overrides.ready ?? state.duel.selfReady),
+                status: String(overrides.status || 'waiting'),
+                progressPct: Math.max(0, Math.min(100, Number(overrides.progressPct ?? 0) || 0)),
+                wpm: Math.max(0, Number(overrides.wpm ?? 0) || 0),
+                updatedAt: nowIso
+            };
+            return payload;
+        }
+
+        function getDuelPresencePlayers() {
+            if (!Array.isArray(state.duel.presencePlayers)) return [];
+            return state.duel.presencePlayers
+                .map((p) => ({
+                    id: String(p?.id || ''),
+                    name: String(p?.name || '').trim() || 'Player',
+                    ready: !!p?.ready,
+                    status: String(p?.status || 'waiting'),
+                    progressPct: Math.max(0, Math.min(100, Number(p?.progressPct || 0) || 0)),
+                    wpm: Math.max(0, Number(p?.wpm || 0) || 0),
+                    updatedAt: String(p?.updatedAt || '')
+                }))
+                .filter((p) => !!p.id)
+                .sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        function getDuelReadyGate() {
+            const players = getDuelPresencePlayers();
+            const readyPlayers = players.filter((p) => p.ready);
+            const minPlayersMet = players.length >= 2;
+            const allReady = minPlayersMet && readyPlayers.length === players.length;
+            return {
+                players,
+                readyPlayers,
+                minPlayersMet,
+                allReady,
+                canStart: minPlayersMet && allReady
+            };
+        }
+
+        function updateDuelPresenceSummary() {
+            const gate = getDuelReadyGate();
+            const summary = `${gate.readyPlayers.length}/${gate.players.length} ready`;
+            const waitingCount = Math.max(0, gate.players.length - gate.readyPlayers.length);
+            const suffix = waitingCount > 0 ? ` - ${waitingCount} waiting` : ' - all ready';
+            const statusText = gate.players.length < 2
+                ? 'Need at least 2 players online.'
+                : `${summary}${suffix}`;
+            if (elements.duelPresenceSummary) elements.duelPresenceSummary.textContent = statusText;
+            if (elements.duelViewPresenceSummary) elements.duelViewPresenceSummary.textContent = statusText;
+        }
+
+        function renderDuelRoomPlayers(snapshot = null) {
+            const duelTotalWords = Math.max(
+                1,
+                String(state.duel.lyrics || '')
+                    .split(/\s+/)
+                    .filter(Boolean).length
+            );
+            const profileNameById = new Map();
+            if (snapshot?.profilesMap instanceof Map) {
+                for (const [userId, profile] of snapshot.profilesMap.entries()) {
+                    profileNameById.set(userId, String(profile?.username || '').trim() || 'player');
+                }
+            }
+            const progressRows = Array.isArray(snapshot?.progress)
+                ? snapshot.progress
+                : Object.entries(state.duel.progressByUserId || {}).map(([user_id, row]) => ({ ...row, user_id }));
+            const progressByUserId = new Map(progressRows.map((row) => [row.user_id, row]));
+            const presencePlayers = getDuelPresencePlayers();
+            const members = presencePlayers.map((player) => {
+                const isOwner = player.id === state.duel.ownerId;
+                const name = profileNameById.get(player.id) || player.name || 'player';
+                const progress = progressByUserId.get(player.id);
+                const pct = progress?.typed_words != null
+                    ? Math.max(0, Math.min(100, Math.round((Number(progress.typed_words || 0) / duelTotalWords) * 100)))
+                    : Math.round(player.progressPct || 0);
+                const wpm = Math.max(0, Math.round(Number(progress?.wpm ?? player.wpm ?? 0)));
+                const status = progress?.is_finished
+                    ? 'finished'
+                    : (player.status || (player.ready ? 'ready' : 'waiting'));
+                return { id: player.id, isOwner, name, status, ready: !!player.ready, pct, wpm };
+            });
+            if (!members.length && Array.isArray(snapshot?.members)) {
+                for (const m of snapshot.members) {
+                    if (!m?.user_id) continue;
+                    const name = profileNameById.get(m.user_id) || 'player';
+                    members.push({ id: m.user_id, isOwner: m.user_id === state.duel.ownerId, name, status: 'offline', ready: false, pct: 0, wpm: 0 });
+                }
+            }
+            const html = members.length
+                ? members.map((m) => {
+                    const suffix = m.isOwner ? ' (owner)' : '';
+                    const statusLabel = m.status === 'finished'
+                        ? 'FINISHED'
+                        : (m.ready ? 'READY' : String(m.status || 'WAITING').toUpperCase());
+                    return `<div class="auth-friend-item">
+                              <div>
+                                <div class="auth-friend-name">${escapeHtml(m.name)}${suffix}<span class="duel-member-status">${escapeHtml(statusLabel)}</span></div>
+                                <div class="duel-member-meta">${Math.max(0, Math.min(100, m.pct))}% - ${Math.max(0, m.wpm)} WPM</div>
+                              </div>
+                            </div>`;
+                }).join('')
+                : '<div class="auth-recent-empty">No players.</div>';
+            if (elements.duelRoomMembers) elements.duelRoomMembers.innerHTML = html;
+            if (elements.duelViewMembers) elements.duelViewMembers.innerHTML = html;
+            updateDuelPresenceSummary();
+        }
+
+        async function publishDuelPresence(overrides = {}) {
+            if (!duelRealtimeRoomChannel || !state.duel.inRoom || !state.duel.roomId) return;
+            const payload = buildDuelPresencePayload(overrides);
+            if (!payload) return;
+            const signature = JSON.stringify(payload);
+            if (signature === duelPresenceLastPayloadSig) return;
+            duelPresenceLastPayloadSig = signature;
+            try {
+                await duelRealtimeRoomChannel.track(payload);
+            } catch (_err) {}
+        }
+
+        function refreshDuelPresenceFromChannel(channel = duelRealtimeRoomChannel) {
+            if (!channel) return;
+            const rawState = channel.presenceState();
+            const presencePlayers = Object.keys(rawState || {})
+                .map((key) => {
+                    const entries = rawState[key] || [];
+                    return entries[entries.length - 1] || null;
+                })
+                .filter(Boolean);
+            state.duel.presencePlayers = presencePlayers;
+            renderDuelRoomPlayers();
+        }
+
+        async function setDuelReadyState(nextReady) {
+            state.duel.selfReady = !!nextReady;
+            await publishDuelPresence({
+                ready: state.duel.selfReady,
+                status: state.duel.selfReady ? 'ready' : 'waiting'
+            });
+            renderDuelPanel();
+        }
+
+        async function toggleDuelReady() {
+            if (!state.duel.inRoom || !state.duel.roomId) {
+                showToast('Join a room first.', 'error');
+                return;
+            }
+            await setDuelReadyState(!state.duel.selfReady);
+            showToast(state.duel.selfReady ? 'You are ready.' : 'You are not ready.', 'info');
+        }
+
         function queueDuelSnapshotRefresh(delayMs = 120) {
             if (duelSnapshotRefreshTimer || !state.duel.inRoom || !state.duel.roomId) return;
             duelSnapshotRefreshTimer = setTimeout(() => {
@@ -3149,10 +3323,27 @@ bindLegacyInlineHandlers();
             if (!supabase || !roomId) return;
             if (duelRealtimeRoomChannel && duelRealtimeRoomId === roomId) return;
             clearDuelRealtimeRoomSubscription();
+            duelPresenceLastPayloadSig = '';
             const roomFilter = `id=eq.${roomId}`;
             const roomMemberFilter = `room_id=eq.${roomId}`;
+            const presenceKey = String(authCurrentUser?.id || '');
             const channel = supabase
-                .channel(`duel-room:${roomId}`)
+                .channel(`duel-room:${roomId}`, {
+                    config: {
+                        presence: {
+                            key: presenceKey || `anon-${Math.random().toString(36).slice(2, 10)}`
+                        }
+                    }
+                })
+                .on('presence', { event: 'sync' }, () => {
+                    refreshDuelPresenceFromChannel(channel);
+                })
+                .on('presence', { event: 'join' }, () => {
+                    refreshDuelPresenceFromChannel(channel);
+                })
+                .on('presence', { event: 'leave' }, () => {
+                    refreshDuelPresenceFromChannel(channel);
+                })
                 .on('postgres_changes', {
                     event: '*',
                     schema: 'public',
@@ -3180,8 +3371,13 @@ bindLegacyInlineHandlers();
                     renderDuelInvites().catch(() => {});
                     queueDuelSnapshotRefresh(0);
                 })
-                .subscribe((status) => {
+                .subscribe(async (status) => {
                     if (status === 'SUBSCRIBED') {
+                        await publishDuelPresence({
+                            ready: state.duel.selfReady,
+                            status: state.duel.selfReady ? 'ready' : 'waiting'
+                        });
+                        refreshDuelPresenceFromChannel(channel);
                         queueDuelSnapshotRefresh(0);
                         return;
                     }
@@ -3234,6 +3430,7 @@ bindLegacyInlineHandlers();
             clearDuelPolling();
             clearDuelRealtimeRoomSubscription();
             duelLastProgressSentAt = 0;
+            duelPresenceLastPayloadSig = '';
             state.duel = {
                 roomId: '',
                 status: 'idle',
@@ -3251,6 +3448,9 @@ bindLegacyInlineHandlers();
                 isOwner: false,
                 opponentId: '',
                 opponentName: '',
+                selfReady: false,
+                presencePlayers: [],
+                progressByUserId: {},
                 gameLaunched: false,
                 resultShown: false
             };
@@ -3259,6 +3459,9 @@ bindLegacyInlineHandlers();
             if (elements.duelSongStatus) elements.duelSongStatus.textContent = 'Pick a song before starting.';
             if (elements.duelRoomCodeInputView) elements.duelRoomCodeInputView.value = '';
             if (elements.duelHud) elements.duelHud.classList.add('hidden');
+            if (elements.duelPresenceSummary) elements.duelPresenceSummary.textContent = 'Waiting players...';
+            if (elements.duelViewPresenceSummary) elements.duelViewPresenceSummary.textContent = 'Waiting players...';
+            if (elements.duelViewMembers) elements.duelViewMembers.innerHTML = '<div class="auth-recent-empty">No players.</div>';
             renderDuelPanel();
         }
 
@@ -3332,6 +3535,14 @@ bindLegacyInlineHandlers();
             if (elements.duelViewInviteBtn) {
                 elements.duelViewInviteBtn.disabled = !inRoom;
             }
+            if (elements.duelReadyBtn) {
+                elements.duelReadyBtn.disabled = !inRoom;
+                elements.duelReadyBtn.textContent = state.duel.selfReady ? 'Unready' : 'Ready';
+            }
+            if (elements.duelViewReadyBtn) {
+                elements.duelViewReadyBtn.disabled = !inRoom;
+                elements.duelViewReadyBtn.textContent = state.duel.selfReady ? 'Unready' : 'Ready';
+            }
             if (elements.duelNextToSongBtn) {
                 elements.duelNextToSongBtn.classList.toggle('hidden', !state.duel.isOwner);
                 elements.duelNextToSongBtn.disabled = !inRoom || !state.duel.isOwner;
@@ -3364,6 +3575,7 @@ bindLegacyInlineHandlers();
             if (elements.duelOpponentName) {
                 elements.duelOpponentName.textContent = state.duel.opponentName || '-';
             }
+            updateDuelPresenceSummary();
             renderDuelFriendInviteList();
         }
 
@@ -3728,21 +3940,8 @@ bindLegacyInlineHandlers();
                 elements.duelSongTitle.value = state.duel.songTitle;
             }
 
-            if (elements.duelRoomMembers) {
-                if (members.length === 0) {
-                    elements.duelRoomMembers.innerHTML = '<div class="auth-recent-empty">No players.</div>';
-                } else {
-                    elements.duelRoomMembers.innerHTML = members.map((m) => {
-                        const username = snapshot.profilesMap.get(m.user_id)?.username || 'player';
-                        const suffix = m.user_id === room.owner_id ? ' (owner)' : '';
-                        return `<div class="auth-friend-item">
-                                  <div>
-                                    <div class="auth-friend-name">${escapeHtml(username)}${suffix}</div>
-                                  </div>
-                                </div>`;
-                    }).join('');
-                }
-            }
+            state.duel.progressByUserId = Object.fromEntries((snapshot.progress || []).map((row) => [row.user_id, row]));
+            renderDuelRoomPlayers(snapshot);
 
             const now = Date.now();
             if (state.duel.startedAtMs > now && room.status === 'countdown') {
@@ -3758,6 +3957,7 @@ bindLegacyInlineHandlers();
                 state.duel.gameLaunched = true;
                 state.duel.resultShown = false;
                 startGame(state.duel.lyrics, state.duel.songTitle, state.duel.artist, state.duel.translation || '');
+                publishDuelPresence({ status: 'racing', ready: true }).catch(() => {});
                 showToast('Duel started.', 'info');
             }
 
@@ -3805,6 +4005,8 @@ bindLegacyInlineHandlers();
             state.duel.uiStep = 'room';
             state.duel.gameLaunched = false;
             state.duel.resultShown = false;
+            state.duel.selfReady = false;
+            state.duel.presencePlayers = [];
             ensureDuelRealtimeRoomSubscription(state.duel.roomId);
             await pollDuelRoom();
             showToast('Duel room created.', 'info');
@@ -3829,6 +4031,8 @@ bindLegacyInlineHandlers();
             state.duel.uiStep = 'room';
             state.duel.gameLaunched = false;
             state.duel.resultShown = false;
+            state.duel.selfReady = false;
+            state.duel.presencePlayers = [];
             if (elements.duelRoomCodeInput) elements.duelRoomCodeInput.value = '';
             if (elements.duelRoomCodeInputView) elements.duelRoomCodeInputView.value = '';
             ensureDuelRealtimeRoomSubscription(state.duel.roomId);
@@ -3870,6 +4074,8 @@ bindLegacyInlineHandlers();
                 state.duel.uiStep = 'room';
                 state.duel.gameLaunched = false;
                 state.duel.resultShown = false;
+                state.duel.selfReady = false;
+                state.duel.presencePlayers = [];
                 ensureDuelRealtimeRoomSubscription(state.duel.roomId);
                 await pollDuelRoom();
                 closeModal('profile');
@@ -3885,8 +4091,21 @@ bindLegacyInlineHandlers();
                 showToast('Create a room first.', 'error');
                 return;
             }
+            if (!state.duel.isOwner) {
+                showToast('Only room owner can start.', 'error');
+                return;
+            }
             if (!isDuelSongConfigured()) {
                 showToast('Choose the song first (Next).', 'error');
+                return;
+            }
+            const readyGate = getDuelReadyGate();
+            if (!readyGate.minPlayersMet) {
+                showToast('Need at least 2 online players to start.', 'error');
+                return;
+            }
+            if (!readyGate.allReady) {
+                showToast('All online players must be ready before countdown.', 'error');
                 return;
             }
             const { data, error } = await supabase.rpc('start_duel_room', {
@@ -3900,6 +4119,7 @@ bindLegacyInlineHandlers();
             state.duel.startedAtMs = data ? new Date(data).getTime() : (Date.now() + 5000);
             state.duel.gameLaunched = false;
             state.duel.resultShown = false;
+            await publishDuelPresence({ status: 'countdown', ready: true });
             queueDuelSnapshotRefresh(0);
             showToast('Countdown started.', 'info');
             switchTab('duel');
@@ -3935,6 +4155,19 @@ bindLegacyInlineHandlers();
                 p_accuracy: Math.max(0, Math.min(100, liveAcc)),
                 p_is_finished: !!forceFinished
             });
+            const totalWords = Math.max(
+                1,
+                String(state.duel.lyrics || '')
+                    .split(/\s+/)
+                    .filter(Boolean).length
+            );
+            const progressPct = Math.round((Math.max(0, typedWords) / totalWords) * 100);
+            await publishDuelPresence({
+                status: forceFinished ? 'finished' : (state.duel.gameLaunched ? 'racing' : (state.duel.selfReady ? 'ready' : 'waiting')),
+                ready: forceFinished ? true : state.duel.selfReady,
+                progressPct,
+                wpm: liveWpm
+            });
         }
 
         function resetAuthDashboardUI() {
@@ -3961,6 +4194,9 @@ bindLegacyInlineHandlers();
             if (elements.authFavoritesList) elements.authFavoritesList.innerHTML = '<div class="auth-recent-empty">No favorites yet.</div>';
             if (elements.duelInviteList) elements.duelInviteList.innerHTML = '<div class="auth-recent-empty">No duel invites.</div>';
             if (elements.duelRoomMembers) elements.duelRoomMembers.innerHTML = '<div class="auth-recent-empty">No players.</div>';
+            if (elements.duelViewMembers) elements.duelViewMembers.innerHTML = '<div class="auth-recent-empty">No players.</div>';
+            if (elements.duelPresenceSummary) elements.duelPresenceSummary.textContent = 'Waiting players...';
+            if (elements.duelViewPresenceSummary) elements.duelViewPresenceSummary.textContent = 'Waiting players...';
             authFriendsCache = [];
             authFriendRequestsCache = [];
             authFavoritesCache = [];
@@ -7425,6 +7661,7 @@ bindLegacyInlineHandlers();
             respondDuelInvite,
             goToDuelSongStep,
             goToDuelRoomStep,
+            toggleDuelReady,
             prepareAndStartDuel,
             startDuelCountdown,
             leaveCurrentDuelRoom,

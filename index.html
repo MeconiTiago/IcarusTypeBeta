@@ -332,9 +332,11 @@
                                 <button class="auth-submit-btn" data-onclick="invitePlayerToDuelRoom()">Invite</button>
                             </div>
                             <div class="auth-friend-add-row mt-2">
+                                <button id="duel-ready-btn" class="auth-submit-btn" data-onclick="toggleDuelReady()">Ready</button>
                                 <button class="auth-submit-btn" data-onclick="startDuelCountdown()">Start duel</button>
                                 <button class="auth-friend-btn reject" data-onclick="leaveCurrentDuelRoom()">Leave</button>
                             </div>
+                            <div id="duel-presence-summary" class="duel-view-opponent mt-2">Waiting players...</div>
                             <div class="auth-subtitle mt-3">Room players</div>
                             <div id="duel-room-members" class="auth-friend-list">
                                 <div class="auth-recent-empty">No players.</div>
@@ -852,8 +854,14 @@
                             <div class="auth-recent-empty">No friends added yet.</div>
                         </div>
                         <div class="duel-view-actions">
+                            <button id="duel-view-ready-btn" class="auth-submit-btn" data-onclick="toggleDuelReady()">Ready</button>
                             <button id="duel-next-to-song-btn" class="auth-submit-btn" data-onclick="goToDuelSongStep()">Next</button>
                             <button class="auth-friend-btn" data-onclick="leaveCurrentDuelRoom()">Leave room</button>
+                        </div>
+                        <div id="duel-view-presence-summary" class="duel-view-opponent mt-2">Waiting players...</div>
+                        <div class="auth-subtitle mt-3">Live room players</div>
+                        <div id="duel-view-members" class="auth-friend-list">
+                            <div class="auth-recent-empty">No players.</div>
                         </div>
                     </div>
 
