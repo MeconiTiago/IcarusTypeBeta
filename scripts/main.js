@@ -3,7 +3,7 @@ import { cleanLyrics, cleanPunctuation } from './utils/text.js';
 import { bindLegacyInlineHandlers } from './features/navigation.js';
 import { createAudioApi } from './features/audio.js';
 import { toggleDyslexicMode as toggleDyslexicModeImpl } from './features/accessibility.js';
-import { THEMES } from './config/themes.js';
+import { THEMES, buildThemeTokens, getThemePalette } from './config/themes.js';
 import { presets } from './config/presets.js';
 import { PUBLIC_APP_URL } from './config/app.js';
 import {
@@ -51,14 +51,12 @@ bindLegacyInlineHandlers();
         }
 
         function setTheme(themeName) {
-            const theme = THEMES[themeName];
-            if (!theme) return;
-            
+            const tokens = buildThemeTokens(themeName);
             const root = document.documentElement;
-            for (const [key, value] of Object.entries(theme)) {
+            for (const [key, value] of Object.entries(tokens)) {
                 root.style.setProperty(key, value);
             }
-            
+
             localStorage.setItem('icarus_theme', themeName);
             renderThemeSelector(); 
         }
@@ -75,8 +73,7 @@ bindLegacyInlineHandlers();
                 btn.className = `theme-btn ${key === currentTheme ? 'active' : ''}`;
                 btn.onclick = () => setTheme(key);
                 
-                const previewColor = val['--main-color'];
-                const previewBg = val['--bg-color'];
+                const [previewBg, , previewColor] = getThemePalette(key);
                 
                 btn.innerHTML = `
                     <div class="theme-preview" style="background:${previewColor}; border: 2px solid ${previewBg};"></div>
@@ -87,6 +84,11 @@ bindLegacyInlineHandlers();
         }
 
         loadTheme();
+
+        function getThemeColor(varName, fallback = '') {
+            const color = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+            return color || fallback;
+        }
 
         // --- VIRTUAL KEYBOARD ---
         const KEYS = [
@@ -2738,11 +2740,11 @@ bindLegacyInlineHandlers();
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
             ctx.clearRect(0, 0, cssW, cssH);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+            ctx.fillStyle = getThemeColor('--bg-12', getThemeColor('--bg-color'));
             ctx.fillRect(0, 0, cssW, cssH);
 
             if (!group || !group.rows || group.rows.length === 0) {
-                ctx.fillStyle = 'rgba(120, 140, 155, 0.9)';
+                ctx.fillStyle = getThemeColor('--sub-90', getThemeColor('--sub-color'));
                 ctx.font = '12px Roboto Mono, monospace';
                 ctx.fillText('No data yet', 10, 24);
                 return;
@@ -2754,7 +2756,7 @@ bindLegacyInlineHandlers();
             const height = cssH - padding * 2;
             const maxWpm = Math.max(10, ...rows.map((r) => Number(r.wpm) || 0));
 
-            ctx.strokeStyle = 'rgba(125, 145, 160, 0.35)';
+            ctx.strokeStyle = getThemeColor('--sub-35', getThemeColor('--sub-color'));
             ctx.lineWidth = 1;
             for (let i = 0; i <= 4; i++) {
                 const y = padding + (height * i / 4);
@@ -2766,7 +2768,7 @@ bindLegacyInlineHandlers();
 
             const n = rows.length;
             const stepX = n > 1 ? width / (n - 1) : 0;
-            ctx.strokeStyle = '#3EE39E';
+            ctx.strokeStyle = getThemeColor('--main-color');
             ctx.lineWidth = 2;
             ctx.beginPath();
             rows.forEach((row, idx) => {
@@ -2777,7 +2779,7 @@ bindLegacyInlineHandlers();
             });
             ctx.stroke();
 
-            ctx.fillStyle = '#3EE39E';
+            ctx.fillStyle = getThemeColor('--main-color');
             rows.forEach((row, idx) => {
                 const wpm = Number(row.wpm) || 0;
                 const x = padding + (idx * stepX);
@@ -3956,11 +3958,11 @@ bindLegacyInlineHandlers();
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.clearRect(0, 0, cssW, cssH);
 
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+            ctx.fillStyle = getThemeColor('--bg-18', getThemeColor('--bg-color'));
             ctx.fillRect(0, 0, cssW, cssH);
 
             if (dataRows.length < 2) {
-                ctx.fillStyle = 'rgba(120, 140, 155, 0.9)';
+                ctx.fillStyle = getThemeColor('--sub-90', getThemeColor('--sub-color'));
                 ctx.font = '12px Roboto Mono, monospace';
                 ctx.fillText('Complete tests to build your curve', 10, 24);
                 return;
@@ -3971,7 +3973,7 @@ bindLegacyInlineHandlers();
             const height = cssH - padding * 2;
             const maxVal = Math.max(10, ...dataRows.map((r) => Number(r.wpm) || 0));
 
-            ctx.strokeStyle = 'rgba(120, 140, 155, 0.32)';
+            ctx.strokeStyle = getThemeColor('--sub-32', getThemeColor('--sub-color'));
             ctx.lineWidth = 1;
             for (let i = 0; i <= 4; i++) {
                 const y = padding + (height * i / 4);
@@ -3982,7 +3984,7 @@ bindLegacyInlineHandlers();
             }
 
             const stepX = width / (dataRows.length - 1);
-            ctx.strokeStyle = '#3EE39E';
+            ctx.strokeStyle = getThemeColor('--main-color');
             ctx.lineWidth = 2.2;
             ctx.beginPath();
             dataRows.forEach((row, idx) => {
@@ -7139,9 +7141,9 @@ bindLegacyInlineHandlers();
             };
 
             if (prevData) {
-                drawLine(prevData, '#5e8396', true);
+                drawLine(prevData, getThemeColor('--sub-color'), true);
             }
-            drawLine(currentData, '#3EE39E', false);
+            drawLine(currentData, getThemeColor('--main-color'), false);
         }
 
         function togglePreviewMode(forceState) {

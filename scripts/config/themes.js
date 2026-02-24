@@ -1,72 +1,36 @@
 export const THEMES = {
   icarus: {
-    "--bg-color": "#0d2f45",
-    "--main-color": "#3EE39E",
-    "--caret-color": "#3EE39E",
-    "--sub-color": "#5e8396",
-    "--sub-alt-color": "#082030",
-    "--text-color": "#e6f4f1",
-    "--error-color": "#ca4754",
-    "--error-extra-color": "#7e2a33",
-    "--trans-color": "#4a7a96",
-    "--success-color": "#3EE39E",
-    "--gold-color": "#e2b714",
-    "--btn-text-color": "#0d2f45",
+    colors: ["#0d2f45", "#082030", "#3EE39E", "#e6f4f1", "#ca4754"],
   },
   midnight: {
-    "--bg-color": "#111111",
-    "--main-color": "#6495ed",
-    "--caret-color": "#6495ed",
-    "--sub-color": "#555555",
-    "--sub-alt-color": "#1a1a1a",
-    "--text-color": "#cccccc",
-    "--error-color": "#ff4444",
-    "--error-extra-color": "#880000",
-    "--trans-color": "#666666",
-    "--success-color": "#6495ed",
-    "--gold-color": "#ffd700",
-    "--btn-text-color": "#111111",
+    colors: ["#111111", "#1a1a1a", "#6495ed", "#cccccc", "#ff4444"],
   },
   paper: {
-    "--bg-color": "#f5f5f5",
-    "--main-color": "#444444",
-    "--caret-color": "#000000",
-    "--sub-color": "#999999",
-    "--sub-alt-color": "#e0e0e0",
-    "--text-color": "#333333",
-    "--error-color": "#d32f2f",
-    "--error-extra-color": "#b71c1c",
-    "--trans-color": "#777777",
-    "--success-color": "#388e3c",
-    "--gold-color": "#fbc02d",
-    "--btn-text-color": "#ffffff",
+    colors: ["#f5f5f5", "#e0e0e0", "#444444", "#333333", "#d32f2f"],
   },
   matrix: {
-    "--bg-color": "#000000",
-    "--main-color": "#00ff00",
-    "--caret-color": "#00ff00",
-    "--sub-color": "#005500",
-    "--sub-alt-color": "#001100",
-    "--text-color": "#00aa00",
-    "--error-color": "#ff0000",
-    "--error-extra-color": "#880000",
-    "--trans-color": "#004400",
-    "--success-color": "#00ff00",
-    "--gold-color": "#ffff00",
-    "--btn-text-color": "#000000",
+    colors: ["#000000", "#001100", "#00ff00", "#00aa00", "#ff0000"],
   },
   sunset: {
-    "--bg-color": "#2d1b2e",
-    "--main-color": "#ff9e64",
-    "--caret-color": "#ff9e64",
-    "--sub-color": "#b45a6c",
-    "--sub-alt-color": "#1f1020",
-    "--text-color": "#fff0f5",
-    "--error-color": "#ff456a",
-    "--error-extra-color": "#802030",
-    "--trans-color": "#904050",
-    "--success-color": "#ff9e64",
-    "--gold-color": "#ffd700",
-    "--btn-text-color": "#2d1b2e",
+    colors: ["#2d1b2e", "#1f1020", "#ff9e64", "#fff0f5", "#ff456a"],
   },
 };
+
+const FALLBACK_THEME = "icarus";
+
+export function getThemePalette(themeName) {
+  const key = THEMES[themeName] ? themeName : FALLBACK_THEME;
+  const palette = THEMES[key]?.colors || THEMES[FALLBACK_THEME].colors;
+  return [...palette];
+}
+
+export function buildThemeTokens(themeName) {
+  const [c1, c2, c3, c4, c5] = getThemePalette(themeName);
+  return {
+    "--theme-c1": c1,
+    "--theme-c2": c2,
+    "--theme-c3": c3,
+    "--theme-c4": c4,
+    "--theme-c5": c5,
+  };
+}

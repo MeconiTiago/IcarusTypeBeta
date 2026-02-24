@@ -1,14 +1,46 @@
 :root {
-            --bg-color: #0d2f45;       
-            --main-color: #3EE39E;     
-            --caret-color: #3EE39E;    
-            --sub-color: #5e8396;      
-            --sub-alt-color: #082030;  
-            --text-color: #e6f4f1;     
-            --error-color: #ca4754;    
-            --error-extra-color: #7e2a33;
-            --trans-color: #4a7a96;    
-            --success-color: #3EE39E;
-            --gold-color: #e2b714;
-            --btn-text-color: #0d2f45;
-        }
+    /* Base palette: exactly 5 colors per theme */
+    --theme-c1: #0d2f45;
+    --theme-c2: #082030;
+    --theme-c3: #3EE39E;
+    --theme-c4: #e6f4f1;
+    --theme-c5: #ca4754;
+
+    /* Legacy semantic tokens consumed by UI */
+    --bg-color: var(--theme-c1);
+    --sub-alt-color: var(--theme-c2);
+    --main-color: var(--theme-c3);
+    --text-color: var(--theme-c4);
+    --error-color: var(--theme-c5);
+
+    --caret-color: var(--main-color);
+    --sub-color: color-mix(in srgb, var(--text-color) 42%, var(--bg-color) 58%);
+    --error-extra-color: color-mix(in srgb, var(--error-color) 68%, var(--bg-color) 32%);
+    --trans-color: color-mix(in srgb, var(--main-color) 28%, var(--text-color) 72%);
+    --success-color: color-mix(in srgb, var(--main-color) 78%, var(--text-color) 22%);
+    --gold-color: color-mix(in srgb, var(--main-color) 55%, var(--error-color) 45%);
+    --btn-text-color: color-mix(in srgb, var(--bg-color) 76%, var(--text-color) 24%);
+
+    --surface-soft: color-mix(in srgb, var(--sub-alt-color) 92%, var(--bg-color) 8%);
+    --surface-deep: color-mix(in srgb, var(--sub-alt-color) 80%, var(--bg-color) 20%);
+    --text-90: color-mix(in srgb, var(--text-color) 90%, transparent);
+    --error-soft-text: color-mix(in srgb, var(--error-color) 62%, var(--text-color) 38%);
+    --gold-10: color-mix(in srgb, var(--gold-color) 10%, transparent);
+
+    --bg-12: color-mix(in srgb, var(--bg-color) 12%, transparent);
+    --bg-18: color-mix(in srgb, var(--bg-color) 18%, transparent);
+    --sub-32: color-mix(in srgb, var(--sub-color) 32%, transparent);
+    --sub-35: color-mix(in srgb, var(--sub-color) 35%, transparent);
+    --sub-90: color-mix(in srgb, var(--sub-color) 90%, transparent);
+}
+
+.text-main { color: var(--main-color); }
+.text-sub { color: var(--sub-color); }
+.text-base { color: var(--text-color); }
+.text-error { color: var(--error-color); }
+.text-success { color: var(--success-color); }
+
+.bg-surface { background-color: var(--sub-alt-color); }
+.border-main { border-color: var(--main-color); }
+.border-sub { border-color: var(--sub-color); }
+.border-error { border-color: var(--error-color); }
