@@ -941,9 +941,11 @@
                             <button class="auth-friend-btn" data-onclick="leaveCurrentDuelRoom()">Leave room</button>
                         </div>
                         <div id="duel-view-presence-summary" class="duel-view-opponent mt-2">Waiting players...</div>
-                        <div class="auth-subtitle mt-3">Live room players</div>
-                        <div id="duel-view-members" class="auth-friend-list">
-                            <div class="auth-recent-empty">No players.</div>
+                        <div id="duel-view-members-block" class="hidden">
+                            <div class="auth-subtitle mt-3">Live room players</div>
+                            <div id="duel-view-members" class="auth-friend-list">
+                                <div class="auth-recent-empty">No players.</div>
+                            </div>
                         </div>
                         <div class="auth-subtitle mt-3">Incoming duel invites</div>
                         <div id="duel-view-invite-list" class="auth-friend-list">
@@ -953,6 +955,14 @@
 
                     <div id="duel-step-song" class="hidden">
                         <div class="duel-view-state">Choose the song</div>
+                        <div class="duel-song-compact-meta">Battle pick mode: choose from your history/favorites or type manually.</div>
+                        <div class="auth-field-group mt-2">
+                            <label class="auth-label" for="duel-song-search">Quick find</label>
+                            <input id="duel-song-search" type="text" class="auth-input" placeholder="Search recent songs/favorites">
+                        </div>
+                        <div id="duel-song-recent-list" class="duel-song-recent-grid mt-2">
+                            <div class="auth-recent-empty">No recent songs yet.</div>
+                        </div>
                         <div class="auth-field-group mt-2">
                             <label class="auth-label" for="duel-song-artist">Artist/Band</label>
                             <input id="duel-song-artist" type="text" class="auth-input" placeholder="Artist/band">
@@ -964,7 +974,7 @@
                         <div id="duel-song-status" class="duel-view-opponent mt-2">Pick a song before starting.</div>
                         <div class="duel-view-actions">
                             <button class="auth-friend-btn" data-onclick="goToDuelRoomStep()">Back</button>
-                            <button class="auth-submit-btn" data-onclick="prepareAndStartDuel()">Start Game</button>
+                            <button id="duel-start-game-btn" class="auth-submit-btn" data-onclick="prepareAndStartDuel()">Start Game</button>
                         </div>
                     </div>
                 </div>

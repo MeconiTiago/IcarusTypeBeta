@@ -713,6 +713,7 @@ bindLegacyInlineHandlers();
             duelSongArtist: document.getElementById('duel-song-artist'),
             duelSongTitle: document.getElementById('duel-song-title'),
             duelSongStatus: document.getElementById('duel-song-status'),
+            duelStartGameBtn: document.getElementById('duel-start-game-btn'),
             duelQuickRoomCode: document.getElementById('duel-quick-room-code'),
             currentSongArtist: document.getElementById('current-song-artist'),
             missedWordsContainer: document.getElementById('missed-words-container'),
@@ -860,7 +861,10 @@ bindLegacyInlineHandlers();
             duelViewCopyCodeBtn: document.getElementById('duel-view-copy-code-btn'),
             duelViewPresenceSummary: document.getElementById('duel-view-presence-summary'),
             duelViewMembers: document.getElementById('duel-view-members'),
+            duelViewMembersBlock: document.getElementById('duel-view-members-block'),
             duelViewInviteList: document.getElementById('duel-view-invite-list'),
+            duelSongSearch: document.getElementById('duel-song-search'),
+            duelSongRecentList: document.getElementById('duel-song-recent-list'),
             authFavoritesSection: document.getElementById('auth-favorites-section'),
             authDangerSection: document.getElementById('auth-danger-section'),
             authActionsSection: document.getElementById('auth-actions-section'),
@@ -3887,6 +3891,9 @@ bindLegacyInlineHandlers();
                 .filter(Boolean);
             state.duel.presencePlayers = presencePlayers;
             renderDuelRoomPlayers();
+            if (maybeAutoRouteToDuelSongStep()) {
+                renderDuelPanel();
+            }
         }
 
         async function setDuelReadyState(nextReady) {
@@ -3895,6 +3902,7 @@ bindLegacyInlineHandlers();
                 ready: state.duel.selfReady,
                 status: state.duel.selfReady ? 'ready' : 'waiting'
             });
+            maybeAutoRouteToDuelSongStep();
             renderDuelPanel();
         }
 
@@ -4085,6 +4093,87 @@ bindLegacyInlineHandlers();
             return !!title && !!lyrics && title !== 'Pending song' && lyrics !== 'waiting';
         }
 
+        function maybeAutoRouteToDuelSongStep() {
+            if (!state.duel.inRoom || !state.duel.roomId || state.duel.gameLaunched) return false;
+            if (String(state.duel.status || '') !== 'waiting') return false;
+            const gate = getDuelReadyGate();
+            if (!gate.canStart) return false;
+            if (state.duel.uiStep === 'song') return false;
+            state.duel.uiStep = 'song';
+            if (!state.duel.isOwner) {
+                showToast('Todos prontos. Aguardando o host escolher a musica.', 'info');
+            }
+            return true;
+        }
+
+        function getDuelSongQuickPicks() {
+            const picks = [];
+            const seen = new Set();
+            const addPick = (artistName, songTitle, source) => {
+                const artist = String(artistName || '').trim();
+                const title = String(songTitle || '').trim();
+                if (!artist || !title) return;
+                const key = `${normalizeLookupText(artist)}|||${normalizeLookupText(title)}`;
+                if (!key || seen.has(key)) return;
+                seen.add(key);
+                picks.push({ artist, title, source });
+            };
+
+            (authFavoritesCache || [])
+                .slice()
+                .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+                .forEach((row) => addPick(row?.artist, row?.song_title, 'favorite'));
+
+            (authGameResultsCache || [])
+                .slice()
+                .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+                .forEach((row) => addPick(row?.artist, row?.song_title, 'recent'));
+
+            return picks.slice(0, 14);
+        }
+
+        function applyDuelSongSuggestion(encodedArtist, encodedTitle) {
+            const artist = decodeURIComponent(String(encodedArtist || '')).trim();
+            const title = decodeURIComponent(String(encodedTitle || '')).trim();
+            if (!artist || !title) return;
+            if (!state.duel.isOwner) {
+                showToast('Only room owner can choose the song.', 'info');
+                return;
+            }
+            if (elements.duelSongArtist) elements.duelSongArtist.value = artist;
+            if (elements.duelSongTitle) elements.duelSongTitle.value = title;
+            if (elements.duelSongStatus) elements.duelSongStatus.textContent = `Selected: ${artist} - ${title}`;
+        }
+
+        function renderDuelSongQuickPicks(filterRaw = '') {
+            if (!elements.duelSongRecentList) return;
+            const filter = normalizeLookupText(filterRaw || '');
+            const rows = getDuelSongQuickPicks().filter((row) => {
+                if (!filter) return true;
+                const hay = `${normalizeLookupText(row.artist)} ${normalizeLookupText(row.title)}`;
+                return hay.includes(filter);
+            });
+            if (!rows.length) {
+                elements.duelSongRecentList.innerHTML = '<div class="auth-recent-empty">No songs match this filter.</div>';
+                return;
+            }
+            const canPick = !!state.duel.isOwner;
+            elements.duelSongRecentList.innerHTML = rows.map((row) => {
+                const artist = escapeHtml(row.artist);
+                const title = escapeHtml(row.title);
+                const sourceLabel = row.source === 'favorite' ? 'favorite' : 'recent';
+                const encodedArtist = encodeURIComponent(row.artist);
+                const encodedTitle = encodeURIComponent(row.title);
+                return `<button type="button" class="duel-song-pick"
+                            ${canPick ? `data-onclick="applyDuelSongSuggestion('${encodedArtist}','${encodedTitle}')"` : 'disabled'}
+                            ${canPick ? '' : 'title="Waiting room owner to choose the song"'}>
+                        <span class="duel-song-pick-title">${title}</span>
+                        <span class="duel-song-pick-artist">${artist}</span>
+                        <span class="duel-song-pick-source">${sourceLabel}</span>
+                    </button>`;
+            }).join('');
+        }
+
         function renderDuelPanel() {
             const inRoom = !!state.duel.inRoom && !!state.duel.roomId;
             if (!inRoom) state.duel.uiStep = 'entry';
@@ -4116,8 +4205,12 @@ bindLegacyInlineHandlers();
                     : '-';
             }
             if (elements.duelSlotOpponent) {
+                const meId = String(authCurrentUser?.id || '');
+                const gate = getDuelReadyGate();
+                const opponentPresence = gate.players.find((p) => p.id !== meId) || null;
+                const readyTag = opponentPresence?.ready ? ' (ready)' : '';
                 elements.duelSlotOpponent.textContent = inRoom
-                    ? (state.duel.opponentName || 'Empty slot')
+                    ? ((state.duel.opponentName || opponentPresence?.name || 'Empty slot') + readyTag)
                     : 'Empty slot';
             }
             if (elements.duelViewInviteTarget) {
@@ -4149,6 +4242,10 @@ bindLegacyInlineHandlers();
                 elements.duelViewFriendList.classList.toggle('hidden', isInviteeMode);
                 const subtitle = elements.duelViewFriendList.previousElementSibling;
                 if (subtitle) subtitle.classList.toggle('hidden', isInviteeMode);
+            }
+            if (elements.duelViewMembersBlock) {
+                // Slot cards are the primary room occupancy UI.
+                elements.duelViewMembersBlock.classList.add('hidden');
             }
             if (elements.duelCopyCodeBtn) {
                 elements.duelCopyCodeBtn.disabled = !inRoom;
@@ -4189,6 +4286,15 @@ bindLegacyInlineHandlers();
                     elements.duelSongStatus.textContent = 'Pick artist and song, then start game.';
                 }
             }
+            if (elements.duelSongSearch) {
+                elements.duelSongSearch.disabled = !inRoom;
+                if (!inRoom) elements.duelSongSearch.value = '';
+            }
+            if (elements.duelStartGameBtn) {
+                elements.duelStartGameBtn.classList.toggle('hidden', !state.duel.isOwner);
+                elements.duelStartGameBtn.disabled = !inRoom || !state.duel.isOwner;
+            }
+            renderDuelSongQuickPicks(elements.duelSongSearch?.value || '');
             if (elements.duelMeName) {
                 const meName = elements.authUserName?.textContent || 'You';
                 elements.duelMeName.textContent = meName;
@@ -4670,9 +4776,10 @@ bindLegacyInlineHandlers();
             const ownerProfile = snapshot.profilesMap.get(room.owner_id);
             state.duel.ownerName = ownerProfile?.username || 'owner';
             const opponentMember = members.find((m) => m.user_id !== user.id) || null;
-            state.duel.opponentId = opponentMember?.user_id || '';
-            state.duel.opponentName = opponentMember
-                ? (snapshot.profilesMap.get(opponentMember.user_id)?.username || 'opponent')
+            const opponentPresence = getDuelPresencePlayers().find((p) => p.id !== user.id) || null;
+            state.duel.opponentId = opponentMember?.user_id || opponentPresence?.id || '';
+            state.duel.opponentName = state.duel.opponentId
+                ? (snapshot.profilesMap.get(state.duel.opponentId)?.username || opponentPresence?.name || 'opponent')
                 : '';
             if (state.duel.uiStep === 'entry') {
                 state.duel.uiStep = 'room';
@@ -4686,6 +4793,7 @@ bindLegacyInlineHandlers();
 
             state.duel.progressByUserId = Object.fromEntries((snapshot.progress || []).map((row) => [row.user_id, row]));
             renderDuelRoomPlayers(snapshot);
+            maybeAutoRouteToDuelSongStep();
 
             const now = Date.now();
             if (state.duel.startedAtMs > now && room.status === 'countdown') {
@@ -9269,6 +9377,7 @@ bindLegacyInlineHandlers();
             respondDuelInvite,
             goToDuelSongStep,
             goToDuelRoomStep,
+            applyDuelSongSuggestion,
             toggleDuelReady,
             prepareAndStartDuel,
             startDuelCountdown,
@@ -9349,6 +9458,11 @@ bindLegacyInlineHandlers();
                 artistCatalogFilterTimer = setTimeout(() => {
                     renderArtistCatalogList(elements.artistSongFilter.value || '', true);
                 }, 220);
+            });
+        }
+        if (elements.duelSongSearch) {
+            elements.duelSongSearch.addEventListener('input', () => {
+                renderDuelSongQuickPicks(elements.duelSongSearch.value || '');
             });
         }
         if (elements.customText) {
