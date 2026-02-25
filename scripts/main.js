@@ -709,6 +709,7 @@ bindLegacyInlineHandlers();
             duelViewInviteBtn: document.getElementById('duel-view-invite-btn'),
             duelRoomCodeInputView: document.getElementById('duel-room-code-input-view'),
             duelViewFriendList: document.getElementById('duel-view-friend-list'),
+            duelRoomActionsMain: document.getElementById('duel-room-actions-main'),
             duelNextToSongBtn: document.getElementById('duel-next-to-song-btn'),
             duelSongArtist: document.getElementById('duel-song-artist'),
             duelSongTitle: document.getElementById('duel-song-title'),
@@ -4095,7 +4096,8 @@ bindLegacyInlineHandlers();
 
         function maybeAutoRouteToDuelSongStep() {
             if (!state.duel.inRoom || !state.duel.roomId || state.duel.gameLaunched) return false;
-            if (String(state.duel.status || '') !== 'waiting') return false;
+            const status = String(state.duel.status || '').toLowerCase();
+            if (['countdown', 'active', 'finished', 'canceled'].includes(status)) return false;
             const gate = getDuelReadyGate();
             if (!gate.canStart) return false;
             if (state.duel.uiStep === 'song') return false;
@@ -4177,6 +4179,10 @@ bindLegacyInlineHandlers();
         function renderDuelPanel() {
             const inRoom = !!state.duel.inRoom && !!state.duel.roomId;
             if (!inRoom) state.duel.uiStep = 'entry';
+            if (maybeAutoRouteToDuelSongStep()) {
+                renderDuelPanel();
+                return;
+            }
             if (elements.duelStepEntry) elements.duelStepEntry.classList.toggle('hidden', state.duel.uiStep !== 'entry');
             if (elements.duelStepRoom) elements.duelStepRoom.classList.toggle('hidden', state.duel.uiStep !== 'room');
             if (elements.duelStepSong) elements.duelStepSong.classList.toggle('hidden', state.duel.uiStep !== 'song');
@@ -4242,6 +4248,9 @@ bindLegacyInlineHandlers();
                 elements.duelViewFriendList.classList.toggle('hidden', isInviteeMode);
                 const subtitle = elements.duelViewFriendList.previousElementSibling;
                 if (subtitle) subtitle.classList.toggle('hidden', isInviteeMode);
+            }
+            if (elements.duelRoomActionsMain) {
+                elements.duelRoomActionsMain.classList.toggle('hidden', isInviteeMode);
             }
             if (elements.duelViewMembersBlock) {
                 // Slot cards are the primary room occupancy UI.
