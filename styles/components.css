@@ -485,9 +485,146 @@
         .feature-temporary-hidden {
             display: none !important;
         }
+        .onboarding-top-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .onboarding-step-pill {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--main-color);
+            border: 1px solid color-mix(in srgb, var(--main-color) 45%, transparent);
+            border-radius: 999px;
+            padding: 4px 10px;
+        }
+        .onboarding-controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
         #auth-stats-section.account-panel-section,
         #auth-duel-section.account-panel-section {
             grid-column: 1 / -1;
+        }
+        .daily-challenge-card {
+            border: 1px solid color-mix(in srgb, var(--main-color) 35%, transparent);
+            background: color-mix(in srgb, var(--bg-color) 10%, var(--main-color) 6%);
+            border-radius: 12px;
+            padding: 12px;
+            display: grid;
+            gap: 8px;
+        }
+        .daily-challenge-card--popover {
+            width: min(320px, 72vw);
+            padding: 8px 10px;
+            gap: 5px;
+            border-color: color-mix(in srgb, var(--sub-color) 20%, transparent);
+            background: color-mix(in srgb, var(--bg-color) 16%, transparent);
+        }
+        .daily-challenge-card--popover .daily-challenge-kicker {
+            font-size: 0.58rem;
+        }
+        .daily-challenge-card--popover .daily-challenge-title {
+            font-size: 0.9rem;
+            line-height: 1.15;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .daily-challenge-card--popover .daily-challenge-date,
+        .daily-challenge-card--popover .daily-challenge-progress,
+        .daily-challenge-card--popover .daily-challenge-reward,
+        .daily-challenge-card--popover .daily-challenge-desc {
+            font-size: 0.74rem;
+        }
+        .daily-challenge-card--popover .daily-challenge-desc {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .daily-challenge-card--popover .daily-challenge-actions .auth-friend-btn,
+        .daily-challenge-card--popover .daily-challenge-actions .auth-submit-btn {
+            padding: 4px 10px;
+            font-size: 0.7rem;
+            line-height: 1.2;
+        }
+        .daily-challenge-head {
+            display: flex;
+            align-items: start;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .daily-challenge-kicker {
+            font-size: 0.66rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--sub-color);
+        }
+        .daily-challenge-title {
+            font-size: 0.98rem;
+            font-weight: 700;
+            color: var(--main-color);
+        }
+        .daily-challenge-date,
+        .daily-challenge-progress,
+        .daily-challenge-desc,
+        .daily-challenge-reward {
+            color: var(--sub-color);
+            font-size: 0.8rem;
+        }
+        .daily-challenge-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        @media (max-width: 760px) {
+            .daily-challenge-card--popover {
+                width: min(300px, 86vw);
+            }
+        }
+        .leaderboard-card {
+            border: 1px solid color-mix(in srgb, var(--sub-color) 22%, transparent);
+            border-radius: 12px;
+            padding: 12px;
+            background: color-mix(in srgb, var(--bg-color) 16%, transparent);
+            display: grid;
+            gap: 10px;
+        }
+        .leaderboard-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .leaderboard-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--main-color);
+        }
+        .leaderboard-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .profile-hub-share-row {
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .profile-hub-share-meta {
+            font-size: 0.72rem;
+            color: var(--sub-color);
         }
         #auth-friends-section.account-panel-section {
             grid-column: 1 / -1;
@@ -1461,6 +1598,7 @@
             text-align: left;
             padding: 8px;
             cursor: pointer;
+            position: relative;
             transition: border-color 0.15s ease, background-color 0.15s ease;
         }
         .duel-song-pick:hover {
@@ -1776,6 +1914,7 @@
             align-items: center;
             padding: 8px 10px;
             cursor: pointer;
+            position: relative;
             transition: border-color 0.2s ease, background 0.2s ease;
             text-align: left;
         }
@@ -1936,6 +2075,7 @@
             gap: 7px;
             cursor: pointer;
             text-align: left;
+            position: relative;
             transition: border-color 0.2s ease, background 0.2s ease;
             min-width: 260px;
             max-width: 292px;
@@ -2136,6 +2276,7 @@
             text-align: left;
             color: var(--text-color);
             cursor: pointer;
+            position: relative;
             transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
         }
         .favorite-media-card:hover {
@@ -2156,6 +2297,7 @@
             display: grid;
             gap: 3px;
             align-content: center;
+            position: relative;
         }
         .favorite-media-title {
             color: var(--text-color);
@@ -2177,6 +2319,34 @@
             font-size: 0.66rem;
             text-transform: uppercase;
             letter-spacing: 0.06em;
+        }
+        .song-card-favorite {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            border: 1px solid color-mix(in srgb, var(--sub-color) 38%, transparent);
+            background: color-mix(in srgb, var(--bg-color) 65%, transparent);
+            color: var(--sub-color);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.72rem;
+            line-height: 1;
+            cursor: pointer;
+            z-index: 2;
+            transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+        }
+        .song-card-favorite:hover {
+            border-color: color-mix(in srgb, var(--main-color) 66%, transparent);
+            color: var(--main-color);
+        }
+        .song-card-favorite.active {
+            border-color: color-mix(in srgb, var(--main-color) 68%, transparent);
+            background: color-mix(in srgb, var(--main-color) 24%, transparent);
+            color: var(--main-color);
         }
 
         /* Preview Mode Fix */

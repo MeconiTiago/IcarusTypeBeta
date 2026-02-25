@@ -87,6 +87,628 @@ begin
   end if;
 end $$;
 
+-- Daily login/play streaks
+create table if not exists public.user_streaks (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  current_streak integer not null default 0 check (current_streak >= 0),
+  best_streak integer not null default 0 check (best_streak >= 0),
+  last_played_date date,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_user_streaks_current_streak
+on public.user_streaks(current_streak desc, updated_at desc);
+
+alter table public.user_streaks enable row level security;
+
+drop policy if exists "user_streaks_select_own" on public.user_streaks;
+create policy "user_streaks_select_own"
+on public.user_streaks
+for select
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "user_streaks_insert_own" on public.user_streaks;
+create policy "user_streaks_insert_own"
+on public.user_streaks
+for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "user_streaks_update_own" on public.user_streaks;
+-- No direct client update; streak is controlled via RPC.
+
+create or replace function public.set_user_streaks_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_user_streaks_updated_at on public.user_streaks;
+create trigger trg_user_streaks_updated_at
+before update on public.user_streaks
+for each row
+execute function public.set_user_streaks_updated_at();
+
+create or replace function public.get_my_streak()
+returns table (
+  current_streak integer,
+  best_streak integer,
+  last_played_date date
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select
+    coalesce(s.current_streak, 0)::int as current_streak,
+    coalesce(s.best_streak, 0)::int as best_streak,
+    s.last_played_date
+  from public.user_streaks s
+  where s.user_id = auth.uid()
+  limit 1;
+$$;
+
+create or replace function public.update_my_streak_after_game(
+  p_game_date date default current_date
+)
+returns table (
+  current_streak integer,
+  best_streak integer,
+  last_played_date date,
+  streak_updated boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_today date := coalesce(p_game_date, current_date);
+  v_row public.user_streaks%rowtype;
+  v_updated boolean := false;
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  insert into public.user_streaks (user_id, current_streak, best_streak, last_played_date)
+  values (v_uid, 0, 0, null)
+  on conflict (user_id) do nothing;
+
+  select *
+    into v_row
+  from public.user_streaks s
+  where s.user_id = v_uid
+  for update;
+
+  if v_row.last_played_date is null then
+    v_row.current_streak := 1;
+    v_row.best_streak := greatest(coalesce(v_row.best_streak, 0), 1);
+    v_row.last_played_date := v_today;
+    v_updated := true;
+  elsif v_row.last_played_date = v_today then
+    v_updated := false;
+  elsif v_row.last_played_date = (v_today - 1) then
+    v_row.current_streak := greatest(0, coalesce(v_row.current_streak, 0)) + 1;
+    v_row.best_streak := greatest(coalesce(v_row.best_streak, 0), v_row.current_streak);
+    v_row.last_played_date := v_today;
+    v_updated := true;
+  elsif v_row.last_played_date < v_today then
+    v_row.current_streak := 1;
+    v_row.best_streak := greatest(coalesce(v_row.best_streak, 0), 1);
+    v_row.last_played_date := v_today;
+    v_updated := true;
+  else
+    v_updated := false;
+  end if;
+
+  if v_updated then
+    update public.user_streaks
+      set current_streak = greatest(0, coalesce(v_row.current_streak, 0)),
+          best_streak = greatest(coalesce(v_row.best_streak, 0), greatest(0, coalesce(v_row.current_streak, 0))),
+          last_played_date = v_row.last_played_date
+    where user_id = v_uid;
+  end if;
+
+  select s.current_streak, s.best_streak, s.last_played_date
+    into current_streak, best_streak, last_played_date
+  from public.user_streaks s
+  where s.user_id = v_uid
+  limit 1;
+  streak_updated := v_updated;
+  return next;
+end;
+$$;
+
+revoke all on function public.get_my_streak() from public;
+grant execute on function public.get_my_streak() to authenticated;
+revoke all on function public.update_my_streak_after_game(date) from public;
+grant execute on function public.update_my_streak_after_game(date) to authenticated;
+
+-- Public profile, leaderboard and daily challenge layer
+alter table public.profiles add column if not exists is_public boolean not null default true;
+alter table public.profiles add column if not exists public_slug text;
+
+create unique index if not exists idx_profiles_public_slug_unique
+on public.profiles (lower(public_slug))
+where public_slug is not null;
+
+create or replace function public.set_profile_public_slug()
+returns trigger
+language plpgsql
+as $$
+declare
+  v_base text;
+  v_candidate text;
+  v_n integer := 0;
+begin
+  if new.is_public is null then
+    new.is_public := true;
+  end if;
+
+  if tg_op = 'INSERT'
+     or new.public_slug is null
+     or trim(coalesce(new.public_slug, '')) = '' then
+    v_base := lower(trim(coalesce(new.public_slug, new.username, 'player')));
+    v_base := regexp_replace(v_base, '[^a-z0-9_-]+', '-', 'g');
+    v_base := trim(both '-' from v_base);
+    if v_base = '' then
+      v_base := 'player';
+    end if;
+    v_candidate := v_base;
+    while exists (
+      select 1
+      from public.profiles p
+      where lower(p.public_slug) = lower(v_candidate)
+        and (new.id is null or p.id <> new.id)
+    ) loop
+      v_n := v_n + 1;
+      v_candidate := format('%s-%s', v_base, substr(md5(coalesce(new.id::text, '') || clock_timestamp()::text || v_n::text), 1, 4));
+    end loop;
+    new.public_slug := v_candidate;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_profiles_public_slug on public.profiles;
+create trigger trg_profiles_public_slug
+before insert or update of username, public_slug on public.profiles
+for each row
+execute function public.set_profile_public_slug();
+
+update public.profiles
+set public_slug = null
+where public_slug is null or trim(coalesce(public_slug, '')) = '';
+
+create table if not exists public.daily_challenges (
+  challenge_date date primary key,
+  challenge_title text not null,
+  challenge_desc text not null,
+  metric text not null check (metric in ('games', 'avg_accuracy', 'best_wpm', 'xp_earned')),
+  target_value integer not null check (target_value > 0),
+  reward_xp integer not null check (reward_xp >= 0),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.user_daily_challenge_claims (
+  challenge_date date not null references public.daily_challenges(challenge_date) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  bonus_xp integer not null default 0 check (bonus_xp >= 0),
+  claimed_at timestamptz not null default now(),
+  primary key (challenge_date, user_id)
+);
+
+alter table public.user_daily_challenge_claims enable row level security;
+
+drop policy if exists "daily_claims_select_own" on public.user_daily_challenge_claims;
+create policy "daily_claims_select_own"
+on public.user_daily_challenge_claims
+for select
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "daily_claims_insert_own" on public.user_daily_challenge_claims;
+create policy "daily_claims_insert_own"
+on public.user_daily_challenge_claims
+for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+create or replace function public.ensure_today_daily_challenge()
+returns public.daily_challenges
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_today date := current_date;
+  v_mod integer := extract(doy from current_date)::integer % 3;
+  v_row public.daily_challenges%rowtype;
+begin
+  select *
+    into v_row
+  from public.daily_challenges dc
+  where dc.challenge_date = v_today
+  limit 1;
+
+  if found then
+    return v_row;
+  end if;
+
+  if v_mod = 0 then
+    insert into public.daily_challenges (challenge_date, challenge_title, challenge_desc, metric, target_value, reward_xp)
+    values (v_today, 'Focused Session', 'Complete 3 runs today.', 'games', 3, 120)
+    on conflict (challenge_date) do nothing;
+  elsif v_mod = 1 then
+    insert into public.daily_challenges (challenge_date, challenge_title, challenge_desc, metric, target_value, reward_xp)
+    values (v_today, 'Precision Day', 'Reach average accuracy of 92% today.', 'avg_accuracy', 92, 140)
+    on conflict (challenge_date) do nothing;
+  else
+    insert into public.daily_challenges (challenge_date, challenge_title, challenge_desc, metric, target_value, reward_xp)
+    values (v_today, 'Speed Burst', 'Hit at least 70 WPM in a run today.', 'best_wpm', 70, 150)
+    on conflict (challenge_date) do nothing;
+  end if;
+
+  select *
+    into v_row
+  from public.daily_challenges dc
+  where dc.challenge_date = v_today
+  limit 1;
+  return v_row;
+end;
+$$;
+
+create or replace function public.get_daily_challenge_status()
+returns table (
+  challenge_date date,
+  challenge_title text,
+  challenge_desc text,
+  metric text,
+  target_value integer,
+  reward_xp integer,
+  progress_value integer,
+  progress_pct integer,
+  can_claim boolean,
+  claimed boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_ch public.daily_challenges%rowtype;
+  v_progress integer := 0;
+  v_claimed boolean := false;
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  v_ch := public.ensure_today_daily_challenge();
+
+  if v_ch.metric = 'games' then
+    select count(*)::int into v_progress
+    from public.game_results gr
+    where gr.user_id = v_uid
+      and gr.created_at::date = v_ch.challenge_date;
+  elsif v_ch.metric = 'avg_accuracy' then
+    select coalesce(round(avg(gr.accuracy)), 0)::int into v_progress
+    from public.game_results gr
+    where gr.user_id = v_uid
+      and gr.created_at::date = v_ch.challenge_date;
+  elsif v_ch.metric = 'best_wpm' then
+    select coalesce(max(gr.wpm), 0)::int into v_progress
+    from public.game_results gr
+    where gr.user_id = v_uid
+      and gr.created_at::date = v_ch.challenge_date;
+  else
+    select coalesce(sum(gr.xp_awarded), 0)::int into v_progress
+    from public.game_results gr
+    where gr.user_id = v_uid
+      and gr.created_at::date = v_ch.challenge_date;
+  end if;
+
+  select exists(
+    select 1
+    from public.user_daily_challenge_claims c
+    where c.user_id = v_uid
+      and c.challenge_date = v_ch.challenge_date
+  ) into v_claimed;
+
+  challenge_date := v_ch.challenge_date;
+  challenge_title := v_ch.challenge_title;
+  challenge_desc := v_ch.challenge_desc;
+  metric := v_ch.metric;
+  target_value := v_ch.target_value;
+  reward_xp := v_ch.reward_xp;
+  progress_value := greatest(0, v_progress);
+  progress_pct := least(100, floor((greatest(0, v_progress)::numeric / greatest(1, v_ch.target_value)::numeric) * 100))::int;
+  can_claim := (v_progress >= v_ch.target_value) and not v_claimed;
+  claimed := v_claimed;
+  return next;
+end;
+$$;
+
+create or replace function public.claim_daily_challenge_reward()
+returns table (
+  bonus_xp_awarded integer,
+  level integer,
+  prestige integer,
+  xp_in_level integer,
+  total_xp bigint
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_status record;
+  v_reward integer := 0;
+  v_level integer;
+  v_prestige integer;
+  v_xp_in_level integer;
+  v_total_xp bigint;
+  v_need integer;
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  select * into v_status
+  from public.get_daily_challenge_status()
+  limit 1;
+
+  if v_status.claimed or not v_status.can_claim then
+    bonus_xp_awarded := 0;
+    select up.level, up.prestige_level, up.xp_in_level, up.total_xp
+      into level, prestige, xp_in_level, total_xp
+    from public.user_progress up
+    where up.user_id = v_uid;
+    return next;
+    return;
+  end if;
+
+  v_reward := greatest(0, coalesce(v_status.reward_xp, 0));
+
+  insert into public.user_daily_challenge_claims (challenge_date, user_id, bonus_xp)
+  values (v_status.challenge_date, v_uid, v_reward)
+  on conflict (challenge_date, user_id) do nothing;
+
+  if not found then
+    bonus_xp_awarded := 0;
+    select up.level, up.prestige_level, up.xp_in_level, up.total_xp
+      into level, prestige, xp_in_level, total_xp
+    from public.user_progress up
+    where up.user_id = v_uid;
+    return next;
+    return;
+  end if;
+
+  insert into public.user_progress (user_id)
+  values (v_uid)
+  on conflict (user_id) do nothing;
+
+  select up.level, up.prestige_level, up.xp_in_level, up.total_xp
+    into v_level, v_prestige, v_xp_in_level, v_total_xp
+  from public.user_progress up
+  where up.user_id = v_uid
+  for update;
+
+  v_total_xp := coalesce(v_total_xp, 0) + v_reward;
+  v_xp_in_level := coalesce(v_xp_in_level, 0) + v_reward;
+
+  loop
+    v_need := public.xp_required_for_level(v_level);
+    exit when v_xp_in_level < v_need;
+    v_xp_in_level := v_xp_in_level - v_need;
+    if v_level >= 50 then
+      if v_prestige < 10 then
+        v_prestige := v_prestige + 1;
+        v_level := 1;
+        v_xp_in_level := 0;
+        exit;
+      else
+        v_level := 50;
+        v_xp_in_level := least(v_xp_in_level, v_need);
+        exit;
+      end if;
+    else
+      v_level := v_level + 1;
+    end if;
+  end loop;
+
+  update public.user_progress
+    set level = v_level,
+        prestige_level = v_prestige,
+        xp_in_level = v_xp_in_level,
+        total_xp = v_total_xp
+  where user_id = v_uid;
+
+  bonus_xp_awarded := v_reward;
+  level := v_level;
+  prestige := v_prestige;
+  xp_in_level := v_xp_in_level;
+  total_xp := v_total_xp;
+  return next;
+end;
+$$;
+
+create or replace function public.get_leaderboard(
+  p_period text default 'weekly',
+  p_limit integer default 50
+)
+returns table (
+  user_id uuid,
+  username text,
+  avatar_url text,
+  games integer,
+  best_wpm integer,
+  avg_wpm integer,
+  avg_acc integer,
+  xp_earned integer
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with cfg as (
+    select case
+      when lower(coalesce(p_period, 'weekly')) = 'monthly' then now() - interval '30 days'
+      else now() - interval '7 days'
+    end as from_ts
+  )
+  select
+    gr.user_id,
+    coalesce(p.username, 'unknown') as username,
+    p.avatar_url,
+    count(*)::int as games,
+    coalesce(max(gr.wpm), 0)::int as best_wpm,
+    coalesce(round(avg(gr.wpm)), 0)::int as avg_wpm,
+    coalesce(round(avg(gr.accuracy)), 0)::int as avg_acc,
+    coalesce(sum(gr.xp_awarded), 0)::int as xp_earned
+  from public.game_results gr
+  join cfg on gr.created_at >= cfg.from_ts
+  left join public.profiles p on p.id = gr.user_id
+  group by gr.user_id, p.username, p.avatar_url
+  order by xp_earned desc, avg_wpm desc, best_wpm desc, games desc, username asc
+  limit greatest(1, least(coalesce(p_limit, 50), 200));
+$$;
+
+create or replace function public.get_public_profile_by_slug(p_slug text)
+returns table (
+  user_id uuid,
+  username text,
+  avatar_url text,
+  bio text,
+  public_slug text,
+  games integer,
+  best_wpm integer,
+  avg_wpm integer,
+  avg_acc integer,
+  top_songs jsonb
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with prof as (
+    select p.id, p.username, p.avatar_url, p.bio, p.public_slug
+    from public.profiles p
+    where p.is_public = true
+      and lower(coalesce(p.public_slug, '')) = lower(trim(coalesce(p_slug, '')))
+    limit 1
+  ),
+  stat as (
+    select
+      gr.user_id,
+      count(gr.id)::int as games,
+      coalesce(max(gr.wpm), 0)::int as best_wpm,
+      coalesce(round(avg(gr.wpm)), 0)::int as avg_wpm,
+      coalesce(round(avg(gr.accuracy)), 0)::int as avg_acc
+    from public.game_results gr
+    join prof p on p.id = gr.user_id
+    group by gr.user_id
+  ),
+  songs as (
+    select
+      coalesce(
+        jsonb_agg(
+          jsonb_build_object(
+            'song', s.song_title,
+            'artist', s.artist,
+            'count', s.runs,
+            'avgWpm', s.avg_wpm
+          )
+          order by s.runs desc, s.song_title asc
+        ),
+        '[]'::jsonb
+      ) as rows
+    from (
+      select
+        nullif(trim(coalesce(gr.song_title, '')), '') as song_title,
+        nullif(trim(coalesce(gr.artist, '')), '') as artist,
+        count(*)::int as runs,
+        coalesce(round(avg(gr.wpm)), 0)::int as avg_wpm
+      from public.game_results gr
+      join prof p on p.id = gr.user_id
+      where nullif(trim(coalesce(gr.song_title, '')), '') is not null
+      group by song_title, artist
+      order by runs desc, song_title asc
+      limit 10
+    ) s
+  )
+  select
+    p.id as user_id,
+    coalesce(p.username, 'unknown') as username,
+    p.avatar_url,
+    p.bio,
+    p.public_slug,
+    coalesce(s.games, 0)::int as games,
+    coalesce(s.best_wpm, 0)::int as best_wpm,
+    coalesce(s.avg_wpm, 0)::int as avg_wpm,
+    coalesce(s.avg_acc, 0)::int as avg_acc,
+    coalesce(so.rows, '[]'::jsonb) as top_songs
+  from prof p
+  left join stat s on s.user_id = p.id
+  left join songs so on true
+  limit 1;
+$$;
+
+create or replace function public.get_my_public_profile_link()
+returns table (
+  public_slug text,
+  profile_url text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_slug text;
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  update public.profiles
+  set public_slug = null
+  where id = v_uid
+    and (public_slug is null or trim(coalesce(public_slug, '')) = '');
+
+  select p.public_slug into v_slug
+  from public.profiles p
+  where p.id = v_uid
+  limit 1;
+
+  public_slug := v_slug;
+  profile_url := case when v_slug is null then null else ('?profile=' || v_slug) end;
+  return next;
+end;
+$$;
+
+revoke all on function public.ensure_today_daily_challenge() from public;
+grant execute on function public.ensure_today_daily_challenge() to authenticated;
+revoke all on function public.get_daily_challenge_status() from public;
+grant execute on function public.get_daily_challenge_status() to authenticated;
+revoke all on function public.claim_daily_challenge_reward() from public;
+grant execute on function public.claim_daily_challenge_reward() to authenticated;
+revoke all on function public.get_leaderboard(text, integer) from public;
+grant execute on function public.get_leaderboard(text, integer) to anon, authenticated;
+revoke all on function public.get_public_profile_by_slug(text) from public;
+grant execute on function public.get_public_profile_by_slug(text) to anon, authenticated;
+revoke all on function public.get_my_public_profile_link() from public;
+grant execute on function public.get_my_public_profile_link() to authenticated;
+
 -- OAuth tokens should not live in public profile rows.
 create table if not exists public.user_oauth_tokens (
   id bigint generated by default as identity primary key,

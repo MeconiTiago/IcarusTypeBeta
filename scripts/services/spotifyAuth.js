@@ -13,7 +13,13 @@ const STORAGE_KEYS = {
   pkceState: 'sp_pkce_state'
 };
 
-const REQUIRED_SPOTIFY_SCOPES = [...SPOTIFY_SCOPES];
+const REQUIRED_SPOTIFY_SCOPES = ['user-read-recently-played'];
+const OPTIONAL_PLAYBACK_SCOPES = [
+  'streaming',
+  'user-read-playback-state',
+  'user-modify-playback-state',
+  'user-read-currently-playing'
+];
 
 function normalizeScopeList(scopeValue = '') {
   return String(scopeValue || '')
@@ -242,6 +248,12 @@ export function isSpotifyLoggedIn() {
   if (!accessToken && !refreshToken) return false;
   if (!scope) return true;
   return getMissingRequiredScopes(scope).length === 0;
+}
+
+export function hasSpotifyPlaybackScopes(scopeValue = '') {
+  const sourceScope = String(scopeValue || localStorage.getItem(STORAGE_KEYS.scope) || '');
+  const available = new Set(normalizeScopeList(sourceScope));
+  return OPTIONAL_PLAYBACK_SCOPES.every((scope) => available.has(scope));
 }
 
 export function getStoredSpotifyTokens() {

@@ -49,23 +49,17 @@
     <!-- Onboarding Modal -->
     <div id="onboarding-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in">
         <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-lg w-full mx-4 border border-main">
-            <h3 class="text-main font-bold text-2xl mb-4 text-center">Welcome to Icarus Type!</h3>
-            <div class="text-base text-sm space-y-4 mb-6">
-                <p>Improve your English typing and vocabulary through music.</p>
-                <ul class="list-disc list-inside space-y-2 text-sub">
-                    <li><strong class="text-main">Type Lyrics:</strong> Find your favorite songs or use your saved favorites.</li>
-                    <li><strong class="text-main">Modes:</strong> 
-                        <ul class="pl-6 mt-1 text-xs">
-                            <li><strong>Normal:</strong> Type along with the lyrics.</li>
-                            <li><strong>Cloze:</strong> Guess missing words for memory practice.</li>
-                        </ul>
-                    </li>
-                    <li><strong class="text-main">Tools:</strong> Use <span class="text-main">Ctrl</span> to speak words and <span class="text-main">Alt</span> to free look.</li>
-                    <li><strong class="text-main">Progress:</strong> Earn XP and badges as you type.</li>
-                </ul>
+            <div class="onboarding-top-row">
+                <div id="onboarding-step-pill" class="onboarding-step-pill">Step 1/5</div>
+                <button class="auth-friend-btn" data-onclick="skipOnboarding()">Skip</button>
             </div>
-            <div class="text-center">
-                <button data-onclick="closeOnboarding()" class="btn-primary px-8 py-2 rounded font-bold transition">Let's Rock</button>
+            <h3 id="onboarding-title" class="text-main font-bold text-2xl mb-4 text-center">Welcome to Icarus Type</h3>
+            <div id="onboarding-content" class="text-base text-sm space-y-4 mb-6 text-sub">
+                <p>Improve your English typing and vocabulary through music.</p>
+            </div>
+            <div class="onboarding-controls">
+                <button id="onboarding-prev-btn" class="auth-friend-btn" data-onclick="prevOnboardingStep()">Back</button>
+                <button id="onboarding-next-btn" class="btn-primary px-6 py-2 rounded font-bold transition" data-onclick="nextOnboardingStep()">Next</button>
             </div>
         </div>
     </div>
@@ -221,6 +215,10 @@
                         <div class="auth-stat-label">Avg Acc</div>
                         <div id="auth-stat-avg-acc" class="auth-stat-value">0%</div>
                     </div>
+                    <div class="auth-stat-box">
+                        <div class="auth-stat-label">Ofensiva</div>
+                        <div id="auth-stat-streak" class="auth-stat-value">0d</div>
+                    </div>
                 </div>
 
                 <div id="auth-recent-section" class="mt-4 account-panel-section">
@@ -269,6 +267,7 @@
                                         <div class="utility-mini-stat"><span>Best WPM</span><strong id="profile-quick-best">0</strong></div>
                                         <div class="utility-mini-stat"><span>Avg WPM</span><strong id="profile-quick-avg">0</strong></div>
                                         <div class="utility-mini-stat"><span>Avg Acc</span><strong id="profile-quick-acc">0%</strong></div>
+                                        <div class="utility-mini-stat"><span>Ofensiva</span><strong id="profile-quick-streak">0d</strong></div>
                                     </div>
                                     <div class="utility-panel-title mt-1">Compare with friends</div>
                                     <div id="auth-friend-compare" class="auth-friend-list utility-compare-list">
@@ -321,7 +320,7 @@
                     </div>
                 </div>
 
-                <div id="auth-duel-section" class="mt-4 account-panel-section feature-temporary-hidden">
+                <div id="auth-duel-section" class="mt-4 account-panel-section">
                     <div class="text-sub text-xs uppercase mb-2">Duel rooms</div>
                     <div class="auth-friends-wrap">
                         <div class="auth-friend-add-row">
@@ -425,6 +424,10 @@
                         </div>
                     </div>
                     <p id="profile-hub-bio" class="profile-hub-bio">No bio yet.</p>
+                    <div class="profile-hub-share-row">
+                        <button id="profile-hub-share-btn" class="auth-friend-btn" data-onclick="copyPublicProfileLink()">Copy public profile link</button>
+                        <span id="profile-hub-share-meta" class="profile-hub-share-meta">Public profile enabled</span>
+                    </div>
                 </div>
                 <div class="profile-hub-primary-track">
                     <div class="profile-hub-primary-kicker">Primary Track</div>
@@ -444,6 +447,7 @@
                 <div class="profile-hub-stat"><span>Best WPM</span><strong id="profile-hub-best">0</strong></div>
                 <div class="profile-hub-stat"><span>Avg WPM</span><strong id="profile-hub-avgwpm">0</strong></div>
                 <div class="profile-hub-stat"><span>Avg Acc</span><strong id="profile-hub-avgacc">0%</strong></div>
+                <div class="profile-hub-stat"><span>Ofensiva</span><strong id="profile-hub-streak">0d</strong></div>
             </div>
 
             <section class="profile-hub-compare">
@@ -662,6 +666,32 @@
                     </div>
                 </div>
             </div>
+            <div class="header-notification-wrap">
+                <button id="header-daily-button" data-onclick="toggleDailyChallengePanel(event)" class="btn-ghost transition header-notification-btn" title="Daily challenge reward">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="8" width="18" height="13" rx="2"></rect>
+                        <path d="M12 8v13M3 12h18"></path>
+                        <path d="M7.5 8a2.5 2.5 0 1 1 4.5-2M16.5 8a2.5 2.5 0 1 0-4.5-2"></path>
+                    </svg>
+                    <span id="header-daily-badge" class="header-notification-badge hidden">1</span>
+                </button>
+                <div id="header-daily-panel" class="header-notifications-panel hidden">
+                    <div class="header-notifications-title">Daily Challenge</div>
+                    <section id="daily-challenge-card" class="daily-challenge-card daily-challenge-card--popover">
+                        <div class="daily-challenge-head">
+                            <div class="daily-challenge-kicker">Daily</div>
+                            <div id="daily-challenge-date" class="daily-challenge-date">-</div>
+                        </div>
+                        <div id="daily-challenge-title" class="daily-challenge-title">Loading challenge...</div>
+                        <div id="daily-challenge-progress" class="daily-challenge-progress">Progress: 0%</div>
+                        <div class="daily-challenge-actions">
+                            <button id="daily-challenge-claim-btn" class="auth-friend-btn" data-onclick="claimDailyChallengeReward()">Claim reward</button>
+                            <span id="daily-challenge-reward" class="daily-challenge-reward">+0 XP</span>
+                        </div>
+                        <div id="daily-challenge-desc" class="daily-challenge-desc">Complete one focused run to earn bonus XP.</div>
+                    </section>
+                </div>
+            </div>
             <div class="header-status-stack">
                 <div id="header-auth-status" class="header-status-pill">Guest</div>
                 <div id="header-spotify-status" class="header-status-pill muted">Spotify off</div>
@@ -679,6 +709,7 @@
                     <div class="nav-link" id="nav-quick" data-onclick="startQuickSnippetRun()"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M11 2a1 1 0 0 1 1 1v2.08a7.5 7.5 0 0 1 5.92 5.92H20a1 1 0 1 1 0 2h-2.08a7.5 7.5 0 0 1-5.92 5.92V21a1 1 0 1 1-2 0v-2.08A7.5 7.5 0 0 1 4.08 13H2a1 1 0 1 1 0-2h2.08A7.5 7.5 0 0 1 10 5.08V3a1 1 0 0 1 1-1zm0 5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>quick</div>
                     <div class="nav-link" id="nav-custom" data-onclick="trySwitchTab('custom')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>custom</div>
                     <div class="nav-link" id="nav-duel" data-onclick="trySwitchTab('duel')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M8 4l-3 8h5l-2 8 11-13h-6l2-3z"/></svg>duel <span id="nav-duel-badge" class="duel-nav-badge hidden">0</span></div>
+                    <div class="nav-link" id="nav-leaderboard" data-onclick="trySwitchTab('leaderboard')"><svg class="nav-icon" viewBox="0 0 24 24"><path d="M4 19h16v2H4zM6 10h3v8H6zM11 6h3v12h-3zM16 3h3v15h-3z"/></svg>leaderboard</div>
                 </div>
             <div class="separator"></div>
             <div class="mode-group">
@@ -979,6 +1010,22 @@
                     </div>
                 </div>
             </div>
+            <div id="view-leaderboard" class="w-full hidden flex flex-col gap-4">
+                <div class="leaderboard-card">
+                    <div class="leaderboard-head">
+                        <div class="leaderboard-title">Global Leaderboard</div>
+                        <div class="leaderboard-actions">
+                            <button id="leaderboard-period-weekly" class="auth-friend-btn active" data-onclick="setLeaderboardPeriod('weekly')">Weekly</button>
+                            <button id="leaderboard-period-monthly" class="auth-friend-btn" data-onclick="setLeaderboardPeriod('monthly')">Monthly</button>
+                            <button class="auth-friend-btn" data-onclick="refreshLeaderboard()">Refresh</button>
+                        </div>
+                    </div>
+                    <div id="leaderboard-meta" class="duel-view-opponent">Loading...</div>
+                    <div id="leaderboard-list" class="auth-friend-list">
+                        <div class="auth-recent-empty">No leaderboard data yet.</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div id="game-area" class="w-full hidden relative flex flex-col">
@@ -1186,6 +1233,39 @@
                     <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
                     Back to app
                 </button>
+            </div>
+        </div>
+        <div id="public-profile-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" data-onclick="if(event.target === this) closePublicProfile()">
+            <div class="app-modal-card app-modal-card--info">
+                <div class="app-modal-header">
+                    <div class="app-modal-title-wrap">
+                        <div class="app-modal-kicker">Public Profile</div>
+                        <h3 id="public-profile-title" class="app-modal-title">Icarus Player</h3>
+                    </div>
+                    <button data-onclick="closePublicProfile()" class="app-modal-close" type="button" aria-label="Close public profile">
+                        <span class="app-modal-close-icon" aria-hidden="true">&times;</span>
+                        <span>Close</span>
+                    </button>
+                </div>
+                <div class="app-modal-body">
+                    <section class="modal-surface-block">
+                        <p id="public-profile-bio" class="text-sub text-sm">No bio.</p>
+                    </section>
+                    <section class="modal-surface-block mt-3">
+                        <div id="public-profile-stats" class="auth-stats-grid">
+                            <div class="auth-stat-box"><div class="auth-stat-label">Games</div><div id="public-profile-games" class="auth-stat-value">0</div></div>
+                            <div class="auth-stat-box"><div class="auth-stat-label">Best WPM</div><div id="public-profile-best" class="auth-stat-value">0</div></div>
+                            <div class="auth-stat-box"><div class="auth-stat-label">Avg WPM</div><div id="public-profile-avgwpm" class="auth-stat-value">0</div></div>
+                            <div class="auth-stat-box"><div class="auth-stat-label">Avg Acc</div><div id="public-profile-avgacc" class="auth-stat-value">0%</div></div>
+                        </div>
+                    </section>
+                    <section class="modal-surface-block mt-3">
+                        <div class="text-sub text-xs uppercase mb-2">Top Songs</div>
+                        <div id="public-profile-top-songs" class="auth-recent-list">
+                            <div class="auth-recent-empty">No song stats yet.</div>
+                        </div>
+                    </section>
+                </div>
             </div>
         </div>
         <div id="video-pip-panel" class="video-pip-panel hidden">

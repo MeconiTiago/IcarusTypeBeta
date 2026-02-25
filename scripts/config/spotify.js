@@ -9,10 +9,13 @@ export const SPOTIFY_SCOPES = [
 ];
 
 export function getSpotifyRedirectUri() {
-  const host = window.location.hostname;
-  const isLocal = host === 'localhost' || host === '127.0.0.1';
-  if (isLocal) {
-    return `${window.location.origin}/`;
+  try {
+    const origin = String(window.location.origin || '').trim();
+    if (/^https?:\/\//i.test(origin)) {
+      return `${origin}/`;
+    }
+  } catch (_err) {
+    // Fallback below
   }
   return SPOTIFY_REDIRECT_URI;
 }

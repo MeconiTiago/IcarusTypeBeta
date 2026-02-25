@@ -43,6 +43,29 @@ const SPOTIFY_POLL_MS = 10 * 1000;
 const LYRICS_FETCH_TIMEOUT_MS = 5 * 60 * 1000;
 const PLAYER_PROVIDERS = ['spotify', 'deezer', 'youtube_music'];
 const SPOTIFY_DEBUG_LOGS = true;
+const ONBOARDING_SEEN_KEY = 'icarus_onboarding_seen';
+const ONBOARDING_STEPS = Object.freeze([
+    {
+        title: 'Welcome to Icarus Type',
+        html: '<p>Quick 30-second tour before your first run.</p><p>You will search songs, type lyrics, and level up with XP.</p>'
+    },
+    {
+        title: '1) Pick a Song',
+        html: '<p>Use <strong class="text-main">Search</strong> to load an artist and choose a track.</p><p>If you are in a hurry, use <strong class="text-main">Quick</strong>.</p>'
+    },
+    {
+        title: '2) Play and Improve',
+        html: '<p>Start typing and keep your rhythm.</p><p>Switch between <strong class="text-main">normal</strong>, <strong class="text-main">cloze</strong> and <strong class="text-main">rhythm</strong>.</p>'
+    },
+    {
+        title: '3) Daily and Ranked',
+        html: '<p>Complete the <strong class="text-main">Daily Challenge</strong> for bonus XP.</p><p>Open <strong class="text-main">Leaderboard</strong> to compare weekly and monthly performance.</p>'
+    },
+    {
+        title: '4) Social Modes',
+        html: '<p>Create duel rooms, invite friends, and race in real time.</p><p>You can also share scores and your public profile link.</p>'
+    }
+]);
 
 bindLegacyInlineHandlers();
 
@@ -632,6 +655,7 @@ bindLegacyInlineHandlers();
                 gameLaunched: false,
                 resultShown: false
             },
+            leaderboardPeriod: 'weekly',
             tooltipTimeout: null,
             isSoundEnabled: false 
         };
@@ -657,6 +681,7 @@ bindLegacyInlineHandlers();
             navQuick: document.getElementById('nav-quick'),
             navCustom: document.getElementById('nav-custom'),
             navDuel: document.getElementById('nav-duel'),
+            navLeaderboard: document.getElementById('nav-leaderboard'),
             navDuelBadge: document.getElementById('nav-duel-badge'),
             modeSessionPrefsBtn: document.getElementById('mode-session-prefs-btn'),
             modeSessionPrefsPopover: document.getElementById('mode-session-prefs-popover'),
@@ -664,6 +689,9 @@ bindLegacyInlineHandlers();
             headerNotificationsBadge: document.getElementById('header-notifications-badge'),
             headerNotificationsPanel: document.getElementById('header-notifications-panel'),
             headerNotificationsList: document.getElementById('header-notifications-list'),
+            headerDailyButton: document.getElementById('header-daily-button'),
+            headerDailyBadge: document.getElementById('header-daily-badge'),
+            headerDailyPanel: document.getElementById('header-daily-panel'),
             btnToggleEasy: document.getElementById('btn-toggle-easy'),
             btnToggleSpeak: document.getElementById('btn-toggle-speak'),
             btnToggleVideo: document.getElementById('btn-toggle-video'),
@@ -671,6 +699,18 @@ bindLegacyInlineHandlers();
             viewPresets: document.getElementById('view-presets'),
             viewCustom: document.getElementById('view-custom'),
             viewDuel: document.getElementById('view-duel'),
+            viewLeaderboard: document.getElementById('view-leaderboard'),
+            dailyChallengeCard: document.getElementById('daily-challenge-card'),
+            dailyChallengeTitle: document.getElementById('daily-challenge-title'),
+            dailyChallengeDate: document.getElementById('daily-challenge-date'),
+            dailyChallengeDesc: document.getElementById('daily-challenge-desc'),
+            dailyChallengeProgress: document.getElementById('daily-challenge-progress'),
+            dailyChallengeClaimBtn: document.getElementById('daily-challenge-claim-btn'),
+            dailyChallengeReward: document.getElementById('daily-challenge-reward'),
+            leaderboardMeta: document.getElementById('leaderboard-meta'),
+            leaderboardList: document.getElementById('leaderboard-list'),
+            leaderboardPeriodWeekly: document.getElementById('leaderboard-period-weekly'),
+            leaderboardPeriodMonthly: document.getElementById('leaderboard-period-monthly'),
             duelStepEntry: document.getElementById('duel-step-entry'),
             duelStepRoom: document.getElementById('duel-step-room'),
             duelStepSong: document.getElementById('duel-step-song'),
@@ -832,10 +872,12 @@ bindLegacyInlineHandlers();
             authStatBestWpm: document.getElementById('auth-stat-best-wpm'),
             authStatAvgWpm: document.getElementById('auth-stat-avg-wpm'),
             authStatAvgAcc: document.getElementById('auth-stat-avg-acc'),
+            authStatStreak: document.getElementById('auth-stat-streak'),
             profileQuickGames: document.getElementById('profile-quick-games'),
             profileQuickBest: document.getElementById('profile-quick-best'),
             profileQuickAvg: document.getElementById('profile-quick-avg'),
             profileQuickAcc: document.getElementById('profile-quick-acc'),
+            profileQuickStreak: document.getElementById('profile-quick-streak'),
             authRecentResults: document.getElementById('auth-recent-results'),
             authRecentSection: document.getElementById('auth-recent-section'),
             authHistorySong: document.getElementById('auth-history-song'),
@@ -896,6 +938,7 @@ bindLegacyInlineHandlers();
             profileHubBest: document.getElementById('profile-hub-best'),
             profileHubAvgWpm: document.getElementById('profile-hub-avgwpm'),
             profileHubAvgAcc: document.getElementById('profile-hub-avgacc'),
+            profileHubStreak: document.getElementById('profile-hub-streak'),
             profileHubChart: document.getElementById('profile-hub-chart'),
             profileHubRecent: document.getElementById('profile-hub-recent'),
             profileHubFavorites: document.getElementById('profile-hub-favorites'),
@@ -905,6 +948,22 @@ bindLegacyInlineHandlers();
             profileHubAchievements: document.getElementById('profile-hub-achievements'),
             profileHubCompareSelect: document.getElementById('profile-hub-compare-select'),
             profileHubCompareGrid: document.getElementById('profile-hub-compare-grid'),
+            profileHubShareBtn: document.getElementById('profile-hub-share-btn'),
+            profileHubShareMeta: document.getElementById('profile-hub-share-meta'),
+            onboardingOverlay: document.getElementById('onboarding-overlay'),
+            onboardingTitle: document.getElementById('onboarding-title'),
+            onboardingContent: document.getElementById('onboarding-content'),
+            onboardingStepPill: document.getElementById('onboarding-step-pill'),
+            onboardingPrevBtn: document.getElementById('onboarding-prev-btn'),
+            onboardingNextBtn: document.getElementById('onboarding-next-btn'),
+            publicProfileOverlay: document.getElementById('public-profile-overlay'),
+            publicProfileTitle: document.getElementById('public-profile-title'),
+            publicProfileBio: document.getElementById('public-profile-bio'),
+            publicProfileGames: document.getElementById('public-profile-games'),
+            publicProfileBest: document.getElementById('public-profile-best'),
+            publicProfileAvgWpm: document.getElementById('public-profile-avgwpm'),
+            publicProfileAvgAcc: document.getElementById('public-profile-avgacc'),
+            publicProfileTopSongs: document.getElementById('public-profile-top-songs'),
             sharedResultUser: document.getElementById('shared-result-user'),
             sharedResultSong: document.getElementById('shared-result-song'),
             sharedResultMeta: document.getElementById('shared-result-meta'),
@@ -963,6 +1022,7 @@ bindLegacyInlineHandlers();
         let authGameResultsCache = [];
         let authSongGroupsCache = [];
         let authStatsSummary = { games: 0, bestWpm: 0, avgWpm: 0, avgAcc: 0, totalTypingSeconds: 0 };
+        let authStreakSummary = { current: 0, best: 0, lastPlayedDate: '' };
         let authProgressSummary = { level: 1, prestige: 0, xpInLevel: 0, xpToNext: 0, totalXp: 0 };
         let pendingPracticeXpRecovery = { gameResultId: 0, remainingWords: 0, recoveredWords: 0, recoveredXp: 0 };
         let lastRoundXpBreakdown = null;
@@ -989,6 +1049,9 @@ bindLegacyInlineHandlers();
         let profileHubContext = { type: 'self', friend: null, source: 'self' };
         let profileHubCompareFriendKey = '';
         let pendingSharedResultId = '';
+        let pendingPublicProfileSlug = '';
+        let onboardingStepIndex = 0;
+        let dailyChallengeStatusCache = null;
         let artistSuggestTimer = null;
         let titleSuggestTimer = null;
         let artistSuggestSeq = 0;
@@ -1022,6 +1085,7 @@ bindLegacyInlineHandlers();
         let spDeviceId = '';
         let spSdkReadyPromise = null;
         let spIsConnecting = false;
+        let spWebPlaybackBlocked = false;
         let spPlaybackPaused = true;
         let spPlaybackHasState = false;
         let spPlaybackProgressMs = 0;
@@ -1555,6 +1619,7 @@ bindLegacyInlineHandlers();
         async function ensureSpotifyWebPlayer() {
             if (spPlayer || spIsConnecting) return;
             if (!authCurrentUser || !isSpotifyLoggedIn()) return;
+            if (spWebPlaybackBlocked) return;
 
             spIsConnecting = true;
             try {
@@ -1603,8 +1668,12 @@ bindLegacyInlineHandlers();
                     spotifyDebugLog('sdk.authentication_error', { message: message || '' });
                     const lowered = String(message || '').toLowerCase();
                     if (lowered.includes('scope')) {
-                        spotifyLogoutTokens();
-                        showToast('Spotify com permissao incompleta. Clique em Link Spotify novamente.', 'error');
+                        spWebPlaybackBlocked = true;
+                        try { spPlayer?.disconnect(); } catch (_err) {}
+                        spPlayer = null;
+                        spDeviceId = '';
+                        spPlaybackHasState = false;
+                        spPlaybackPaused = true;
                         renderSpotifyStatus();
                         return;
                     }
@@ -1613,7 +1682,13 @@ bindLegacyInlineHandlers();
 
                 spPlayer.addListener('account_error', ({ message }) => {
                     spotifyDebugLog('sdk.account_error', { message: message || '' });
-                    showToast(message || 'Conta Spotify sem permissao para Web Playback.', 'error');
+                    spWebPlaybackBlocked = true;
+                    try { spPlayer?.disconnect(); } catch (_err) {}
+                    spPlayer = null;
+                    spDeviceId = '';
+                    spPlaybackHasState = false;
+                    spPlaybackPaused = true;
+                    renderSpotifyStatus();
                 });
 
                 spPlayer.addListener('playback_error', ({ message }) => {
@@ -1713,10 +1788,18 @@ bindLegacyInlineHandlers();
             if (elements.profileQuickBest) elements.profileQuickBest.textContent = String(authStatsSummary.bestWpm || 0);
             if (elements.profileQuickAvg) elements.profileQuickAvg.textContent = String(authStatsSummary.avgWpm || 0);
             if (elements.profileQuickAcc) elements.profileQuickAcc.textContent = `${authStatsSummary.avgAcc || 0}%`;
+            if (elements.profileQuickStreak) elements.profileQuickStreak.textContent = `${Math.max(0, Number(authStreakSummary.current) || 0)}d`;
             if (elements.authUserTypingTotal) {
                 const totalMinutes = Math.floor((Number(authStatsSummary.totalTypingSeconds) || 0) / 60);
                 elements.authUserTypingTotal.textContent = `${totalMinutes} min typed`;
             }
+        }
+
+        function renderStreakStats() {
+            const current = Math.max(0, Number(authStreakSummary.current) || 0);
+            if (elements.authStatStreak) elements.authStatStreak.textContent = `${current}d`;
+            if (elements.profileQuickStreak) elements.profileQuickStreak.textContent = `${current}d`;
+            if (elements.profileHubStreak) elements.profileHubStreak.textContent = `${current}d`;
         }
 
         function formatClockFromSeconds(totalSeconds) {
@@ -1833,6 +1916,7 @@ bindLegacyInlineHandlers();
                 return;
             }
             try {
+                spWebPlaybackBlocked = false;
                 await spotifyLoginWithPkce();
             } catch (error) {
                 showToast(describeSpotifyAuthError(error), 'error');
@@ -1841,6 +1925,7 @@ bindLegacyInlineHandlers();
 
         async function spotifyLogout() {
             spotifyLogoutTokens();
+            spWebPlaybackBlocked = false;
             if (authCurrentUser?.id) {
                 await clearSpotifyTokensFromProfile(authCurrentUser.id);
             } else {
@@ -2533,6 +2618,22 @@ bindLegacyInlineHandlers();
             return (authFavoritesCache || []).some((f) => buildFavoriteSongKey(f.artist, f.song_title) === target);
         }
 
+        function buildSongCardFavoriteAction(artist, songTitle, extraClass = '') {
+            const safeArtist = String(artist || '').trim();
+            const safeSong = String(songTitle || '').trim();
+            if (!safeArtist || !safeSong) return '';
+            const encodedArtist = encodeURIComponent(safeArtist);
+            const encodedTitle = encodeURIComponent(safeSong);
+            const active = isSongFavorited(safeArtist, safeSong);
+            const classes = `song-card-favorite${active ? ' active' : ''}${extraClass ? ` ${extraClass}` : ''}`;
+            const title = active ? 'Already in favorites' : 'Add to favorites';
+            return `<span class="${classes}"
+                        role="button"
+                        tabindex="0"
+                        title="${title}"
+                        data-onclick="addFavoriteFromSongCard(event,'${encodedArtist}','${encodedTitle}')">&#9733;</span>`;
+        }
+
         async function addSongToFavorites(artist, songTitle, silent = false, options = {}) {
             if (!ensureSupabaseReady()) return false;
             const user = authCurrentUser || await syncCurrentUser();
@@ -2822,6 +2923,7 @@ bindLegacyInlineHandlers();
                             <div class="favorite-media-artist">${escapeHtml(row.artistName)}</div>
                             <div class="favorite-media-meta">${when ? `${whenLabel} ${when}` : 'recent song'}</div>
                             <div class="favorite-media-tag">${sourceTag}</div>
+                            ${buildSongCardFavoriteAction(row.artistName, row.songTitle)}
                           </div>
                         </button>`;
                     }).join('');
@@ -2856,6 +2958,7 @@ bindLegacyInlineHandlers();
                             <div class="favorite-media-artist">${artist}</div>
                             <div class="favorite-media-meta">${when ? `saved ${when}` : 'saved song'}</div>
                             <div class="favorite-media-tag">${sourceTag}</div>
+                            ${buildSongCardFavoriteAction(f.artist, f.song_title)}
                           </div>
                         </button>`;
                     }).join('');
@@ -2893,6 +2996,7 @@ bindLegacyInlineHandlers();
                             <button type="button" class="search-mini-train-card" data-onclick="quickLoadSongFromHub('${encodedArtist}','${encodedTitle}')">
                                 <div class="title">${escapeHtml(row.title)}</div>
                                 <div class="meta">${escapeHtml(row.artist)} | avg acc ${row.avgAcc}% (${row.count} runs)</div>
+                                ${buildSongCardFavoriteAction(row.artist, row.title)}
                             </button>
                         `;
                     }).join('');
@@ -3269,6 +3373,7 @@ bindLegacyInlineHandlers();
                             <div class="favorite-media-artist">${artist}</div>
                             <div class="favorite-media-meta">${when ? `saved ${when}` : 'saved song'}</div>
                             <div class="favorite-media-tag">${sourceTag}</div>
+                            ${buildSongCardFavoriteAction(f.artist, f.song_title)}
                           </div>
                         </button>`;
             }).join('');
@@ -3340,6 +3445,26 @@ bindLegacyInlineHandlers();
             }
             await addSongToFavorites(artist, title);
             await renderArtistCatalogList(elements.artistSongFilter?.value || '', false);
+        }
+
+        async function addFavoriteFromSongCard(event, encodedArtist, encodedTitle) {
+            if (event?.preventDefault) event.preventDefault();
+            if (event?.stopPropagation) event.stopPropagation();
+            const artist = decodeURIComponent(String(encodedArtist || '')).trim();
+            const title = decodeURIComponent(String(encodedTitle || '')).trim();
+            if (!artist || !title) {
+                showToast('Invalid song data.', 'error');
+                return;
+            }
+            const added = await addSongToFavorites(artist, title);
+            if (!added) return;
+            renderSearchDiscoveryPanel().catch(() => {});
+            if (elements.duelSongRecentList) {
+                renderDuelSongQuickPicks(elements.duelSongSearch?.value || '');
+            }
+            if (elements.artistSongsList && Array.isArray(artistSpotlightSongs) && artistSpotlightSongs.length) {
+                renderArtistSpotlightList(state.artistCatalogName || artist, artistSpotlightSongs);
+            }
         }
 
         async function loginWithProvider(provider) {
@@ -4172,6 +4297,7 @@ bindLegacyInlineHandlers();
                         <span class="duel-song-pick-title">${title}</span>
                         <span class="duel-song-pick-artist">${artist}</span>
                         <span class="duel-song-pick-source">${sourceLabel}</span>
+                        ${buildSongCardFavoriteAction(row.artist, row.title)}
                     </button>`;
             }).join('');
         }
@@ -4524,9 +4650,17 @@ bindLegacyInlineHandlers();
         function toggleNotificationsPanel(event) {
             if (event?.stopPropagation) event.stopPropagation();
             if (!elements.headerNotificationsPanel) return;
+            elements.headerDailyPanel?.classList.add('hidden');
             const willOpen = elements.headerNotificationsPanel.classList.contains('hidden');
             elements.headerNotificationsPanel.classList.toggle('hidden');
             if (willOpen) renderHeaderNotifications();
+        }
+
+        function toggleDailyChallengePanel(event) {
+            if (event?.stopPropagation) event.stopPropagation();
+            if (!elements.headerDailyPanel) return;
+            elements.headerNotificationsPanel?.classList.add('hidden');
+            elements.headerDailyPanel.classList.toggle('hidden');
         }
 
         async function renderDuelInvites() {
@@ -5066,7 +5200,9 @@ bindLegacyInlineHandlers();
             if (elements.authStatBestWpm) elements.authStatBestWpm.textContent = '0';
             if (elements.authStatAvgWpm) elements.authStatAvgWpm.textContent = '0';
             if (elements.authStatAvgAcc) elements.authStatAvgAcc.textContent = '0%';
+            if (elements.authStatStreak) elements.authStatStreak.textContent = '0d';
             authStatsSummary = { games: 0, bestWpm: 0, avgWpm: 0, avgAcc: 0, totalTypingSeconds: 0 };
+            authStreakSummary = { current: 0, best: 0, lastPlayedDate: '' };
             setAuthProgressSummary({ level: 1, prestige: 0, xpInLevel: 0, xpToNext: getXpRequiredForLevel(1), totalXp: 0 }, { silentProfileHub: true });
             clearPendingPracticeXpRecovery();
             lastRoundXpBreakdown = null;
@@ -5081,6 +5217,7 @@ bindLegacyInlineHandlers();
                 recoveredXp: 0
             });
             renderProfileQuickStats();
+            renderStreakStats();
             if (elements.authRecentResults) {
                 elements.authRecentResults.innerHTML = '<div class="auth-recent-empty">No saved games yet.</div>';
             }
@@ -5453,6 +5590,8 @@ bindLegacyInlineHandlers();
                     elements.profileHubShowAllSongs.textContent = 'Show all';
                     elements.profileHubShowAllSongs.disabled = true;
                 }
+                if (elements.profileHubShareBtn) elements.profileHubShareBtn.disabled = true;
+                if (elements.profileHubShareMeta) elements.profileHubShareMeta.textContent = 'Public link available only for your profile';
                 renderProfileHubComparison(getSelfSummaryStats(), f);
                 drawProfileHubChart([]);
                 const friendId = String(f.friend_id || friendFromCompare?.friend_id || '').trim();
@@ -5532,8 +5671,11 @@ bindLegacyInlineHandlers();
             if (elements.profileHubBest) elements.profileHubBest.textContent = String(authStatsSummary.bestWpm || 0);
             if (elements.profileHubAvgWpm) elements.profileHubAvgWpm.textContent = String(authStatsSummary.avgWpm || 0);
             if (elements.profileHubAvgAcc) elements.profileHubAvgAcc.textContent = `${authStatsSummary.avgAcc || 0}%`;
+            if (elements.profileHubStreak) elements.profileHubStreak.textContent = `${Math.max(0, Number(authStreakSummary.current) || 0)}d`;
             if (elements.profileHubTypingClock) elements.profileHubTypingClock.textContent = formatClockFromSeconds(authStatsSummary.totalTypingSeconds || 0);
             if (elements.profileHubTypingMinutes) elements.profileHubTypingMinutes.textContent = `${Math.floor((Number(authStatsSummary.totalTypingSeconds) || 0) / 60)} min total`;
+            if (elements.profileHubShareBtn) elements.profileHubShareBtn.disabled = false;
+            if (elements.profileHubShareMeta) elements.profileHubShareMeta.textContent = 'Public profile enabled';
 
             const ranking = buildProfileHubTypingRanking(authGameResultsCache, 300, true);
             const allTimeRanking = buildProfileHubTypingRanking(authGameResultsCache, 300, false);
@@ -5742,6 +5884,57 @@ bindLegacyInlineHandlers();
             return normalized;
         }
 
+        function isStreakRpcMissingError(err) {
+            const text = String(err?.message || err?.details || err?.hint || '').toLowerCase();
+            return text.includes('get_my_streak')
+                || text.includes('update_my_streak_after_game')
+                || text.includes('does not exist')
+                || text.includes('schema cache');
+        }
+
+        async function loadUserStreak(userId) {
+            if (!supabase || !userId) {
+                authStreakSummary = { current: 0, best: 0, lastPlayedDate: '' };
+                renderStreakStats();
+                return;
+            }
+            const { data, error } = await supabase.rpc('get_my_streak');
+            if (error) {
+                if (!isStreakRpcMissingError(error)) {
+                    console.error('Could not load streak', error);
+                }
+                authStreakSummary = { current: 0, best: 0, lastPlayedDate: '' };
+                renderStreakStats();
+                return;
+            }
+            const row = Array.isArray(data) ? data[0] : data;
+            authStreakSummary = {
+                current: Math.max(0, Number(row?.current_streak) || 0),
+                best: Math.max(0, Number(row?.best_streak) || 0),
+                lastPlayedDate: String(row?.last_played_date || '')
+            };
+            renderStreakStats();
+        }
+
+        async function updateMyStreakAfterGame() {
+            if (!supabase) return;
+            const { data, error } = await supabase.rpc('update_my_streak_after_game');
+            if (error) {
+                if (!isStreakRpcMissingError(error)) {
+                    console.error('Could not update streak', error);
+                }
+                return;
+            }
+            const row = Array.isArray(data) ? data[0] : data;
+            if (!row) return;
+            authStreakSummary = {
+                current: Math.max(0, Number(row.current_streak) || 0),
+                best: Math.max(0, Number(row.best_streak) || 0),
+                lastPlayedDate: String(row.last_played_date || '')
+            };
+            renderStreakStats();
+        }
+
         async function loadUserTotalTypingSeconds(userId) {
             if (!supabase || !userId) return 0;
             try {
@@ -5790,6 +5983,7 @@ bindLegacyInlineHandlers();
         async function loadUserGameStats(userId) {
             if (!supabase || !userId) return;
             await loadUserProgress(userId);
+            await loadUserStreak(userId);
             const { data, error } = await supabase
                 .from('game_results')
                 .select('wpm,accuracy,mode,created_at,song_title,artist,duration_seconds')
@@ -5970,7 +6164,9 @@ bindLegacyInlineHandlers();
                         showToast('Prestige unlocked. Back to Level 1 with higher rank.', 'info');
                     }
                     resetActiveGameSession();
+                    await updateMyStreakAfterGame();
                     await loadUserGameStats(user.id);
+                    await refreshDailyChallengeStatus();
                     return;
                 }
 
@@ -5994,7 +6190,9 @@ bindLegacyInlineHandlers();
                     recoveredXp: 0
                 });
                 resetActiveGameSession();
+                await updateMyStreakAfterGame();
                 await loadUserGameStats(user.id);
+                await refreshDailyChallengeStatus();
             } catch (error) {
                 clearPendingPracticeXpRecovery();
                 setResultsXpText('+0 XP');
@@ -6178,7 +6376,9 @@ bindLegacyInlineHandlers();
                 renderSetupFavoritesTab();
                 renderSearchDiscoveryPanel().catch(() => {});
                 renderProfileHub();
+                await refreshDailyChallengeStatus();
                 await maybeOpenSharedResultFromLink();
+                await maybeOpenPublicProfileFromLink();
                 if (isSpotifyLoggedIn() && !spotifyTracks.length) {
                     await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
                 }
@@ -6219,6 +6419,7 @@ bindLegacyInlineHandlers();
                 clearDuelState();
                 renderSetupFavoritesTab();
                 renderSearchDiscoveryPanel().catch(() => {});
+                renderDailyChallengeStatus(null);
             }
             renderHeaderAuthStatus();
             setAccountViewMode(authAccountViewMode);
@@ -6326,6 +6527,7 @@ bindLegacyInlineHandlers();
 
         async function logoutAccount(showToastMessage = true) {
             spotifyLogoutTokens();
+            spWebPlaybackBlocked = false;
             stopSpotifyTracking();
             stopRhythmSpotifySyncPoll();
             spotifyTracks = [];
@@ -6435,10 +6637,52 @@ bindLegacyInlineHandlers();
             });
         }
 
+        function renderOnboardingStep() {
+            if (!elements.onboardingOverlay || !elements.onboardingTitle || !elements.onboardingContent) return;
+            const steps = ONBOARDING_STEPS;
+            const idx = Math.max(0, Math.min(steps.length - 1, onboardingStepIndex));
+            const step = steps[idx];
+            elements.onboardingTitle.textContent = step.title;
+            elements.onboardingContent.innerHTML = step.html;
+            if (elements.onboardingStepPill) elements.onboardingStepPill.textContent = `Step ${idx + 1}/${steps.length}`;
+            if (elements.onboardingPrevBtn) elements.onboardingPrevBtn.disabled = idx === 0;
+            if (elements.onboardingNextBtn) {
+                elements.onboardingNextBtn.textContent = idx >= steps.length - 1 ? "Let's Rock" : 'Next';
+            }
+        }
+
+        function openOnboarding(force = false) {
+            if (!elements.onboardingOverlay) return;
+            if (!force && elements.sharedResultArea && !elements.sharedResultArea.classList.contains('hidden')) return;
+            if (!force && elements.publicProfileOverlay && !elements.publicProfileOverlay.classList.contains('hidden')) return;
+            const seen = localStorage.getItem(ONBOARDING_SEEN_KEY) === '1';
+            if (seen && !force) return;
+            onboardingStepIndex = 0;
+            renderOnboardingStep();
+            elements.onboardingOverlay.classList.remove('hidden');
+        }
+
         function closeOnboarding() {
-            const onboarding = document.getElementById('onboarding-overlay');
-            if (onboarding) onboarding.classList.add('hidden');
-            localStorage.setItem('icarus_onboarding_seen', '1');
+            if (elements.onboardingOverlay) elements.onboardingOverlay.classList.add('hidden');
+            localStorage.setItem(ONBOARDING_SEEN_KEY, '1');
+        }
+
+        function nextOnboardingStep() {
+            if (onboardingStepIndex >= ONBOARDING_STEPS.length - 1) {
+                closeOnboarding();
+                return;
+            }
+            onboardingStepIndex += 1;
+            renderOnboardingStep();
+        }
+
+        function prevOnboardingStep() {
+            onboardingStepIndex = Math.max(0, onboardingStepIndex - 1);
+            renderOnboardingStep();
+        }
+
+        function skipOnboarding() {
+            closeOnboarding();
         }
 
         function parseSyncedLyrics(raw) {
@@ -6807,6 +7051,7 @@ bindLegacyInlineHandlers();
             const navCustom = document.getElementById('nav-custom');
             const navDuel = document.getElementById('nav-duel');
             const navQuick = document.getElementById('nav-quick');
+            const navLeaderboard = document.getElementById('nav-leaderboard');
             const group = navSearch?.parentElement;
             if (!group || !navSearch) return;
 
@@ -6818,7 +7063,7 @@ bindLegacyInlineHandlers();
                 group.insertBefore(indicator, group.firstChild);
             }
 
-            const candidates = [navSearch, navCustom, navDuel, navQuick].filter(Boolean);
+            const candidates = [navSearch, navCustom, navDuel, navLeaderboard, navQuick].filter(Boolean);
             const active = candidates.find((el) => el.classList.contains('active')) || navSearch;
             const left = active.offsetLeft;
             const width = active.offsetWidth;
@@ -6881,7 +7126,7 @@ bindLegacyInlineHandlers();
         }
 
         function switchTab(tabName) {
-            ['search', 'presets', 'custom', 'duel'].forEach(t => {
+            ['search', 'presets', 'custom', 'duel', 'leaderboard'].forEach(t => {
                 const el = document.getElementById(`nav-${t}`);
                 const view = document.getElementById(`view-${t}`);
                 if (!el || !view) return;
@@ -6904,6 +7149,9 @@ bindLegacyInlineHandlers();
             }
             if (tabName === 'search') {
                 renderSearchDiscoveryPanel().catch(() => {});
+            }
+            if (tabName === 'leaderboard') {
+                refreshLeaderboard().catch(() => {});
             }
             updatePrimaryNavLiquidIndicator({ animate: true });
             syncVideoPanelVisibility();
@@ -7983,10 +8231,12 @@ bindLegacyInlineHandlers();
                             </span>
                         </span>
                     </span>
+                    ${buildSongCardFavoriteAction(song.artist, song.title)}
                 </button>
             `).join('');
             elements.artistSongsList.querySelectorAll('.artist-spotlight-item').forEach((btn) => {
-                btn.addEventListener('click', async () => {
+                btn.addEventListener('click', async (event) => {
+                    if (event.target?.closest('.song-card-favorite')) return;
                     const index = Number(btn.getAttribute('data-song-index'));
                     if (!Number.isFinite(index)) return;
                     const song = ranked[index];
@@ -8863,6 +9113,253 @@ bindLegacyInlineHandlers();
             }
         }
 
+        function buildPublicProfileUrl(slug) {
+            const safeSlug = String(slug || '').trim().toLowerCase();
+            if (!safeSlug) return '';
+            const base = getShareAppUrl();
+            if (!base) return '';
+            try {
+                const url = new URL(base);
+                url.searchParams.set('profile', safeSlug);
+                return url.toString();
+            } catch (_e) {
+                return '';
+            }
+        }
+
+        function parsePublicProfileSlugFromLocation() {
+            try {
+                const url = new URL(window.location.href);
+                const slug = String(url.searchParams.get('profile') || '').trim().toLowerCase();
+                return /^[a-z0-9][a-z0-9_-]{2,39}$/i.test(slug) ? slug : '';
+            } catch (_e) {
+                return '';
+            }
+        }
+
+        function clearPublicProfileParamFromUrl() {
+            try {
+                const url = new URL(window.location.href);
+                if (!url.searchParams.has('profile')) return;
+                url.searchParams.delete('profile');
+                const next = `${url.pathname}${url.search}${url.hash}`;
+                window.history.replaceState({}, '', next);
+            } catch (_e) {
+                // no-op
+            }
+        }
+
+        function setLeaderboardPeriod(period) {
+            const value = String(period || '').toLowerCase() === 'monthly' ? 'monthly' : 'weekly';
+            state.leaderboardPeriod = value;
+            if (elements.leaderboardPeriodWeekly) {
+                elements.leaderboardPeriodWeekly.classList.toggle('active', value === 'weekly');
+            }
+            if (elements.leaderboardPeriodMonthly) {
+                elements.leaderboardPeriodMonthly.classList.toggle('active', value === 'monthly');
+            }
+            refreshLeaderboard().catch(() => {});
+        }
+
+        async function refreshLeaderboard() {
+            if (!supabase) return;
+            if (!elements.leaderboardList || !elements.leaderboardMeta) return;
+            elements.leaderboardMeta.textContent = 'Loading leaderboard...';
+            const period = state.leaderboardPeriod === 'monthly' ? 'monthly' : 'weekly';
+            const { data, error } = await supabase.rpc('get_leaderboard', {
+                p_period: period,
+                p_limit: 50
+            });
+            if (error) {
+                elements.leaderboardMeta.textContent = 'Could not load leaderboard.';
+                elements.leaderboardList.innerHTML = '<div class="auth-recent-empty">No leaderboard data available right now.</div>';
+                return;
+            }
+            const rows = Array.isArray(data) ? data : [];
+            const label = period === 'monthly' ? 'Last 30 days' : 'Last 7 days';
+            elements.leaderboardMeta.textContent = `${label} - ${rows.length} players`;
+            if (!rows.length) {
+                elements.leaderboardList.innerHTML = '<div class="auth-recent-empty">No runs in this period yet.</div>';
+                return;
+            }
+            elements.leaderboardList.innerHTML = rows.map((row, idx) => {
+                const place = idx + 1;
+                const username = escapeHtml(String(row.username || 'player'));
+                const games = Math.max(0, Number(row.games || 0));
+                const avgWpm = Math.max(0, Number(row.avg_wpm || 0));
+                const bestWpm = Math.max(0, Number(row.best_wpm || 0));
+                const avgAcc = Math.max(0, Number(row.avg_acc || 0));
+                const xp = Math.max(0, Number(row.xp_earned || 0));
+                return `<div class="auth-friend-item">
+                    <div class="auth-friend-name">#${place} ${username}</div>
+                    <div class="auth-friend-meta">${games} runs | avg ${avgWpm} WPM | best ${bestWpm} WPM | acc ${avgAcc}% | +${xp} XP</div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderDailyChallengeStatus(payload) {
+            const status = payload || null;
+            dailyChallengeStatusCache = status;
+            if (!elements.dailyChallengeCard) return;
+            if (!status) {
+                elements.dailyChallengeTitle.textContent = 'Unavailable';
+                elements.dailyChallengeDate.textContent = '-';
+                elements.dailyChallengeDesc.textContent = 'Daily challenge is unavailable right now.';
+                elements.dailyChallengeProgress.textContent = 'Progress: 0%';
+                elements.dailyChallengeReward.textContent = 'Reward: +0 XP';
+                if (elements.dailyChallengeClaimBtn) elements.dailyChallengeClaimBtn.disabled = true;
+                if (elements.headerDailyBadge) elements.headerDailyBadge.classList.add('hidden');
+                return;
+            }
+            const pct = Math.max(0, Math.min(100, Number(status.progress_pct || 0)));
+            const progressCurrent = Math.max(0, Number(status.progress_value || 0));
+            const progressTarget = Math.max(1, Number(status.target_value || 1));
+            const rewardXp = Math.max(0, Number(status.reward_xp || 0));
+            elements.dailyChallengeTitle.textContent = String(status.challenge_title || 'Daily challenge');
+            elements.dailyChallengeDate.textContent = String(status.challenge_date || '-');
+            elements.dailyChallengeDesc.textContent = String(status.challenge_desc || 'Complete runs to earn bonus XP.');
+            elements.dailyChallengeProgress.textContent = `Progress: ${progressCurrent}/${progressTarget} (${pct}%)`;
+            elements.dailyChallengeReward.textContent = status.claimed
+                ? `Claimed: +${rewardXp} XP`
+                : `Reward: +${rewardXp} XP`;
+            if (elements.dailyChallengeClaimBtn) {
+                elements.dailyChallengeClaimBtn.disabled = !status.can_claim || !!status.claimed;
+                elements.dailyChallengeClaimBtn.textContent = status.claimed ? 'Claimed' : 'Claim reward';
+            }
+            if (elements.headerDailyBadge) {
+                const shouldShow = Boolean(status.can_claim && !status.claimed);
+                elements.headerDailyBadge.classList.toggle('hidden', !shouldShow);
+                elements.headerDailyBadge.textContent = '1';
+            }
+        }
+
+        async function refreshDailyChallengeStatus() {
+            if (!supabase) return;
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user) {
+                renderDailyChallengeStatus(null);
+                if (elements.dailyChallengeDesc) {
+                    elements.dailyChallengeDesc.textContent = 'Login to track and claim daily rewards.';
+                }
+                if (elements.dailyChallengeClaimBtn) elements.dailyChallengeClaimBtn.disabled = true;
+                return;
+            }
+            const { data, error } = await supabase.rpc('get_daily_challenge_status');
+            if (error) {
+                renderDailyChallengeStatus(null);
+                return;
+            }
+            const row = Array.isArray(data) ? data[0] : data;
+            renderDailyChallengeStatus(row || null);
+        }
+
+        async function claimDailyChallengeReward() {
+            if (!ensureSupabaseReady()) return;
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user) {
+                showToast('Login to claim daily challenge rewards.', 'info');
+                return;
+            }
+            const { data, error } = await supabase.rpc('claim_daily_challenge_reward');
+            if (error) {
+                showToast(error.message || 'Could not claim daily challenge reward.', 'error');
+                return;
+            }
+            const row = Array.isArray(data) ? data[0] : data;
+            const gained = Math.max(0, Number(row?.bonus_xp_awarded || 0));
+            if (gained > 0) {
+                showToast(`Daily challenge complete. +${gained} XP`, 'info');
+            } else {
+                showToast('Challenge already claimed or not complete yet.', 'info');
+            }
+            await loadUserProgress(user.id);
+            renderProfileHub();
+            await refreshDailyChallengeStatus();
+        }
+
+        async function copyPublicProfileLink() {
+            if (!ensureSupabaseReady()) return;
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user) {
+                showToast('Login to share your profile.', 'error');
+                return;
+            }
+            const { data, error } = await supabase.rpc('get_my_public_profile_link');
+            if (error) {
+                showToast(error.message || 'Could not generate public profile link.', 'error');
+                return;
+            }
+            const row = Array.isArray(data) ? data[0] : data;
+            const slug = String(row?.public_slug || '').trim();
+            const url = String(row?.profile_url || '').trim() || buildPublicProfileUrl(slug);
+            if (!url) {
+                showToast('Could not generate public profile link.', 'error');
+                return;
+            }
+            if (navigator.clipboard?.writeText) {
+                try {
+                    await navigator.clipboard.writeText(url);
+                    showToast('Public profile link copied.', 'info');
+                } catch (_e) {
+                    window.prompt('Copy your public profile link:', url);
+                }
+            } else {
+                window.prompt('Copy your public profile link:', url);
+            }
+            if (elements.profileHubShareMeta) {
+                elements.profileHubShareMeta.textContent = slug ? `Public slug: ${slug}` : 'Public profile enabled';
+            }
+        }
+
+        function closePublicProfile() {
+            if (elements.publicProfileOverlay) elements.publicProfileOverlay.classList.add('hidden');
+            clearPublicProfileParamFromUrl();
+        }
+
+        async function openPublicProfileBySlug(slugInput) {
+            if (!ensureSupabaseReady()) return;
+            const slug = String(slugInput || '').trim().toLowerCase();
+            if (!slug) return;
+            const { data, error } = await supabase.rpc('get_public_profile_by_slug', {
+                p_slug: slug
+            });
+            if (error || !data || !data.length) {
+                showToast('Public profile not found.', 'error');
+                clearPublicProfileParamFromUrl();
+                return;
+            }
+            const row = data[0];
+            if (elements.publicProfileTitle) elements.publicProfileTitle.textContent = String(row.username || 'Icarus Player');
+            if (elements.publicProfileBio) elements.publicProfileBio.textContent = String(row.bio || 'No bio.');
+            if (elements.publicProfileGames) elements.publicProfileGames.textContent = String(Math.max(0, Number(row.games || 0)));
+            if (elements.publicProfileBest) elements.publicProfileBest.textContent = String(Math.max(0, Number(row.best_wpm || 0)));
+            if (elements.publicProfileAvgWpm) elements.publicProfileAvgWpm.textContent = String(Math.max(0, Number(row.avg_wpm || 0)));
+            if (elements.publicProfileAvgAcc) elements.publicProfileAvgAcc.textContent = `${Math.max(0, Number(row.avg_acc || 0))}%`;
+            const topSongs = Array.isArray(row.top_songs) ? row.top_songs : [];
+            if (elements.publicProfileTopSongs) {
+                if (!topSongs.length) {
+                    elements.publicProfileTopSongs.innerHTML = '<div class="auth-recent-empty">No song stats yet.</div>';
+                } else {
+                    elements.publicProfileTopSongs.innerHTML = topSongs.slice(0, 8).map((song, idx) => {
+                        const title = escapeHtml(String(song.song || 'Song'));
+                        const artist = escapeHtml(String(song.artist || 'Artist'));
+                        const runs = Math.max(0, Number(song.count || 0));
+                        const avgWpm = Math.max(0, Number(song.avgWpm || 0));
+                        return `<div class="auth-recent-item">#${idx + 1} ${title} - ${artist} <span class="auth-recent-meta">${runs} runs | ${avgWpm} WPM</span></div>`;
+                    }).join('');
+                }
+            }
+            elements.publicProfileOverlay?.classList.remove('hidden');
+        }
+
+        async function maybeOpenPublicProfileFromLink() {
+            if (!supabase) return;
+            if (!pendingPublicProfileSlug) return;
+            const slug = pendingPublicProfileSlug;
+            pendingPublicProfileSlug = '';
+            await openPublicProfileBySlug(slug);
+        }
+
         function buildShareResultText(payload) {
             if (!payload) return '';
             const modeLabel = String(payload.mode || 'normal').toUpperCase();
@@ -9343,6 +9840,9 @@ bindLegacyInlineHandlers();
             focusTypingInput,
             nextYouTubeResult,
             setYouTubeVideoManually,
+            nextOnboardingStep,
+            prevOnboardingStep,
+            skipOnboarding,
             closeOnboarding,
             openModal,
             closeModal,
@@ -9354,6 +9854,8 @@ bindLegacyInlineHandlers();
             goHome,
             trySwitchTab,
             switchTab,
+            setLeaderboardPeriod,
+            refreshLeaderboard,
             setGameMode,
             loadArtistCatalog,
             fetchLyrics,
@@ -9406,6 +9908,7 @@ bindLegacyInlineHandlers();
             openFriendsPanel,
             openAccountSettings,
             toggleNotificationsPanel,
+            toggleDailyChallengePanel,
             handleHeaderAvatarClick,
             openArtistSongsModal,
             openRandomArtistSong,
@@ -9416,9 +9919,13 @@ bindLegacyInlineHandlers();
             openRecentArtistFromHub,
             openAvatarPreview,
             openProfileHubAvatarPreview,
+            copyPublicProfileLink,
+            closePublicProfile,
+            claimDailyChallengeReward,
             shareLastResult,
             playFavoriteFromSetup,
             addFavoriteFromCatalog,
+            addFavoriteFromSongCard,
             closeSharedResultModal,
             closeAvatarPreview,
             spotifyLogin,
@@ -9546,6 +10053,13 @@ bindLegacyInlineHandlers();
                     elements.headerNotificationsPanel.classList.add('hidden');
                 }
             }
+            if (elements.headerDailyPanel && elements.headerDailyButton) {
+                const insideDailyPanel = elements.headerDailyPanel.contains(target);
+                const insideDailyButton = elements.headerDailyButton.contains(target);
+                if (!insideDailyPanel && !insideDailyButton) {
+                    elements.headerDailyPanel.classList.add('hidden');
+                }
+            }
             const insideArtist = elements.artistInput?.parentElement?.contains(target);
             const insideTitle = elements.titleInput?.parentElement?.contains(target);
             if (!insideArtist) elements.artistSuggestions?.classList.add('hidden');
@@ -9655,6 +10169,8 @@ bindLegacyInlineHandlers();
         syncSettingsGameplaySwitches();
         renderDuelPanel();
         pendingSharedResultId = parseShareIdFromLocation();
+        pendingPublicProfileSlug = parsePublicProfileSlugFromLocation();
+        setLeaderboardPeriod(state.leaderboardPeriod);
         bindAuthActivityWatchers();
         if (supabase) {
             supabase.auth.onAuthStateChange((_event, session) => {
@@ -9683,6 +10199,7 @@ bindLegacyInlineHandlers();
                     } else {
                         const callbackHandled = await spotifyHandleCallback();
                         if (callbackHandled) {
+                            spWebPlaybackBlocked = false;
                             const localTokens = getStoredSpotifyTokens();
                             if (localTokens.refreshToken) {
                                 spotifyLinkedToAccount = true;
@@ -9707,6 +10224,8 @@ bindLegacyInlineHandlers();
             }
             renderSpotifyStatus();
             await maybeOpenSharedResultFromLink();
+            await maybeOpenPublicProfileFromLink();
+            openOnboarding();
         })();
         renderSetupFavoritesTab();
         switchTab('search'); 
