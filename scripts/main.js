@@ -656,6 +656,7 @@ bindLegacyInlineHandlers();
                 resultShown: false
             },
             leaderboardPeriod: 'weekly',
+            commandPaletteOpen: false,
             tooltipTimeout: null,
             isSoundEnabled: false 
         };
@@ -825,6 +826,9 @@ bindLegacyInlineHandlers();
             songLaunchStatus: document.getElementById('song-launch-status'),
             songLaunchProgress: document.getElementById('song-launch-progress'),
             songLaunchCancelBtn: document.getElementById('song-launch-cancel-btn'),
+            commandPaletteOverlay: document.getElementById('command-palette-overlay'),
+            commandPaletteInput: document.getElementById('command-palette-input'),
+            commandPaletteList: document.getElementById('command-palette-list'),
             toastContainer: document.getElementById('toast-container'),
             headerAvatarButton: document.getElementById('header-avatar-button'),
             headerAvatarImage: document.getElementById('header-avatar-image'),
@@ -979,24 +983,92 @@ bindLegacyInlineHandlers();
             duelOpponentName: document.getElementById('duel-opponent-name'),
             duelOpponentProgressText: document.getElementById('duel-opponent-progress-text'),
             duelOpponentProgressBar: document.getElementById('duel-opponent-progress-bar'),
-            duelCountdownText: document.getElementById('duel-countdown-text')
+            duelCountdownText: document.getElementById('duel-countdown-text'),
+            appBootOverlay: document.getElementById('app-boot-overlay'),
+            appBootMessage: document.getElementById('app-boot-message'),
+            appBootProgress: document.getElementById('app-boot-progress')
         };
 
         function initSpeech() { window.speechSynthesis.getVoices(); }
         initSpeech();
         if (speechSynthesis.onvoiceschanged !== undefined) { speechSynthesis.onvoiceschanged = initSpeech; }
 
-        function showToast(message, type = 'info') {
+        function showToast(message, type = 'info', options = {}) {
+            const opts = options && typeof options === 'object' ? options : {};
+            const duration = Number.isFinite(opts.duration) ? Math.max(1200, Number(opts.duration)) : 3000;
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
-            toast.innerHTML = `<span class="toast-icon"></span><span>${message}</span>`;
+            const icon = document.createElement('span');
+            icon.className = 'toast-icon';
+            const text = document.createElement('span');
+            text.className = 'toast-message';
+            text.textContent = String(message || '');
+            toast.append(icon, text);
+            let actionBtn = null;
+            if (typeof opts.onAction === 'function' && String(opts.actionLabel || '').trim()) {
+                actionBtn = document.createElement('button');
+                actionBtn.type = 'button';
+                actionBtn.className = 'toast-action';
+                actionBtn.textContent = String(opts.actionLabel).trim();
+                actionBtn.addEventListener('click', async () => {
+                    if (actionBtn.disabled) return;
+                    actionBtn.disabled = true;
+                    try {
+                        await opts.onAction();
+                    } catch (_) {}
+                    dismiss();
+                });
+                toast.appendChild(actionBtn);
+            }
             elements.toastContainer.appendChild(toast);
-            setTimeout(() => toast.classList.add('show'), 10);
-            setTimeout(() => {
+            let closed = false;
+            let hideTimer = null;
+            function dismiss() {
+                if (closed) return;
+                closed = true;
+                if (hideTimer) clearTimeout(hideTimer);
                 toast.classList.remove('show');
                 setTimeout(() => toast.remove(), 300);
-            }, 3000);
+            }
+            setTimeout(() => toast.classList.add('show'), 10);
+            hideTimer = setTimeout(dismiss, duration);
         }
+
+        function showUndoToast(message, onUndo, options = {}) {
+            if (typeof onUndo !== 'function') {
+                showToast(message, options?.type || 'info');
+                return;
+            }
+            showToast(message, options?.type || 'info', {
+                duration: Number.isFinite(options?.duration) ? Number(options.duration) : 6200,
+                actionLabel: options?.label || 'Desfazer',
+                onAction: onUndo
+            });
+        }
+
+        function setAppBootProgress(progress = 8, message = '') {
+            const pct = Math.max(4, Math.min(100, Number(progress) || 0));
+            if (elements.appBootProgress) {
+                elements.appBootProgress.style.width = `${pct}%`;
+            }
+            if (elements.appBootMessage && message) {
+                elements.appBootMessage.textContent = String(message);
+            }
+        }
+
+        function hideAppBootOverlay() {
+            if (elements.appBootOverlay) {
+                elements.appBootOverlay.classList.add('is-hidden');
+                setTimeout(() => {
+                    elements.appBootOverlay?.remove();
+                }, 320);
+            }
+            document.body?.classList.remove('app-booting');
+            document.body?.removeAttribute('aria-busy');
+        }
+
+        document.body?.setAttribute('aria-busy', 'true');
+        setAppBootProgress(10, 'Preparing interface...');
 
         const AUTH_SESSION_KEY = 'icarus_supabase_session_v1';
         const AUTH_PERSIST_MODE_KEY = 'icarus_supabase_persist_v1';
@@ -1035,6 +1107,12 @@ bindLegacyInlineHandlers();
         let favoritesArtistFilter = 'all';
         const favoriteArtworkCache = new Map();
         const recentArtistArtworkCache = new Map();
+        const artworkLookupInFlight = new Map();
+        const artworkLookupQueue = [];
+        let artworkLookupActive = 0;
+        const ARTWORK_LOOKUP_MAX_CONCURRENCY = 3;
+        let searchTrainArtworkSeq = 0;
+        let searchDiscoveryArtworkSeq = 0;
         let profileHubArtworkSeq = 0;
         let profileHubExpandedArtists = false;
         let profileHubExpandedSongs = false;
@@ -1045,6 +1123,8 @@ bindLegacyInlineHandlers();
         let customPendingCoverFile = null;
         let customCoverPreviewUrl = '';
         let searchDiscoveryFilter = 'all';
+        let commandPaletteResults = [];
+        let commandPaletteSelectedIndex = 0;
         let authAccountViewMode = 'full';
         let profileHubContext = { type: 'self', friend: null, source: 'self' };
         let profileHubCompareFriendKey = '';
@@ -1173,6 +1253,7 @@ bindLegacyInlineHandlers();
             const rows = [];
             const seen = new Set();
             (spotifyTracks || []).forEach((track) => {
+                const spotifyCover = sanitizeAvatarUrl(track?.albumImage || '');
                 const artists = String(track?.artists || '')
                     .split(',')
                     .map((name) => name.trim())
@@ -1181,7 +1262,7 @@ bindLegacyInlineHandlers();
                     const key = normalizeLookupText(name);
                     if (!key || seen.has(key) || rows.length >= limit) return;
                     seen.add(key);
-                    rows.push({ name, at: Date.now() });
+                    rows.push({ name, at: Date.now(), cover: spotifyCover });
                 });
             });
             return rows;
@@ -2618,6 +2699,20 @@ bindLegacyInlineHandlers();
             return (authFavoritesCache || []).some((f) => buildFavoriteSongKey(f.artist, f.song_title) === target);
         }
 
+        function buildFavoriteLogoIcon() {
+            return `<svg class="favorite-logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>`;
+        }
+
         function buildSongCardFavoriteAction(artist, songTitle, extraClass = '') {
             const safeArtist = String(artist || '').trim();
             const safeSong = String(songTitle || '').trim();
@@ -2626,12 +2721,88 @@ bindLegacyInlineHandlers();
             const encodedTitle = encodeURIComponent(safeSong);
             const active = isSongFavorited(safeArtist, safeSong);
             const classes = `song-card-favorite${active ? ' active' : ''}${extraClass ? ` ${extraClass}` : ''}`;
-            const title = active ? 'Already in favorites' : 'Add to favorites';
+            const title = active ? 'Remove from favorites' : 'Add to favorites';
             return `<span class="${classes}"
                         role="button"
                         tabindex="0"
                         title="${title}"
-                        data-onclick="addFavoriteFromSongCard(event,'${encodedArtist}','${encodedTitle}')">&#9733;</span>`;
+                        data-onclick="addFavoriteFromSongCard(event,'${encodedArtist}','${encodedTitle}')">${buildFavoriteLogoIcon()}</span>`;
+        }
+
+        function setFavoriteSunState(event, active) {
+            const target = event?.currentTarget || event?.target?.closest?.('.song-card-favorite, .artist-song-fav');
+            if (!target) return;
+            target.classList.toggle('active', Boolean(active));
+            target.setAttribute('title', active ? 'Remove from favorites' : 'Add to favorites');
+            if (!active) target.classList.remove('ignite');
+        }
+
+        function igniteFavoriteSun(event) {
+            const target = event?.currentTarget || event?.target?.closest?.('.song-card-favorite, .artist-song-fav');
+            if (!target) return;
+            target.classList.add('active', 'ignite');
+            target.setAttribute('title', 'Remove from favorites');
+            setTimeout(() => {
+                target.classList.remove('ignite');
+            }, 920);
+        }
+
+        async function removeSongFromFavorites(artist, songTitle, silent = false, options = {}) {
+            if (!ensureSupabaseReady()) return false;
+            const user = authCurrentUser || await syncCurrentUser();
+            if (!user) {
+                if (!silent) showToast('Login to manage favorites.', 'info');
+                return false;
+            }
+            const safeArtist = String(artist || '').trim();
+            const safeSong = String(songTitle || '').trim();
+            if (!safeSong || !safeArtist) {
+                if (!silent) showToast('Invalid song data.', 'error');
+                return false;
+            }
+            const removedFavorite = (authFavoritesCache || []).find((f) => buildFavoriteSongKey(f.artist, f.song_title) === buildFavoriteSongKey(safeArtist, safeSong)) || null;
+            const { error } = await supabase
+                .from('user_favorites')
+                .delete()
+                .eq('user_id', user.id)
+                .eq('song_title', safeSong)
+                .eq('artist', safeArtist);
+            if (error) {
+                if (!silent) showToast(`Could not remove favorite (${error.message || 'unknown error'}).`, 'error');
+                return false;
+            }
+            await loadFavoriteSongs(user.id);
+            if (!silent) {
+                if (options?.suppressUndo) {
+                    showToast('Song removed from favorites.', 'info');
+                } else {
+                    const undoAddOptions = removedFavorite?.source_type === 'custom'
+                        ? {
+                            sourceType: 'custom',
+                            customLyrics: String(removedFavorite.custom_lyrics || ''),
+                            customTranslation: String(removedFavorite.custom_translation || '')
+                        }
+                        : {};
+                    showUndoToast('Song removed from favorites.', async () => {
+                        const restored = await addSongToFavorites(safeArtist, safeSong, true, { ...undoAddOptions, suppressUndo: true });
+                        if (restored) showToast('Undo applied: song favorited again.', 'info');
+                    });
+                }
+            }
+            return true;
+        }
+
+        async function toggleSongFavorite(artist, songTitle, options = {}) {
+            const safeArtist = String(artist || '').trim();
+            const safeSong = String(songTitle || '').trim();
+            if (!safeSong || !safeArtist) return { changed: false, active: false };
+            const currentlyFavorite = isSongFavorited(safeArtist, safeSong);
+            if (currentlyFavorite) {
+                const removed = await removeSongFromFavorites(safeArtist, safeSong, Boolean(options?.silent), options?.removeOptions || {});
+                return { changed: removed, active: false };
+            }
+            const added = await addSongToFavorites(safeArtist, safeSong, Boolean(options?.silent), options?.addOptions || {});
+            return { changed: added, active: true };
         }
 
         async function addSongToFavorites(artist, songTitle, silent = false, options = {}) {
@@ -2727,7 +2898,16 @@ bindLegacyInlineHandlers();
             }
 
             await loadFavoriteSongs(user.id);
-            if (!silent) showToast('Song added to favorites.', 'info');
+            if (!silent) {
+                if (options?.suppressUndo) {
+                    showToast('Song added to favorites.', 'info');
+                } else {
+                    showUndoToast('Song added to favorites.', async () => {
+                        const removed = await removeSongFromFavorites(safeArtist, safeSong, true, { suppressUndo: true });
+                        if (removed) showToast('Undo applied: song removed from favorites.', 'info');
+                    });
+                }
+            }
             return true;
         }
 
@@ -2749,19 +2929,17 @@ bindLegacyInlineHandlers();
                     favoriteArtworkCache.set(key, customCover);
                     return false;
                 }
-                return key && !favoriteArtworkCache.has(key);
+                const cached = key ? String(favoriteArtworkCache.get(key) || '') : '';
+                return key && (!favoriteArtworkCache.has(key) || isPlaceholderArtwork(cached));
             });
             await Promise.all(pending.map(async (f) => {
                 const key = favoriteArtworkKey(f.artist, f.song_title);
-                const query = `${String(f.artist || '').trim()} ${String(f.song_title || '').trim()}`.trim();
-                if (!key || !query) return;
+                if (!key) return;
                 try {
-                    const data = await fetchItunesSearch(query, 'song', 1, '', 2800);
-                    const row = Array.isArray(data?.results) ? data.results[0] : null;
-                    const cover = row?.artworkUrl100 ? upscaleItunesArtwork(row.artworkUrl100) : '';
-                    favoriteArtworkCache.set(key, cover || buildFavoriteArtworkFallback(f.artist, f.song_title));
+                    const cover = await fetchProfileHubArtworkFromItunes(f.artist, f.song_title);
+                    if (cover) favoriteArtworkCache.set(key, cover);
                 } catch (_err) {
-                    favoriteArtworkCache.set(key, buildFavoriteArtworkFallback(f.artist, f.song_title));
+                    // keep uncached so we can retry later during UI hydration
                 }
             }));
         }
@@ -2799,18 +2977,122 @@ bindLegacyInlineHandlers();
             const key = normalizeLookupText(artistName || '');
             if (!key) return '';
             if (recentArtistArtworkCache.has(key)) return recentArtistArtworkCache.get(key) || '';
-            let cover = '';
             try {
-                const data = await fetchItunesSearch(String(artistName || '').trim(), 'song', 1, '', 2600);
-                const row = Array.isArray(data?.results) ? data.results[0] : null;
-                cover = row?.artworkUrl100 ? upscaleItunesArtwork(row.artworkUrl100) : '';
+                const cover = await fetchProfileHubArtworkFromItunes(artistName);
+                if (cover) recentArtistArtworkCache.set(key, cover);
+                return cover || '';
             } catch (_err) {}
-            recentArtistArtworkCache.set(key, cover || '');
-            return cover || '';
+            return '';
+        }
+
+        function hydrateRecentArtistsArtwork(rows, artworkSeq) {
+            const list = Array.isArray(rows) ? rows : [];
+            const wrap = elements.searchRecentArtists;
+            if (!wrap || !list.length) return;
+            const cards = Array.from(wrap.querySelectorAll('.search-mini-artist-card'));
+            if (!cards.length) return;
+            cards.forEach((card, idx) => {
+                const row = list[idx] || {};
+                const artist = String(row?.name || '').trim();
+                if (!artist) return;
+                const img = card.querySelector('img');
+                if (!img) return;
+                const expectedArtistKey = normalizeLookupText(artist);
+                requestDiscoveryArtworkHydration(img, artworkSeq, () => fetchProfileHubArtworkFromItunes(artist), () => {
+                    const cardArtist = normalizeLookupText(card.getAttribute('data-artist') || '');
+                    return cardArtist === expectedArtistKey;
+                });
+            });
+        }
+
+        function requestDiscoveryArtworkHydration(img, artworkSeq, resolver, validateCard = null) {
+            if (!img || typeof resolver !== 'function') return;
+            if (!img.dataset.discoveryHydrationBound) {
+                img.dataset.discoveryHydrationBound = '1';
+                img.addEventListener('error', () => {
+                    if (!img.isConnected) return;
+                    if (typeof validateCard === 'function' && !validateCard()) return;
+                    const srcNow = String(img.getAttribute('src') || '').trim();
+                    if (srcNow && !isPlaceholderArtwork(srcNow)) return;
+                    setTimeout(() => {
+                        if (!img.isConnected) return;
+                        if (typeof validateCard === 'function' && !validateCard()) return;
+                        resolver().then((cover) => {
+                            if (!cover) return;
+                            if (!img.isConnected) return;
+                            if (typeof validateCard === 'function' && !validateCard()) return;
+                            const srcLatest = String(img.getAttribute('src') || '').trim();
+                            if (srcLatest && !isPlaceholderArtwork(srcLatest)) return;
+                            img.src = cover;
+                        }).catch(() => {});
+                    }, 700);
+                });
+            }
+            const retryDelays = [0, 900, 2300];
+            retryDelays.forEach((delayMs) => {
+                setTimeout(() => {
+                    if (!img.isConnected) return;
+                    if (typeof validateCard === 'function' && !validateCard()) return;
+                    const srcNow = String(img.getAttribute('src') || '').trim();
+                    if (srcNow && !isPlaceholderArtwork(srcNow)) return;
+                    resolver().then((cover) => {
+                        if (!cover) return;
+                        if (!img.isConnected) return;
+                        if (typeof validateCard === 'function' && !validateCard()) return;
+                        const srcLatest = String(img.getAttribute('src') || '').trim();
+                        if (srcLatest && !isPlaceholderArtwork(srcLatest)) return;
+                        img.src = cover;
+                    }).catch(() => {});
+                }, delayMs);
+            });
+        }
+
+        function hydrateSearchSongCardsArtwork(artworkSeq) {
+            const containers = [elements.searchRecentSongs, elements.searchFavoritePicks];
+            containers.forEach((wrap) => {
+                if (!wrap) return;
+                const cards = Array.from(wrap.querySelectorAll('.favorite-media-card'));
+                cards.forEach((card) => {
+                    const artist = String(card.getAttribute('data-artist') || '').trim();
+                    const title = String(card.getAttribute('data-title') || '').trim();
+                    if (!artist || !title) return;
+                    const img = card.querySelector('.favorite-media-thumb');
+                    if (!img) return;
+                    const expectedArtistKey = normalizeLookupText(artist);
+                    const expectedTitleKey = normalizeLookupText(title);
+                    requestDiscoveryArtworkHydration(img, artworkSeq, () => fetchProfileHubArtworkFromItunes(artist, title), () => {
+                        const cardArtist = normalizeLookupText(card.getAttribute('data-artist') || '');
+                        const cardTitle = normalizeLookupText(card.getAttribute('data-title') || '');
+                        return cardArtist === expectedArtistKey && cardTitle === expectedTitleKey;
+                    });
+                });
+            });
+        }
+
+        function requestTrainArtworkHydration(img, artworkSeq, resolver, validateCard = null) {
+            if (!img || typeof resolver !== 'function') return;
+            const retryDelays = [0, 900, 2300];
+            retryDelays.forEach((delayMs) => {
+                setTimeout(() => {
+                    if (!img.isConnected) return;
+                    if (typeof validateCard === 'function' && !validateCard()) return;
+                    const srcNow = String(img.getAttribute('src') || '').trim();
+                    if (srcNow && !isPlaceholderArtwork(srcNow)) return;
+                    resolver().then((cover) => {
+                        if (!cover) return;
+                        if (!img.isConnected) return;
+                        if (typeof validateCard === 'function' && !validateCard()) return;
+                        const srcLatest = String(img.getAttribute('src') || '').trim();
+                        if (srcLatest && !isPlaceholderArtwork(srcLatest)) return;
+                        img.src = cover;
+                    }).catch(() => {});
+                }, delayMs);
+            });
         }
 
         async function renderSearchDiscoveryPanel() {
             if (!elements.searchDiscovery) return;
+            const artworkSeq = ++searchDiscoveryArtworkSeq;
             if (!elements.artistCatalog?.classList.contains('hidden')) {
                 elements.searchDiscovery.classList.add('hidden');
                 return;
@@ -2843,17 +3125,19 @@ bindLegacyInlineHandlers();
                     const cards = await Promise.all(recentArtists.map(async (row) => {
                         const name = String(row.name || '').trim();
                         const encodedName = encodeURIComponent(name);
-                        const cover = await resolveRecentArtistArtwork(name);
+                        const spotifyCover = sanitizeAvatarUrl(row.cover || '');
+                        const cover = spotifyCover || await resolveRecentArtistArtwork(name);
                         const fallback = buildThemePlaceholderUrl(120, 120, (name.charAt(0) || 'A').toUpperCase());
                         const thumb = escapeHtml(cover || fallback);
                         return `
-                            <button type="button" class="search-mini-artist-card" data-onclick="openRecentArtistFromHub('${encodedName}')">
+                            <button type="button" class="search-mini-artist-card" data-artist="${escapeHtml(name)}" data-onclick="openRecentArtistFromHub('${encodedName}')">
                                 <img src="${thumb}" alt="${escapeHtml(name)} cover" loading="lazy">
                                 <span>${escapeHtml(name)}</span>
                             </button>
                         `;
                     }));
                     elements.searchRecentArtists.innerHTML = cards.join('');
+                    hydrateRecentArtistsArtwork(recentArtists, artworkSeq);
                 }
             }
 
@@ -2916,6 +3200,8 @@ bindLegacyInlineHandlers();
                         const sourceTag = row.source === 'spotify' ? 'spotify' : 'recent';
                         const whenLabel = row.source === 'spotify' ? 'ouvida' : 'played';
                         return `<button class="favorite-media-card"
+                                data-artist="${escapeHtml(row.artistName)}"
+                                data-title="${escapeHtml(row.songTitle)}"
                                 data-onclick="quickLoadSongFromHub('${encodedArtist}','${encodedTitle}')">
                           <img class="favorite-media-thumb" src="${cover}" alt="${escapeHtml(row.artistName)} cover" loading="lazy">
                           <div class="favorite-media-body">
@@ -2927,6 +3213,7 @@ bindLegacyInlineHandlers();
                           </div>
                         </button>`;
                     }).join('');
+                    hydrateSearchSongCardsArtwork(artworkSeq);
                 }
             }
 
@@ -2941,8 +3228,10 @@ bindLegacyInlineHandlers();
                     elements.searchFavoritePicks.innerHTML = '<div class="auth-recent-empty">No favorites yet. Save songs to build your board.</div>';
                 } else {
                     elements.searchFavoritePicks.innerHTML = favorites.map((f) => {
-                        const title = escapeHtml(f.song_title || 'Unknown Song');
-                        const artist = escapeHtml(f.artist || 'Unknown Artist');
+                        const rawTitle = String(f.song_title || 'Unknown Song');
+                        const rawArtist = String(f.artist || 'Unknown Artist');
+                        const title = escapeHtml(rawTitle);
+                        const artist = escapeHtml(rawArtist);
                         const when = f.created_at ? new Date(f.created_at).toLocaleDateString() : '';
                         const encodedArtist = encodeURIComponent(f.artist || '');
                         const encodedTitle = encodeURIComponent(f.song_title || '');
@@ -2951,6 +3240,8 @@ bindLegacyInlineHandlers();
                         const customCover = sanitizeAvatarUrl(f.custom_cover_url || '');
                         const cover = escapeHtml(customCover || favoriteArtworkCache.get(artKey) || buildFavoriteArtworkFallback(f.artist, f.song_title));
                         return `<button class="favorite-media-card"
+                                data-artist="${escapeHtml(rawArtist)}"
+                                data-title="${escapeHtml(rawTitle)}"
                                 data-onclick="playFavoriteFromSetup(${f.id},'${encodedArtist}','${encodedTitle}')">
                           <img class="favorite-media-thumb" src="${cover}" alt="${artist} cover" loading="lazy">
                           <div class="favorite-media-body">
@@ -2962,6 +3253,7 @@ bindLegacyInlineHandlers();
                           </div>
                         </button>`;
                     }).join('');
+                    hydrateSearchSongCardsArtwork(artworkSeq);
                 }
             }
 
@@ -2989,17 +3281,50 @@ bindLegacyInlineHandlers();
                 if (!trainRows.length) {
                     elements.searchTrainPicks.innerHTML = '<div class="auth-recent-empty">Play a few songs and we suggest what to train next.</div>';
                 } else {
+                    const spotifyRecentForTrain = getSpotifyRecentSongs(40);
+                    const spotifyCoverBySongKey = new Map();
+                    spotifyRecentForTrain.forEach((row) => {
+                        const key = `${normalizeLookupText(row?.artistName || '')}|||${normalizeLookupText(row?.songTitle || '')}`;
+                        const cover = sanitizeAvatarUrl(row?.cover || '');
+                        if (!key || !cover || spotifyCoverBySongKey.has(key)) return;
+                        spotifyCoverBySongKey.set(key, cover);
+                    });
                     elements.searchTrainPicks.innerHTML = trainRows.map((row) => {
                         const encodedArtist = encodeURIComponent(row.artist);
                         const encodedTitle = encodeURIComponent(row.title);
+                        const key = `${normalizeLookupText(row.artist)}|||${normalizeLookupText(row.title)}`;
+                        const favoriteRow = (authFavoritesCache || []).find((f) =>
+                            normalizeLookupText(f.artist || '') === normalizeLookupText(row.artist) &&
+                            normalizeLookupText(f.song_title || '') === normalizeLookupText(row.title)
+                        );
+                        const artKey = favoriteArtworkKey(row.artist, row.title);
+                        const customCover = sanitizeAvatarUrl(favoriteRow?.custom_cover_url || '');
+                        const spotifyCover = sanitizeAvatarUrl(spotifyCoverBySongKey.get(key) || '');
+                        const cover = escapeHtml(customCover || spotifyCover || favoriteArtworkCache.get(artKey) || buildFavoriteArtworkFallback(row.artist, row.title));
+                        const priority = row.avgAcc <= 86 ? 'high focus' : (row.avgAcc <= 93 ? 'medium focus' : 'light focus');
+                        const worst = Math.round(Math.max(0, Math.min(100, Number(row.worstAcc) || 0)));
                         return `
-                            <button type="button" class="search-mini-train-card" data-onclick="quickLoadSongFromHub('${encodedArtist}','${encodedTitle}')">
-                                <div class="title">${escapeHtml(row.title)}</div>
-                                <div class="meta">${escapeHtml(row.artist)} | avg acc ${row.avgAcc}% (${row.count} runs)</div>
+                            <button type="button" class="search-mini-train-card"
+                                data-artist="${escapeHtml(row.artist)}"
+                                data-title="${escapeHtml(row.title)}"
+                                data-onclick="quickLoadSongFromHub('${encodedArtist}','${encodedTitle}')">
+                                <img src="${cover}" alt="${escapeHtml(row.artist)} cover" loading="lazy">
+                                <div class="search-mini-train-body">
+                                    <div class="title">${escapeHtml(row.title)}</div>
+                                    <div class="meta">${escapeHtml(row.artist)}</div>
+                                    <span class="search-mini-train-focus">${priority}</span>
+                                    <div class="search-mini-train-stats">
+                                        <span>avg ${row.avgAcc}%</span>
+                                        <span>worst ${worst}%</span>
+                                        <span>${row.count} runs</span>
+                                    </div>
+                                </div>
                                 ${buildSongCardFavoriteAction(row.artist, row.title)}
                             </button>
                         `;
                     }).join('');
+                    const artworkSeq = ++searchTrainArtworkSeq;
+                    hydrateSearchTrainArtwork(trainRows, artworkSeq);
                 }
             }
 
@@ -3038,6 +3363,139 @@ bindLegacyInlineHandlers();
             const next = ['all', 'music', 'favorites', 'artists', 'train'].includes(String(mode || '')) ? String(mode) : 'all';
             searchDiscoveryFilter = next;
             applySearchDiscoveryFilterUI();
+        }
+
+        function hasAnyClosableOverlayOpen() {
+            const ids = [
+                'modal-overlay',
+                'restart-modal-overlay',
+                'about-modal-overlay',
+                'settings-modal-overlay',
+                'practice-modal-overlay',
+                'profile-modal-overlay',
+                'onboarding-overlay',
+                'spotify-link-modal-overlay',
+                'artist-songs-modal-overlay',
+                'song-launch-overlay'
+            ];
+            return ids.some((id) => {
+                const el = document.getElementById(id);
+                return !!(el && !el.classList.contains('hidden'));
+            });
+        }
+
+        function getCommandPaletteActions() {
+            return [
+                { id: 'go-search', title: 'Go: Search', meta: 'tab', keywords: 'home search songs', run: () => { goHome(); switchTab('search'); } },
+                { id: 'go-quick', title: 'Go: Quick run', meta: 'tab', keywords: 'quick random snippet', run: () => startQuickSnippetRun().catch(() => {}) },
+                { id: 'go-custom', title: 'Go: Custom', meta: 'tab', keywords: 'custom text', run: () => { goHome(); switchTab('custom'); } },
+                { id: 'go-duel', title: 'Go: Duel', meta: 'tab', keywords: 'duel room pvp', run: () => { goHome(); switchTab('duel'); } },
+                { id: 'go-leaderboard', title: 'Go: Leaderboard', meta: 'tab', keywords: 'leaderboard rank xp', run: () => { goHome(); switchTab('leaderboard'); } },
+                { id: 'mode-normal', title: 'Mode: Normal', meta: 'mode', keywords: 'normal mode', run: () => setGameMode('normal') },
+                { id: 'mode-cloze', title: 'Mode: Cloze', meta: 'mode', keywords: 'cloze mode', run: () => setGameMode('cloze') },
+                { id: 'mode-rhythm', title: 'Mode: Rhythm', meta: 'mode', keywords: 'rhythm mode spotify', run: () => setGameMode('rhythm') },
+                { id: 'toggle-easy', title: 'Toggle translation', meta: 'game', keywords: 'easy translate translation', run: () => toggleEasyMode().catch(() => {}) },
+                { id: 'toggle-video', title: 'Toggle video panel', meta: 'game', keywords: 'video pip spotify', run: () => toggleVideoPanel() },
+                { id: 'restart', title: 'Restart current test', meta: 'game', keywords: 'restart reset run', run: () => requestRestart() },
+                { id: 'open-settings', title: 'Open settings', meta: 'modal', keywords: 'settings config preferences', run: () => openModal('settings') },
+                { id: 'open-profile', title: 'Open profile', meta: 'modal', keywords: 'profile account friends', run: () => openProfileScreen().catch(() => {}) },
+                { id: 'open-about', title: 'Open about', meta: 'modal', keywords: 'about info credits', run: () => openModal('about') },
+                { id: 'refresh-leaderboard', title: 'Refresh leaderboard', meta: 'data', keywords: 'leaderboard refresh', run: () => refreshLeaderboard().catch(() => {}) }
+            ];
+        }
+
+        function setCommandPaletteSelected(nextIndex) {
+            const max = commandPaletteResults.length - 1;
+            if (max < 0) {
+                commandPaletteSelectedIndex = 0;
+                return;
+            }
+            commandPaletteSelectedIndex = Math.max(0, Math.min(max, Number(nextIndex) || 0));
+            if (!elements.commandPaletteList) return;
+            elements.commandPaletteList.querySelectorAll('.command-palette-item').forEach((el, idx) => {
+                el.classList.toggle('active', idx === commandPaletteSelectedIndex);
+            });
+        }
+
+        function renderCommandPaletteList(queryRaw = '') {
+            if (!elements.commandPaletteList) return;
+            const query = normalizeLookupText(queryRaw || '');
+            const all = getCommandPaletteActions();
+            const filtered = !query
+                ? all
+                : all.filter((action) => {
+                    const hay = `${normalizeLookupText(action.title)} ${normalizeLookupText(action.keywords || '')} ${normalizeLookupText(action.meta || '')}`;
+                    return hay.includes(query);
+                });
+            commandPaletteResults = filtered.slice(0, 12);
+            if (!commandPaletteResults.length) {
+                elements.commandPaletteList.innerHTML = '<div class="auth-recent-empty">No command found for this search.</div>';
+                commandPaletteSelectedIndex = 0;
+                return;
+            }
+            elements.commandPaletteList.innerHTML = commandPaletteResults.map((action, idx) => `
+                <button type="button" class="command-palette-item${idx === commandPaletteSelectedIndex ? ' active' : ''}" data-command-index="${idx}">
+                    <span class="command-palette-item-title">${escapeHtml(action.title)}</span>
+                    <span class="command-palette-item-meta">${escapeHtml(action.meta || 'command')}</span>
+                </button>
+            `).join('');
+            setCommandPaletteSelected(commandPaletteSelectedIndex);
+        }
+
+        function openCommandPalette(initialQuery = '') {
+            if (!elements.commandPaletteOverlay || !elements.commandPaletteInput) return;
+            state.commandPaletteOpen = true;
+            commandPaletteSelectedIndex = 0;
+            elements.commandPaletteOverlay.classList.remove('hidden');
+            elements.commandPaletteOverlay.setAttribute('aria-hidden', 'false');
+            elements.commandPaletteInput.value = String(initialQuery || '');
+            renderCommandPaletteList(elements.commandPaletteInput.value);
+            requestAnimationFrame(() => {
+                elements.commandPaletteInput?.focus();
+                elements.commandPaletteInput?.select();
+            });
+        }
+
+        function closeCommandPalette() {
+            if (!elements.commandPaletteOverlay) return;
+            state.commandPaletteOpen = false;
+            elements.commandPaletteOverlay.classList.add('hidden');
+            elements.commandPaletteOverlay.setAttribute('aria-hidden', 'true');
+            if (isTypingScreenVisible() && !state.isPreviewMode) {
+                focusTypingInput();
+            }
+        }
+
+        function runCommandPaletteSelection(index = commandPaletteSelectedIndex) {
+            const action = commandPaletteResults[Math.max(0, Math.min(commandPaletteResults.length - 1, Number(index) || 0))];
+            if (!action || typeof action.run !== 'function') return;
+            closeCommandPalette();
+            try {
+                action.run();
+            } catch (_err) {}
+        }
+
+        function hydrateSearchTrainArtwork(rows, artworkSeq) {
+            const list = Array.isArray(rows) ? rows : [];
+            const wrap = elements.searchTrainPicks;
+            if (!wrap || !list.length) return;
+            const cards = Array.from(wrap.querySelectorAll('.search-mini-train-card'));
+            if (!cards.length) return;
+            cards.forEach((card, idx) => {
+                const row = list[idx] || {};
+                const artist = String(card.getAttribute('data-artist') || row.artist || '').trim();
+                const song = String(card.getAttribute('data-title') || row.title || '').trim();
+                if (!artist || !song) return;
+                const img = card.querySelector('img');
+                if (!img) return;
+                const expectedArtistKey = normalizeLookupText(artist);
+                const expectedSongKey = normalizeLookupText(song);
+                requestTrainArtworkHydration(img, artworkSeq, () => fetchProfileHubArtworkFromItunes(artist, song), () => {
+                    const cardArtist = normalizeLookupText(card.getAttribute('data-artist') || '');
+                    const cardSong = normalizeLookupText(card.getAttribute('data-title') || '');
+                    return cardArtist === expectedArtistKey && cardSong === expectedSongKey;
+                });
+            });
         }
 
         function pickRandomArrayItem(list) {
@@ -3208,15 +3666,23 @@ bindLegacyInlineHandlers();
             elements.navDuel?.classList.remove('active');
             elements.navQuick?.classList.add('active');
             updatePrimaryNavLiquidIndicator({ animate: true });
+            showSongLaunchOverlay('Quick Mode', 'Random snippet');
+            if (elements.songLaunchStatus) elements.songLaunchStatus.textContent = 'Preparing quick run...';
+            if (elements.songLaunchProgress) elements.songLaunchProgress.style.width = '12%';
+            elements.songLaunchCancelBtn?.classList.add('hidden');
             // Let the liquid indicator reach "quick" before showing loading state.
             await new Promise((resolve) => setTimeout(resolve, 360));
             setQuickLoadingState(true);
             try {
                 if (state.isFetching) {
+                    if (elements.songLaunchStatus) elements.songLaunchStatus.textContent = 'Waiting current fetch to finish...';
+                    if (elements.songLaunchProgress) elements.songLaunchProgress.style.width = '20%';
                     showToast('Please wait for the current fetch to finish.', 'info');
                     return;
                 }
 
+                if (elements.songLaunchStatus) elements.songLaunchStatus.textContent = 'Collecting quick sources...';
+                if (elements.songLaunchProgress) elements.songLaunchProgress.style.width = '26%';
                 const customPool = (authFavoritesCache || [])
                     .filter((favorite) => favorite?.source_type === 'custom' && String(favorite?.custom_lyrics || '').trim().length > 0)
                     .map((favorite) => ({
@@ -3228,6 +3694,8 @@ bindLegacyInlineHandlers();
                 const spotifyPool = buildQuickSpotifyPool();
                 let remotePool = shuffleArray([...historyPool, ...spotifyPool]).slice(0, 18);
                 if (!remotePool.length) {
+                    if (elements.songLaunchStatus) elements.songLaunchStatus.textContent = 'Searching fallback songs...';
+                    if (elements.songLaunchProgress) elements.songLaunchProgress.style.width = '40%';
                     remotePool = await buildQuickFallbackPool();
                 }
 
@@ -3236,18 +3704,30 @@ bindLegacyInlineHandlers();
                     ...remotePool
                 ]);
                 if (!candidates.length) {
+                    if (elements.songLaunchStatus) elements.songLaunchStatus.textContent = 'No sources available.';
+                    if (elements.songLaunchProgress) elements.songLaunchProgress.style.width = '100%';
                     showToast('No random song source available yet. Play one song first.', 'error');
                     return;
                 }
 
+                if (elements.songLaunchStatus) elements.songLaunchStatus.textContent = `Trying ${candidates.length} quick candidates...`;
+                if (elements.songLaunchProgress) elements.songLaunchProgress.style.width = '52%';
+                const totalCandidates = Math.max(1, candidates.length);
+                let candidateIndex = 0;
                 for (const candidate of candidates) {
+                    candidateIndex += 1;
+                    const pct = Math.min(92, 52 + Math.round((candidateIndex / totalCandidates) * 40));
+                    if (elements.songLaunchProgress) elements.songLaunchProgress.style.width = `${pct}%`;
                     const baseTitle = normalizeQuickSourceTitle(candidate?.title || '');
                     if (!baseTitle) continue;
+                    if (elements.songLaunchStatus) elements.songLaunchStatus.textContent = `Checking: ${baseTitle} - ${candidate.artist || 'Unknown artist'}`;
                     const lyrics = String(candidate?.lyrics || '').trim() || await fetchQuickLyricsForSong(candidate.artist, baseTitle);
                     if (!lyrics) continue;
                     const snippet = buildQuickSnippetFromLyrics(lyrics);
                     if (!snippet) continue;
 
+                    if (elements.songLaunchStatus) elements.songLaunchStatus.textContent = 'Quick snippet ready. Starting game...';
+                    if (elements.songLaunchProgress) elements.songLaunchProgress.style.width = '100%';
                     state.isCustomGame = true;
                     const quickTitle = `${baseTitle} (Quick)`;
                     updateYouTubeSource(candidate.artist, baseTitle).catch(() => {});
@@ -3259,6 +3739,7 @@ bindLegacyInlineHandlers();
                 showToast('Could not create a quick snippet from random songs right now.', 'error');
             } finally {
                 setQuickLoadingState(false);
+                hideSongLaunchOverlay();
             }
         }
 
@@ -3409,21 +3890,25 @@ bindLegacyInlineHandlers();
                 showToast('Load a song first.', 'error');
                 return;
             }
-            if (state.isCustomGame) {
-                await addSongToFavorites(artist, songTitle, false, {
+            const addOptions = state.isCustomGame
+                ? {
                     sourceType: 'custom',
                     customLyrics: state.currentLyricsRaw || '',
                     customTranslation: state.currentTranslationRaw || ''
-                });
-                return;
-            }
-            await addSongToFavorites(artist, songTitle);
+                }
+                : {};
+            await toggleSongFavorite(artist, songTitle, { addOptions });
         }
 
         async function removeFavoriteSong(favoriteId) {
             if (!ensureSupabaseReady()) return;
             const user = authCurrentUser || await syncCurrentUser();
             if (!user) return;
+            const row = (authFavoritesCache || []).find((f) => Number(f?.id) === Number(favoriteId));
+            if (row?.artist && row?.song_title) {
+                await removeSongFromFavorites(String(row.artist), String(row.song_title), false);
+                return;
+            }
             const { error } = await supabase
                 .from('user_favorites')
                 .delete()
@@ -3436,15 +3921,28 @@ bindLegacyInlineHandlers();
             await loadFavoriteSongs(user.id);
         }
 
-        async function addFavoriteFromCatalog(encodedArtist, encodedTitle) {
+        async function addFavoriteFromCatalog(eventOrArtist, maybeEncodedArtist, maybeEncodedTitle) {
+            let event = null;
+            let encodedArtist = eventOrArtist;
+            let encodedTitle = maybeEncodedArtist;
+            if (eventOrArtist && typeof eventOrArtist === 'object' && ('target' in eventOrArtist || 'currentTarget' in eventOrArtist)) {
+                event = eventOrArtist;
+                encodedArtist = maybeEncodedArtist;
+                encodedTitle = maybeEncodedTitle;
+            }
             const artist = decodeURIComponent(String(encodedArtist || '')).trim();
             const title = decodeURIComponent(String(encodedTitle || '')).trim();
             if (!artist || !title) {
                 showToast('Invalid song data.', 'error');
                 return;
             }
-            await addSongToFavorites(artist, title);
-            await renderArtistCatalogList(elements.artistSongFilter?.value || '', false);
+            const outcome = await toggleSongFavorite(artist, title);
+            if (!outcome.changed) return;
+            if (outcome.active) igniteFavoriteSun(event);
+            else setFavoriteSunState(event, false);
+            if (!event) {
+                await renderArtistCatalogList(elements.artistSongFilter?.value || '', false);
+            }
         }
 
         async function addFavoriteFromSongCard(event, encodedArtist, encodedTitle) {
@@ -3456,8 +3954,10 @@ bindLegacyInlineHandlers();
                 showToast('Invalid song data.', 'error');
                 return;
             }
-            const added = await addSongToFavorites(artist, title);
-            if (!added) return;
+            const outcome = await toggleSongFavorite(artist, title);
+            if (!outcome.changed) return;
+            if (outcome.active) igniteFavoriteSun(event);
+            else setFavoriteSunState(event, false);
             renderSearchDiscoveryPanel().catch(() => {});
             if (elements.duelSongRecentList) {
                 renderDuelSongQuickPicks(elements.duelSongSearch?.value || '');
@@ -5377,41 +5877,185 @@ bindLegacyInlineHandlers();
             return String(url || '').includes('placehold.co/');
         }
 
+        function pickBestItunesArtworkRow(results, targetArtist = '', targetSong = '') {
+            const rows = Array.isArray(results) ? results : [];
+            if (!rows.length) return null;
+            const targetArtistNorm = normalizeLookupText(targetArtist);
+            const targetSongNorm = normalizeLookupText(targetSong);
+            const artistTokens = targetArtistNorm.split(' ').filter((t) => t.length > 2);
+            const songTokens = targetSongNorm.split(' ').filter((t) => t.length > 2);
+            let best = null;
+            let bestScore = -Infinity;
+
+            rows.forEach((row) => {
+                if (!row) return;
+                const artworkRaw = String(row.artworkUrl100 || row.artworkUrl60 || row.artworkUrl30 || '').trim();
+                if (!artworkRaw) return;
+
+                const artistNorm = normalizeLookupText(row.artistName || row.collectionArtistName || '');
+                const trackNorm = normalizeLookupText(row.trackName || row.collectionName || '');
+                let score = 0;
+
+                if (targetArtistNorm) {
+                    if (artistNorm === targetArtistNorm) score += 320;
+                    else if (artistNorm.includes(targetArtistNorm) || targetArtistNorm.includes(artistNorm)) score += 180;
+                    score += artistTokens.filter((token) => artistNorm.includes(token)).length * 16;
+                    if (!artistNorm) score -= 60;
+                }
+                if (targetSongNorm) {
+                    if (trackNorm === targetSongNorm) score += 240;
+                    else if (trackNorm.includes(targetSongNorm) || targetSongNorm.includes(trackNorm)) score += 140;
+                    score += songTokens.filter((token) => trackNorm.includes(token)).length * 12;
+                }
+
+                if (score > bestScore) {
+                    best = row;
+                    bestScore = score;
+                }
+            });
+
+            return best;
+        }
+
+        function runArtworkLookupTask(task) {
+            return new Promise((resolve, reject) => {
+                artworkLookupQueue.push({ task, resolve, reject });
+                pumpArtworkLookupQueue();
+            });
+        }
+
+        function pumpArtworkLookupQueue() {
+            while (artworkLookupActive < ARTWORK_LOOKUP_MAX_CONCURRENCY && artworkLookupQueue.length) {
+                const next = artworkLookupQueue.shift();
+                if (!next) break;
+                artworkLookupActive += 1;
+                Promise.resolve()
+                    .then(() => next.task())
+                    .then((value) => next.resolve(value))
+                    .catch((error) => next.reject(error))
+                    .finally(() => {
+                        artworkLookupActive = Math.max(0, artworkLookupActive - 1);
+                        pumpArtworkLookupQueue();
+                    });
+            }
+        }
+
+        function buildArtworkSongVariants(songTitle) {
+            const base = String(songTitle || '').trim();
+            const rows = [base, stripTrailingMeta(base), stripFeaturing(stripTrailingMeta(base))]
+                .map((v) => String(v || '').trim())
+                .filter(Boolean);
+            return Array.from(new Set(rows));
+        }
+
         async function fetchProfileHubArtworkFromItunes(artistName, songTitle = '') {
             const artist = String(artistName || '').trim();
             const song = String(songTitle || '').trim();
             if (!artist) return '';
+            const artistKey = normalizeLookupText(artist);
+            const songKey = song ? favoriteArtworkKey(artist, song) : '';
+            if (songKey) {
+                const cachedSongCover = String(favoriteArtworkCache.get(songKey) || '');
+                if (cachedSongCover && !isPlaceholderArtwork(cachedSongCover)) return cachedSongCover;
+            }
+            if (artistKey) {
+                const cachedArtistCover = String(recentArtistArtworkCache.get(artistKey) || '');
+                if (cachedArtistCover && !isPlaceholderArtwork(cachedArtistCover)) return cachedArtistCover;
+            }
+
+            const requestKey = songKey ? `song:${songKey}` : `artist:${artistKey}`;
+            if (artworkLookupInFlight.has(requestKey)) return artworkLookupInFlight.get(requestKey) || '';
+
+            const cleanSongVariants = buildArtworkSongVariants(song);
             const queries = song
                 ? [
-                    { term: `${artist} ${song}`.trim(), entity: 'song' },
-                    { term: `${artist} ${song}`.trim(), entity: 'album' },
-                    { term: artist, entity: 'album' },
-                    { term: artist, entity: 'song' }
+                    ...cleanSongVariants.map((variant) => ({ term: `${artist} ${variant}`.trim(), entity: 'song', limit: 10 })),
+                    { term: artist, entity: 'song', limit: 8 },
+                    { term: artist, entity: 'album', limit: 8 }
                 ]
                 : [
-                    { term: artist, entity: 'album' },
-                    { term: artist, entity: 'song' }
+                    { term: artist, entity: 'album', limit: 8 },
+                    { term: artist, entity: 'song', limit: 8 }
                 ];
 
-            for (const q of queries) {
-                try {
-                    const data = await fetchItunesSearch(q.term, q.entity, 6, '', 2800);
-                    const row = Array.isArray(data?.results) ? data.results.find((r) => r?.artworkUrl100) : null;
-                    const rawCover = row?.artworkUrl100 ? upscaleItunesArtwork(row.artworkUrl100) : '';
-                    const secureCover = String(rawCover || '').replace(/^http:/i, 'https:');
-                    const cover = sanitizeAvatarUrl(secureCover || '') || '';
-                    if (cover) {
-                        const artistKey = normalizeLookupText(artist);
-                        if (artistKey) recentArtistArtworkCache.set(artistKey, cover);
-                        if (song) {
-                            const songKey = favoriteArtworkKey(artist, song);
-                            if (songKey) favoriteArtworkCache.set(songKey, cover);
-                        }
-                        return cover;
+            const runLookup = (async () => {
+                const timeouts = [2400, 3600];
+                for (const timeout of timeouts) {
+                    for (const q of queries) {
+                        try {
+                            const data = await runArtworkLookupTask(() => fetchItunesSearch(q.term, q.entity, q.limit || 10, '', timeout));
+                            const row = pickBestItunesArtworkRow(data?.results, artist, song);
+                            const rawCover = upscaleItunesArtwork(row?.artworkUrl100 || row?.artworkUrl60 || row?.artworkUrl30 || '');
+                            const secureCover = String(rawCover || '').replace(/^http:/i, 'https:');
+                            const cover = sanitizeAvatarUrl(secureCover || '') || '';
+                            if (cover) {
+                                if (artistKey) recentArtistArtworkCache.set(artistKey, cover);
+                                if (songKey) favoriteArtworkCache.set(songKey, cover);
+                                return cover;
+                            }
+                        } catch (_err) {}
                     }
-                } catch (_err) {}
+                }
+
+                const deezerQueries = song
+                    ? [...cleanSongVariants.map((variant) => `${artist} ${variant}`.trim()), artist]
+                    : [artist];
+                const targetArtistNorm = normalizeLookupText(artist);
+                const targetSongNorm = normalizeLookupText(song);
+                for (const dq of deezerQueries) {
+                    try {
+                        const data = await runArtworkLookupTask(() => fetchDeezerSearch(dq, 8, 4200));
+                        const rows = Array.isArray(data?.data) ? data.data : [];
+                        if (!rows.length) continue;
+                        let bestRow = null;
+                        let bestScore = -Infinity;
+                        rows.forEach((row) => {
+                            const artistNorm = normalizeLookupText(row?.artist?.name || '');
+                            const titleNorm = normalizeLookupText(row?.title || '');
+                            let score = 0;
+                            if (targetArtistNorm) {
+                                if (artistNorm === targetArtistNorm) score += 260;
+                                else if (artistNorm.includes(targetArtistNorm) || targetArtistNorm.includes(artistNorm)) score += 140;
+                            }
+                            if (targetSongNorm) {
+                                if (titleNorm === targetSongNorm) score += 220;
+                                else if (titleNorm.includes(targetSongNorm) || targetSongNorm.includes(titleNorm)) score += 120;
+                            }
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestRow = row;
+                            }
+                        });
+                        const rawCover = String(
+                            bestRow?.album?.cover_xl ||
+                            bestRow?.album?.cover_big ||
+                            bestRow?.album?.cover_medium ||
+                            bestRow?.album?.cover ||
+                            bestRow?.artist?.picture_xl ||
+                            bestRow?.artist?.picture_big ||
+                            bestRow?.artist?.picture_medium ||
+                            bestRow?.artist?.picture ||
+                            ''
+                        ).trim();
+                        const secureCover = rawCover.replace(/^http:/i, 'https:');
+                        const cover = sanitizeAvatarUrl(secureCover || '') || '';
+                        if (cover) {
+                            if (artistKey) recentArtistArtworkCache.set(artistKey, cover);
+                            if (songKey) favoriteArtworkCache.set(songKey, cover);
+                            return cover;
+                        }
+                    } catch (_err) {}
+                }
+                return '';
+            })();
+            artworkLookupInFlight.set(requestKey, runLookup);
+            try {
+                return await runLookup;
+            } finally {
+                if (artworkLookupInFlight.get(requestKey) === runLookup) {
+                    artworkLookupInFlight.delete(requestKey);
+                }
             }
-            return '';
         }
 
         function buildProfileHubTypingRanking(rows, limit = 12, monthOnly = false) {
@@ -6690,16 +7334,18 @@ bindLegacyInlineHandlers();
             const lines = raw.split('\n');
             const parsed = [];
             lines.forEach((line) => {
-                const m = line.match(/^\[(\d{2}):(\d{2})(?:\.(\d{1,3}))?\]\s*(.*)$/);
-                if (!m) return;
-                const mm = parseInt(m[1], 10);
-                const ss = parseInt(m[2], 10);
-                const frac = (m[3] || '0').padEnd(3, '0');
-                const text = (m[4] || '').trim();
+                const marks = Array.from(String(line || '').matchAll(/\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g));
+                if (!marks.length) return;
+                const text = String(line || '').replace(/\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g, '').trim();
                 if (!text) return;
-                parsed.push({
-                    timeMs: (mm * 60 * 1000) + (ss * 1000) + parseInt(frac, 10),
-                    text
+                marks.forEach((mark) => {
+                    const mm = parseInt(mark[1], 10);
+                    const ss = parseInt(mark[2], 10);
+                    const frac = (mark[3] || '0').padEnd(3, '0');
+                    parsed.push({
+                        timeMs: (mm * 60 * 1000) + (ss * 1000) + parseInt(frac, 10),
+                        text
+                    });
                 });
             });
             return parsed.sort((a, b) => a.timeMs - b.timeMs);
@@ -6815,7 +7461,30 @@ bindLegacyInlineHandlers();
             return raw.replace(/\/[0-9]+x[0-9]+bb\./i, '/600x600bb.');
         }
 
-        async function fetchSpotifyCandidatesByQuery(query) {
+        function scorePlayerCandidate(row, targetArtistNorm = '', targetTitleNorm = '') {
+            const rowTitleNorm = normalizeLookupText(row?.trackName || '');
+            const rowArtistNorm = normalizeLookupText(row?.artistName || '');
+            let titleScore = 0;
+            let artistScore = 0;
+            if (targetTitleNorm) {
+                if (rowTitleNorm === targetTitleNorm) titleScore += 140;
+                else if (rowTitleNorm.includes(targetTitleNorm) || targetTitleNorm.includes(rowTitleNorm)) titleScore += 80;
+                const tokens = targetTitleNorm.split(' ').filter(Boolean);
+                titleScore += tokens.filter((t) => rowTitleNorm.includes(t)).length * 6;
+            }
+            if (targetArtistNorm) {
+                if (rowArtistNorm === targetArtistNorm) artistScore += 220;
+                else if (artistMatchesLoosely(rowArtistNorm, targetArtistNorm)) artistScore += 120;
+                const artistTokens = targetArtistNorm.split(' ').filter(Boolean);
+                artistScore += artistTokens.filter((t) => rowArtistNorm.includes(t)).length * 8;
+                if (artistScore === 0) artistScore -= 90;
+            }
+            const hasArtwork = Boolean(String(row?.artworkUrl100 || row?.artworkUrl60 || row?.artworkUrl30 || '').trim());
+            const qualityBoost = hasArtwork ? 4 : 0;
+            return { total: titleScore + artistScore + qualityBoost, artistScore };
+        }
+
+        async function fetchSpotifyCandidatesByQuery(query, expectedArtist = '', expectedTitle = '') {
             const trimmed = String(query || '').trim();
             const spotifySearch = buildProviderSearchLink('spotify', trimmed);
             const deezerSearch = buildProviderSearchLink('deezer', trimmed);
@@ -6835,7 +7504,21 @@ bindLegacyInlineHandlers();
                 const data = await fetchItunesSearch(trimmed, 'song', 6, '', 3400);
                 const rows = Array.isArray(data?.results) ? data.results : [];
                 if (!rows.length) return [fallback];
-                const mapped = rows.map((r) => {
+                const targetArtistNorm = normalizeLookupText(expectedArtist);
+                const targetTitleNorm = normalizeLookupText(expectedTitle);
+                const scored = rows.map((r) => {
+                    const rank = scorePlayerCandidate(r, targetArtistNorm, targetTitleNorm);
+                    return { row: r, score: rank.total, artistScore: rank.artistScore };
+                }).sort((a, b) => b.score - a.score);
+                const hasGoodArtistMatch = scored.some((item) => item.artistScore >= 120);
+                if (targetArtistNorm && !hasGoodArtistMatch) {
+                    // Avoid false positives with same song title from another artist.
+                    return [fallback];
+                }
+                const picked = hasGoodArtistMatch
+                    ? scored.filter((item) => item.artistScore >= 120).slice(0, 6).map((item) => item.row)
+                    : scored.slice(0, 6).map((item) => item.row);
+                const mapped = picked.map((r) => {
                     const track = String(r?.trackName || '').trim();
                     const artistName = String(r?.artistName || '').trim();
                     const label = `${track} ${artistName}`.trim();
@@ -6932,7 +7615,7 @@ bindLegacyInlineHandlers();
             state.youtubeEmbedCandidates = [];
             const seenLinks = new Set();
             for (const q of queries) {
-                const candidates = await fetchSpotifyCandidatesByQuery(q);
+                const candidates = await fetchSpotifyCandidatesByQuery(q, artist, title);
                 candidates.forEach((candidate) => {
                     const key = candidate.spotifyUrl || candidate.searchUrl;
                     if (!key || seenLinks.has(key)) return;
@@ -7684,6 +8367,12 @@ bindLegacyInlineHandlers();
             return `https://itunes.apple.com/search?term=${q}&entity=${encodeURIComponent(entity)}&limit=${Math.max(1, Number(limit) || 1)}${attrPart}`;
         }
 
+        function buildDeezerSearchUrl(term, limit = 8) {
+            const q = encodeURIComponent(String(term || '').trim());
+            const cap = Math.max(1, Math.min(25, Number(limit) || 8));
+            return `https://api.deezer.com/search?q=${q}&limit=${cap}&output=jsonp`;
+        }
+
         function fetchItunesJsonp(url, timeoutMs = 3200) {
             return new Promise((resolve, reject) => {
                 const callbackName = `__itunesJsonp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -7713,9 +8402,87 @@ bindLegacyInlineHandlers();
             });
         }
 
+        function fetchDeezerJsonp(url, timeoutMs = 3600) {
+            return new Promise((resolve, reject) => {
+                const callbackName = `__deezerJsonp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                const sep = url.includes('?') ? '&' : '?';
+                const src = `${url}${sep}callback=${callbackName}`;
+                const script = document.createElement('script');
+                const timer = setTimeout(() => {
+                    cleanup();
+                    reject(new Error('deezer-jsonp-timeout'));
+                }, timeoutMs);
+                const cleanup = () => {
+                    clearTimeout(timer);
+                    try { delete window[callbackName]; } catch (_err) { window[callbackName] = undefined; }
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                };
+                window[callbackName] = (payload) => {
+                    cleanup();
+                    resolve(payload || {});
+                };
+                script.src = src;
+                script.async = true;
+                script.onerror = () => {
+                    cleanup();
+                    reject(new Error('deezer-jsonp-error'));
+                };
+                document.head.appendChild(script);
+            });
+        }
+
         async function fetchItunesSearch(term, entity = 'song', limit = 10, attribute = '', timeoutMs = 3200) {
             const url = buildItunesSearchUrl(term, entity, limit, attribute);
             return await fetchItunesJsonp(url, timeoutMs);
+        }
+
+        async function fetchDeezerSearch(term, limit = 8, timeoutMs = 3600) {
+            const url = buildDeezerSearchUrl(term, limit);
+            return await fetchDeezerJsonp(url, timeoutMs);
+        }
+
+        function mapItunesSongRow(row) {
+            return {
+                trackName: row?.trackName || '',
+                artistName: row?.artistName || '',
+                albumName: row?.collectionName || row?.albumName || '',
+                duration: getDurationSecondsFromAny(row?.trackTimeMillis || row?.durationMs || 0),
+                durationMs: Number(row?.trackTimeMillis || row?.durationMs || 0),
+                artworkUrl100: row?.artworkUrl100 || '',
+                trackViewUrl: row?.trackViewUrl || '',
+                artistViewUrl: row?.artistViewUrl || ''
+            };
+        }
+
+        async function fetchItunesSongsByArtistLookup(artistName) {
+            try {
+                const artistRaw = String(artistName || '').trim();
+                if (!artistRaw) return [];
+                const artistData = await fetchItunesSearch(artistRaw, 'musicArtist', 12, 'artistTerm', 3200);
+                const artistRows = Array.isArray(artistData?.results) ? artistData.results : [];
+                const targetArtist = normalizeLookupText(artistRaw);
+                const rankedArtistRows = artistRows
+                    .map((row) => {
+                        const rowName = String(row?.artistName || '').trim();
+                        const rowNameNorm = normalizeLookupText(rowName);
+                        let score = 0;
+                        if (rowNameNorm === targetArtist) score += 100;
+                        else if (artistMatchesLoosely(rowNameNorm, targetArtist)) score += 40;
+                        if (Number.isFinite(Number(row?.artistId || 0)) && Number(row?.artistId || 0) > 0) score += 10;
+                        return { row, score };
+                    })
+                    .sort((a, b) => b.score - a.score);
+                const artistId = Number(rankedArtistRows[0]?.row?.artistId || 0);
+                if (!Number.isFinite(artistId) || artistId <= 0) return [];
+                const lookupUrl = `https://itunes.apple.com/lookup?id=${artistId}&entity=song&limit=200`;
+                const lookupData = await fetchItunesJsonp(lookupUrl, 3200);
+                const lookupRows = Array.isArray(lookupData?.results) ? lookupData.results : [];
+                return lookupRows
+                    .filter((r) => String(r?.wrapperType || '').toLowerCase() === 'track')
+                    .map((r) => mapItunesSongRow(r));
+            } catch (_e) {
+                return [];
+            }
         }
 
         function rowHasLyrics(row) {
@@ -7764,18 +8531,25 @@ bindLegacyInlineHandlers();
 
         async function fetchItunesSongsByArtist(artistName) {
             try {
-                const data = await fetchItunesSearch((artistName || '').trim(), 'song', 200, 'artistTerm', 3200);
-                const rows = Array.isArray(data?.results) ? data.results : [];
-                return rows.map((r) => ({
-                    trackName: r?.trackName || '',
-                    artistName: r?.artistName || '',
-                    albumName: r?.collectionName || '',
-                    duration: getDurationSecondsFromAny(r?.trackTimeMillis || 0),
-                    durationMs: Number(r?.trackTimeMillis || 0),
-                    artworkUrl100: r?.artworkUrl100 || '',
-                    trackViewUrl: r?.trackViewUrl || '',
-                    artistViewUrl: r?.artistViewUrl || ''
-                }));
+                const artistRaw = String(artistName || '').trim();
+                const [lookupRows, termRows] = await Promise.all([
+                    fetchItunesSongsByArtistLookup(artistRaw),
+                    (async () => {
+                        const data = await fetchItunesSearch(artistRaw, 'song', 200, 'artistTerm', 3200);
+                        const rows = Array.isArray(data?.results) ? data.results : [];
+                        return rows.map((r) => mapItunesSongRow(r));
+                    })()
+                ]);
+                const map = new Map();
+                [...lookupRows, ...termRows].forEach((row) => {
+                    const track = String(row?.trackName || '').trim();
+                    const artist = String(row?.artistName || '').trim();
+                    if (!track || !artist) return;
+                    const key = `${normalizeLookupText(track)}|||${normalizeLookupText(artist)}`;
+                    if (!key || map.has(key)) return;
+                    map.set(key, row);
+                });
+                return Array.from(map.values());
             } catch (e) {
                 return [];
             }
@@ -7785,16 +8559,7 @@ bindLegacyInlineHandlers();
             try {
                 const data = await fetchItunesSearch((queryText || '').trim(), 'song', 120, '', 3200);
                 const rows = Array.isArray(data?.results) ? data.results : [];
-                return rows.map((r) => ({
-                    trackName: r?.trackName || '',
-                    artistName: r?.artistName || '',
-                    albumName: r?.collectionName || '',
-                    duration: getDurationSecondsFromAny(r?.trackTimeMillis || 0),
-                    durationMs: Number(r?.trackTimeMillis || 0),
-                    artworkUrl100: r?.artworkUrl100 || '',
-                    trackViewUrl: r?.trackViewUrl || '',
-                    artistViewUrl: r?.artistViewUrl || ''
-                }));
+                return rows.map((r) => mapItunesSongRow(r));
             } catch (e) {
                 return [];
             }
@@ -8018,8 +8783,7 @@ bindLegacyInlineHandlers();
                 fetchItunesSongsByQuery(`${artist} ${termText}`)
             ]);
             const lrMerged = [...lrRows, ...lrExactRows, ...lrTermOnlyRows];
-            const lrWithLyrics = lrMerged.filter((row) => rowHasLyrics(row));
-            const merged = lrWithLyrics.length > 0 ? lrWithLyrics : [...lrMerged, ...itRows];
+            const merged = [...lrMerged, ...itRows];
             const map = new Map();
             merged.forEach((row) => {
                 const track = (row?.trackName || '').trim();
@@ -8031,21 +8795,38 @@ bindLegacyInlineHandlers();
                 if (!artistMatchesLoosely(artistNorm, targetArtist)) return;
                 if (!trackNorm.includes(targetTerm)) return;
                 const key = `${trackNorm}|||${artistNorm}`;
-                if (map.has(key)) return;
+                const existing = map.get(key);
+                const plainLyrics = (row?.plainLyrics || '').trim();
+                const syncedLyrics = (row?.syncedLyrics || '').trim();
+                const durationMs = Number(row?.durationMs || row?.trackTimeMillis || 0);
+                if (existing) {
+                    if (plainLyrics) existing.plainLyrics = plainLyrics;
+                    if (syncedLyrics) existing.syncedLyrics = syncedLyrics;
+                    if (!existing.album && album) existing.album = album;
+                    if (!existing.durationMs && durationMs > 0) {
+                        existing.durationMs = durationMs;
+                        existing.duration = getDurationSecondsFromAny(durationMs);
+                    }
+                    if (!existing.artworkUrl100 && row?.artworkUrl100) existing.artworkUrl100 = row.artworkUrl100;
+                    if (!existing.trackViewUrl && row?.trackViewUrl) existing.trackViewUrl = row.trackViewUrl;
+                    if (!existing.artistViewUrl && row?.artistViewUrl) existing.artistViewUrl = row.artistViewUrl;
+                    map.set(key, existing);
+                    return;
+                }
                 map.set(key, {
                     title: track,
                     artist: rowArtist,
                     album,
                     duration: getDurationSecondsFromAny(row?.duration || row?.durationMs || row?.trackTimeMillis || 0),
-                    durationMs: Number(row?.durationMs || row?.trackTimeMillis || 0),
+                    durationMs,
                     artworkUrl100: row?.artworkUrl100 || '',
                     trackViewUrl: row?.trackViewUrl || '',
                     artistViewUrl: row?.artistViewUrl || '',
-                    plainLyrics: (row?.plainLyrics || '').trim(),
-                    syncedLyrics: (row?.syncedLyrics || '').trim()
+                    plainLyrics,
+                    syncedLyrics
                 });
             });
-            const out = Array.from(map.values());
+            const out = Array.from(map.values()).sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
             state.artistTermSearchCache.set(cacheKey, out);
             return out;
         }
@@ -8053,12 +8834,13 @@ bindLegacyInlineHandlers();
         async function renderArtistCatalogList(filterText = '', includeLiveMatches = false) {
             if (!elements.artistCatalogList) return;
             const q = normalizeLookupText(filterText || '');
-            let songs = (state.artistCatalogSongs || []).filter((song) => {
+            const matchesCatalogFilter = (song) => {
                 if (!q) return true;
                 const title = normalizeLookupText(song.title);
                 const album = normalizeLookupText(song.album || '');
                 return title.includes(q) || album.includes(q);
-            });
+            };
+            let songs = (state.artistCatalogSongs || []).filter(matchesCatalogFilter);
 
             const seq = ++artistCatalogFilterSeq;
             if (includeLiveMatches && q.length >= 2) {
@@ -8066,16 +8848,32 @@ bindLegacyInlineHandlers();
                 const live = await findArtistSongsByTerm(state.artistCatalogName || elements.artistInput?.value || '', filterText);
                 if (seq !== artistCatalogFilterSeq) return;
                 if (live.length) {
-                    const byKey = new Map();
-                    songs.forEach((song) => {
+                    const fullCatalogByKey = new Map();
+                    (state.artistCatalogSongs || []).forEach((song) => {
                         const key = `${normalizeLookupText(song.title)}|||${normalizeLookupText(song.artist)}`;
-                        byKey.set(key, song);
+                        fullCatalogByKey.set(key, song);
                     });
                     live.forEach((song) => {
                         const key = `${normalizeLookupText(song.title)}|||${normalizeLookupText(song.artist)}`;
-                        if (!byKey.has(key)) byKey.set(key, song);
+                        const existing = fullCatalogByKey.get(key);
+                        if (!existing) {
+                            fullCatalogByKey.set(key, song);
+                            return;
+                        }
+                        if (!existing.plainLyrics && song.plainLyrics) existing.plainLyrics = song.plainLyrics;
+                        if (!existing.syncedLyrics && song.syncedLyrics) existing.syncedLyrics = song.syncedLyrics;
+                        if (!existing.album && song.album) existing.album = song.album;
+                        if (!existing.durationMs && Number(song.durationMs || 0) > 0) {
+                            existing.durationMs = Number(song.durationMs || 0);
+                            existing.duration = getDurationSecondsFromAny(existing.durationMs);
+                        }
+                        if (!existing.artworkUrl100 && song.artworkUrl100) existing.artworkUrl100 = song.artworkUrl100;
+                        if (!existing.trackViewUrl && song.trackViewUrl) existing.trackViewUrl = song.trackViewUrl;
+                        if (!existing.artistViewUrl && song.artistViewUrl) existing.artistViewUrl = song.artistViewUrl;
+                        fullCatalogByKey.set(key, existing);
                     });
-                    songs = Array.from(byKey.values());
+                    state.artistCatalogSongs = Array.from(fullCatalogByKey.values()).sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
+                    songs = state.artistCatalogSongs.filter(matchesCatalogFilter);
                 }
             }
 
@@ -8131,11 +8929,11 @@ bindLegacyInlineHandlers();
                             </button>
                             <button type="button"
                                     class="artist-song-fav${isSongFavorited(song.artist, song.title) ? ' active' : ''}"
-                                    title="${isSongFavorited(song.artist, song.title) ? 'Already in favorites' : 'Add to favorites'}"
+                                    title="${isSongFavorited(song.artist, song.title) ? 'Remove from favorites' : 'Add to favorites'}"
                                     data-song-title="${escapeHtml(song.title)}"
                                     data-song-artist="${escapeHtml(song.artist)}"
-                                    data-onclick="addFavoriteFromCatalog('${encodeURIComponent(song.artist)}','${encodeURIComponent(song.title)}')">
-                                &#9733;
+                                    data-onclick="addFavoriteFromCatalog(event,'${encodeURIComponent(song.artist)}','${encodeURIComponent(song.title)}')">
+                                ${buildFavoriteLogoIcon()}
                             </button>
                         </div>
                     `).join('');
@@ -8961,12 +9759,45 @@ bindLegacyInlineHandlers();
         document.addEventListener('keydown', (e) => {
             const popover = document.getElementById('word-popover');
             const target = e.target;
+            if (state.commandPaletteOpen) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    closeCommandPalette();
+                    return;
+                }
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setCommandPaletteSelected(commandPaletteSelectedIndex + 1);
+                    return;
+                }
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setCommandPaletteSelected(commandPaletteSelectedIndex - 1);
+                    return;
+                }
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    runCommandPaletteSelection(commandPaletteSelectedIndex);
+                    return;
+                }
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && String(e.key || '').toLowerCase() === 'p') {
+                e.preventDefault();
+                openCommandPalette();
+                return;
+            }
+            if (e.key === 'Enter' && elements.restartModal && !elements.restartModal.classList.contains('hidden')) {
+                e.preventDefault();
+                confirmRestart();
+                return;
+            }
             const isEditableTarget =
                 target &&
                 (target.tagName === 'INPUT' ||
                  target.tagName === 'TEXTAREA' ||
                  target.isContentEditable);
-            if (isEditableTarget && target !== elements.input) return;
+            if (isEditableTarget && target !== elements.input && e.key !== 'Escape') return;
 
             if (e.key === 'Escape') {
                 if (elements.modeSessionPrefsPopover && !elements.modeSessionPrefsPopover.classList.contains('hidden')) {
@@ -8977,7 +9808,12 @@ bindLegacyInlineHandlers();
                     closeWordPopover();
                     return;
                 }
+                const hadClosableOverlay = hasAnyClosableOverlayOpen();
                 closeModal('about'); closeModal('settings'); closeModal('practice'); closeModal('profile'); cancelRestart(); cancelNavigation(); 
+                if (!hadClosableOverlay) {
+                    openCommandPalette();
+                    return;
+                }
             }
             
             if (popover && popover.style.display !== 'none' && popover.style.display !== '') return;
@@ -9165,6 +10001,7 @@ bindLegacyInlineHandlers();
             if (!supabase) return;
             if (!elements.leaderboardList || !elements.leaderboardMeta) return;
             elements.leaderboardMeta.textContent = 'Loading leaderboard...';
+            const headingEl = document.getElementById('leaderboard-heading');
             const period = state.leaderboardPeriod === 'monthly' ? 'monthly' : 'weekly';
             const { data, error } = await supabase.rpc('get_leaderboard', {
                 p_period: period,
@@ -9173,26 +10010,39 @@ bindLegacyInlineHandlers();
             if (error) {
                 elements.leaderboardMeta.textContent = 'Could not load leaderboard.';
                 elements.leaderboardList.innerHTML = '<div class="auth-recent-empty">No leaderboard data available right now.</div>';
+                if (headingEl) headingEl.textContent = 'Global XP Leaderboard';
                 return;
             }
             const rows = Array.isArray(data) ? data : [];
             const label = period === 'monthly' ? 'Last 30 days' : 'Last 7 days';
             elements.leaderboardMeta.textContent = `${label} - ${rows.length} players`;
+            if (headingEl) headingEl.textContent = period === 'monthly' ? 'Monthly XP Leaderboard' : 'Weekly XP Leaderboard';
             if (!rows.length) {
                 elements.leaderboardList.innerHTML = '<div class="auth-recent-empty">No runs in this period yet.</div>';
                 return;
             }
             elements.leaderboardList.innerHTML = rows.map((row, idx) => {
                 const place = idx + 1;
-                const username = escapeHtml(String(row.username || 'player'));
+                const rawName = String(row.username || 'player').trim() || 'player';
+                const username = escapeHtml(rawName);
+                const initials = escapeHtml(rawName.slice(0, 2).toUpperCase());
                 const games = Math.max(0, Number(row.games || 0));
                 const avgWpm = Math.max(0, Number(row.avg_wpm || 0));
                 const bestWpm = Math.max(0, Number(row.best_wpm || 0));
                 const avgAcc = Math.max(0, Number(row.avg_acc || 0));
                 const xp = Math.max(0, Number(row.xp_earned || 0));
-                return `<div class="auth-friend-item">
-                    <div class="auth-friend-name">#${place} ${username}</div>
-                    <div class="auth-friend-meta">${games} runs | avg ${avgWpm} WPM | best ${bestWpm} WPM | acc ${avgAcc}% | +${xp} XP</div>
+                const rowClass = place === 1 ? 'leaderboard-row top' : 'leaderboard-row';
+                return `<div class="${rowClass}">
+                    <div class="leaderboard-row-item rank">#${place}</div>
+                    <div class="leaderboard-row-item player">
+                        <span class="leaderboard-player-avatar">${initials}</span>
+                        <span class="leaderboard-player-name">${username}</span>
+                    </div>
+                    <div class="leaderboard-row-item metric">${avgWpm.toFixed(1)}</div>
+                    <div class="leaderboard-row-item metric">${bestWpm.toFixed(1)}</div>
+                    <div class="leaderboard-row-item metric">${avgAcc.toFixed(2)}%</div>
+                    <div class="leaderboard-row-item metric">${games}</div>
+                    <div class="leaderboard-row-item metric">+${xp}</div>
                 </div>`;
             }).join('');
         }
@@ -9941,6 +10791,30 @@ bindLegacyInlineHandlers();
         });
 
         elements.input.addEventListener('input', (e) => handleInput(elements.input.value));
+        if (elements.commandPaletteInput) {
+            elements.commandPaletteInput.addEventListener('input', () => {
+                commandPaletteSelectedIndex = 0;
+                renderCommandPaletteList(elements.commandPaletteInput.value || '');
+            });
+            elements.commandPaletteInput.addEventListener('keydown', (event) => {
+                event.stopPropagation();
+            });
+        }
+        if (elements.commandPaletteList) {
+            elements.commandPaletteList.addEventListener('click', (event) => {
+                const item = event.target?.closest?.('[data-command-index]');
+                if (!item) return;
+                const idx = Number(item.getAttribute('data-command-index') || 0);
+                runCommandPaletteSelection(idx);
+            });
+        }
+        if (elements.commandPaletteOverlay) {
+            elements.commandPaletteOverlay.addEventListener('click', (event) => {
+                if (event.target === elements.commandPaletteOverlay) {
+                    closeCommandPalette();
+                }
+            });
+        }
         if (elements.artistInput) {
             elements.artistInput.addEventListener('input', () => {
                 if (artistSuggestTimer) clearTimeout(artistSuggestTimer);
@@ -10172,6 +11046,7 @@ bindLegacyInlineHandlers();
         pendingPublicProfileSlug = parsePublicProfileSlugFromLocation();
         setLeaderboardPeriod(state.leaderboardPeriod);
         bindAuthActivityWatchers();
+        setAppBootProgress(28, 'Preparing local data...');
         if (supabase) {
             supabase.auth.onAuthStateChange((_event, session) => {
                 if (session) {
@@ -10187,45 +11062,56 @@ bindLegacyInlineHandlers();
             });
         }
         (async () => {
-            await bootstrapAuthSession();
-            authBootstrapCompleted = true;
-            await refreshAuthUI();
-
             try {
-                if (hasSpotifyCallbackParams()) {
-                    if (!authCurrentUser?.id) {
-                        clearSpotifyCallbackParamsFromUrl();
-                        showToast('Main account login required before linking Spotify.', 'error');
-                    } else {
-                        const callbackHandled = await spotifyHandleCallback();
-                        if (callbackHandled) {
-                            spWebPlaybackBlocked = false;
-                            const localTokens = getStoredSpotifyTokens();
-                            if (localTokens.refreshToken) {
-                                spotifyLinkedToAccount = true;
-                                spotifyLinkPromptShownForUserId = authCurrentUser.id;
-                                closeSpotifyLinkPrompt();
-                                const synced = await saveSpotifyTokensToProfile(authCurrentUser.id, localTokens);
-                                if (!synced) {
-                                    showToast('Spotify linked locally. Could not sync link to profile.', 'info');
+                setAppBootProgress(40, 'Loading your account...');
+                await bootstrapAuthSession();
+                authBootstrapCompleted = true;
+                setAppBootProgress(56, 'Refreshing profile...');
+                await refreshAuthUI();
+
+                setAppBootProgress(70, 'Checking music services...');
+                try {
+                    if (hasSpotifyCallbackParams()) {
+                        if (!authCurrentUser?.id) {
+                            clearSpotifyCallbackParamsFromUrl();
+                            showToast('Main account login required before linking Spotify.', 'error');
+                        } else {
+                            const callbackHandled = await spotifyHandleCallback();
+                            if (callbackHandled) {
+                                spWebPlaybackBlocked = false;
+                                const localTokens = getStoredSpotifyTokens();
+                                if (localTokens.refreshToken) {
+                                    spotifyLinkedToAccount = true;
+                                    spotifyLinkPromptShownForUserId = authCurrentUser.id;
+                                    closeSpotifyLinkPrompt();
+                                    const synced = await saveSpotifyTokensToProfile(authCurrentUser.id, localTokens);
+                                    if (!synced) {
+                                        showToast('Spotify linked locally. Could not sync link to profile.', 'info');
+                                    }
                                 }
+                                showToast('Spotify linked successfully.', 'info');
+                                await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
                             }
-                            showToast('Spotify linked successfully.', 'info');
-                            await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
                         }
                     }
+                } catch (error) {
+                    handleSpotifyAuthFailure(error);
+                    showToast(describeSpotifyAuthError(error), 'error');
                 }
-            } catch (error) {
-                handleSpotifyAuthFailure(error);
-                showToast(describeSpotifyAuthError(error), 'error');
+
+                setAppBootProgress(82, 'Syncing recent playback...');
+                if (isSpotifyLoggedIn() && !spotifyTracks.length) {
+                    await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
+                }
+                renderSpotifyStatus();
+                setAppBootProgress(92, 'Finalizing...');
+                await maybeOpenSharedResultFromLink();
+                await maybeOpenPublicProfileFromLink();
+                openOnboarding();
+                setAppBootProgress(100, 'Ready.');
+            } finally {
+                hideAppBootOverlay();
             }
-            if (isSpotifyLoggedIn() && !spotifyTracks.length) {
-                await spotifyFetchRecentlyPlayed(25, { fromPolling: true });
-            }
-            renderSpotifyStatus();
-            await maybeOpenSharedResultFromLink();
-            await maybeOpenPublicProfileFromLink();
-            openOnboarding();
         })();
         renderSetupFavoritesTab();
         switchTab('search'); 

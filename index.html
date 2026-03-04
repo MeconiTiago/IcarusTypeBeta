@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://esm.sh https://sdk.scdn.co https://itunes.apple.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lrclib.net https://api.lyrics.ovh https://api.mymemory.translated.net https://api.dictionaryapi.dev https://yt.lemnoslife.com https://www.youtube.com https://www.youtube-nocookie.com https://piped.video https://itunes.apple.com https://accounts.spotify.com https://api.spotify.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://piped.video https://open.spotify.com https://sdk.scdn.co; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://esm.sh https://sdk.scdn.co https://itunes.apple.com https://api.deezer.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://lrclib.net https://api.lyrics.ovh https://api.mymemory.translated.net https://api.dictionaryapi.dev https://yt.lemnoslife.com https://www.youtube.com https://www.youtube-nocookie.com https://piped.video https://itunes.apple.com https://api.deezer.com https://accounts.spotify.com https://api.spotify.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://piped.video https://open.spotify.com https://sdk.scdn.co; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
     <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()">
     <title>Icarus Type</title>
@@ -17,10 +17,20 @@
     <link rel="stylesheet" href="styles/components.css">
     <link rel="stylesheet" href="styles/themes.css">
 </head>
-<body class="h-screen flex flex-col items-center">
+<body class="h-screen flex flex-col items-center app-booting">
 
     <input type="text" id="typing-input" class="hidden-input" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
     <div id="toast-container"></div>
+    <div id="app-boot-overlay" class="app-boot-overlay" role="status" aria-live="polite" aria-label="Loading Icarus Type">
+        <div class="app-boot-card">
+            <div class="loader app-boot-loader" aria-hidden="true"></div>
+            <div class="app-boot-title">Loading Icarus Type</div>
+            <div id="app-boot-message" class="app-boot-message">Preparing interface...</div>
+            <div class="app-boot-progress-track" aria-hidden="true">
+                <div id="app-boot-progress" class="app-boot-progress-fill"></div>
+            </div>
+        </div>
+    </div>
 
     <!-- Word Menu Popover -->
     <div id="popover-overlay" class="fixed inset-0 z-40 hidden" data-onclick="closeWordPopover()"></div>
@@ -405,88 +415,97 @@
                 </button>
             </div>
 
-            <div class="profile-hub-hero">
-                <div class="profile-hub-hero-bg-wrap" aria-hidden="true">
-                    <img id="profile-hub-hero-bg" class="profile-hub-hero-bg" src="https://placehold.co/1200x360/0B2D45/3EE39E?text=Favorite+Band" alt="">
-                </div>
-                <img id="profile-hub-avatar" class="profile-hub-avatar auth-avatar-clickable" src="https://placehold.co/96x96/0B2D45/3EE39E?text=IT" alt="avatar" data-onclick="openProfileHubAvatarPreview()">
-                <div class="profile-hub-meta">
-                    <div class="profile-hub-label">Profile</div>
-                    <h2 id="profile-hub-name" class="profile-hub-title">username</h2>
-                    <div class="profile-hub-meta-row">
-                        <div id="profile-hub-level" class="profile-hub-level">Level 1</div>
-                        <div id="profile-hub-email" class="profile-hub-email">email@example.com</div>
-                    </div>
-                    <div class="profile-inline-xp profile-inline-xp--hub">
-                        <div id="profile-hub-progress-meta" class="profile-inline-xp-meta">0 / 220 XP</div>
-                        <div class="xp-bar-container profile-inline-xp-bar">
-                            <div id="profile-hub-progress-fill" class="xp-bar-fill" style="width: 0%;"></div>
+            <div class="profile-hub-layout">
+                <div class="profile-hub-column-main">
+                    <section class="profile-hub-hero">
+                        <div class="profile-hub-hero-bg-wrap" aria-hidden="true">
+                            <img id="profile-hub-hero-bg" class="profile-hub-hero-bg" src="https://placehold.co/1200x360/0B2D45/3EE39E?text=Favorite+Band" alt="">
                         </div>
-                    </div>
-                    <p id="profile-hub-bio" class="profile-hub-bio">No bio yet.</p>
-                    <div class="profile-hub-share-row">
-                        <button id="profile-hub-share-btn" class="auth-friend-btn" data-onclick="copyPublicProfileLink()">Copy public profile link</button>
-                        <span id="profile-hub-share-meta" class="profile-hub-share-meta">Public profile enabled</span>
-                    </div>
-                </div>
-                <div class="profile-hub-primary-track">
-                    <div class="profile-hub-primary-kicker">Primary Track</div>
-                    <div id="profile-hub-primary-title" class="profile-hub-primary-title">No track yet</div>
-                    <div id="profile-hub-primary-artist" class="profile-hub-primary-artist">Play more songs to set your highlight.</div>
-                    <img id="profile-hub-primary-cover" class="profile-hub-primary-cover" src="https://placehold.co/120x120/0B2D45/3EE39E?text=♪" alt="Primary track cover">
-                    <div class="profile-hub-primary-time">
-                        <div class="profile-hub-primary-kicker">Typing Time</div>
-                        <div id="profile-hub-typing-clock" class="profile-hub-typing-clock">00:00:00</div>
-                        <div id="profile-hub-typing-minutes" class="profile-hub-primary-artist">0 min total</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="profile-hub-stats-grid">
-                <div class="profile-hub-stat"><span>Games</span><strong id="profile-hub-games">0</strong></div>
-                <div class="profile-hub-stat"><span>Best WPM</span><strong id="profile-hub-best">0</strong></div>
-                <div class="profile-hub-stat"><span>Avg WPM</span><strong id="profile-hub-avgwpm">0</strong></div>
-                <div class="profile-hub-stat"><span>Avg Acc</span><strong id="profile-hub-avgacc">0%</strong></div>
-                <div class="profile-hub-stat"><span>Ofensiva</span><strong id="profile-hub-streak">0d</strong></div>
-            </div>
-
-            <section class="profile-hub-compare">
-                <div class="profile-hub-compare-head">
-                    <h3>Compare With Friend</h3>
-                    <select id="profile-hub-compare-select" class="auth-input profile-hub-compare-select">
-                        <option value="">Select a friend</option>
-                    </select>
-                </div>
-                <div id="profile-hub-compare-grid" class="profile-hub-compare-grid">
-                    <div class="auth-recent-empty">Select a friend to compare stats in this panel.</div>
-                </div>
-            </section>
-
-            <div class="profile-hub-main-grid">
-                <section class="profile-hub-card">
-                    <div class="profile-hub-section-head">
-                        <div>
-                            <h3 class="profile-hub-section-title">Most Typed Artists This Month</h3>
-                            <p class="profile-hub-section-subtitle">Visible only to you</p>
+                        <img id="profile-hub-avatar" class="profile-hub-avatar auth-avatar-clickable" src="https://placehold.co/96x96/0B2D45/3EE39E?text=IT" alt="avatar" data-onclick="openProfileHubAvatarPreview()">
+                        <div class="profile-hub-meta">
+                            <div class="profile-hub-label">Profile</div>
+                            <h2 id="profile-hub-name" class="profile-hub-title">username</h2>
+                            <div class="profile-hub-meta-row">
+                                <div id="profile-hub-level" class="profile-hub-level">Level 1</div>
+                                <div id="profile-hub-email" class="profile-hub-email">email@example.com</div>
+                            </div>
+                            <div class="profile-inline-xp profile-inline-xp--hub">
+                                <div id="profile-hub-progress-meta" class="profile-inline-xp-meta">0 / 220 XP</div>
+                                <div class="xp-bar-container profile-inline-xp-bar">
+                                    <div id="profile-hub-progress-fill" class="xp-bar-fill" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                            <p id="profile-hub-bio" class="profile-hub-bio">No bio yet.</p>
+                            <div class="profile-hub-share-row">
+                                <button id="profile-hub-share-btn" class="auth-friend-btn" data-onclick="copyPublicProfileLink()">Copy public profile link</button>
+                                <span id="profile-hub-share-meta" class="profile-hub-share-meta">Public profile enabled</span>
+                            </div>
                         </div>
-                        <button id="profile-hub-show-all-artists" type="button" class="profile-hub-section-link" data-onclick="toggleProfileHubArtistsExpanded()">Show all</button>
-                    </div>
-                    <div id="profile-hub-favorites" class="profile-hub-artist-rail">
-                        <div class="auth-recent-empty">No artist stats yet.</div>
-                    </div>
-                </section>
-                <section class="profile-hub-card">
-                    <div class="profile-hub-section-head">
-                        <div>
-                            <h3 class="profile-hub-section-title">Most Typed Songs This Month</h3>
-                            <p class="profile-hub-section-subtitle">Visible only to you</p>
+                        <div class="profile-hub-primary-track">
+                            <div class="profile-hub-primary-kicker">Featured Song</div>
+                            <div id="profile-hub-primary-title" class="profile-hub-primary-title">No track yet</div>
+                            <div id="profile-hub-primary-artist" class="profile-hub-primary-artist">Play more songs to set your highlight.</div>
+                            <img id="profile-hub-primary-cover" class="profile-hub-primary-cover" src="https://placehold.co/120x120/0B2D45/3EE39E?text=♪" alt="Primary track cover">
+                            <div class="profile-hub-primary-time">
+                                <div class="profile-hub-primary-kicker">Typing Time</div>
+                                <div id="profile-hub-typing-clock" class="profile-hub-typing-clock">00:00:00</div>
+                                <div id="profile-hub-typing-minutes" class="profile-hub-primary-artist">0 min total</div>
+                            </div>
                         </div>
-                        <button id="profile-hub-show-all-songs" type="button" class="profile-hub-section-link" data-onclick="toggleProfileHubSongsExpanded()">Show all</button>
+                    </section>
+
+                    <div class="profile-hub-main-grid">
+                        <section class="profile-hub-card">
+                            <div class="profile-hub-section-head">
+                                <div>
+                                    <h3 class="profile-hub-section-title">Recent Activity</h3>
+                                    <p class="profile-hub-section-subtitle">Most typed songs this month</p>
+                                </div>
+                                <button id="profile-hub-show-all-songs" type="button" class="profile-hub-section-link" data-onclick="toggleProfileHubSongsExpanded()">Show all</button>
+                            </div>
+                            <div id="profile-hub-recent" class="profile-hub-song-list">
+                                <div class="auth-recent-empty">No song stats yet.</div>
+                            </div>
+                        </section>
+                        <section class="profile-hub-card">
+                            <div class="profile-hub-section-head">
+                                <div>
+                                    <h3 class="profile-hub-section-title">Favorite Artists</h3>
+                                    <p class="profile-hub-section-subtitle">Most typed artists this month</p>
+                                </div>
+                                <button id="profile-hub-show-all-artists" type="button" class="profile-hub-section-link" data-onclick="toggleProfileHubArtistsExpanded()">Show all</button>
+                            </div>
+                            <div id="profile-hub-favorites" class="profile-hub-artist-rail">
+                                <div class="auth-recent-empty">No artist stats yet.</div>
+                            </div>
+                        </section>
                     </div>
-                    <div id="profile-hub-recent" class="profile-hub-song-list">
-                        <div class="auth-recent-empty">No song stats yet.</div>
-                    </div>
-                </section>
+                </div>
+
+                <aside class="profile-hub-column-side">
+                    <section class="profile-hub-sidecard">
+                        <div class="profile-hub-side-title">Currently Online</div>
+                        <div class="profile-hub-stats-grid">
+                            <div class="profile-hub-stat"><span>Games</span><strong id="profile-hub-games">0</strong></div>
+                            <div class="profile-hub-stat"><span>Best WPM</span><strong id="profile-hub-best">0</strong></div>
+                            <div class="profile-hub-stat"><span>Avg WPM</span><strong id="profile-hub-avgwpm">0</strong></div>
+                            <div class="profile-hub-stat"><span>Avg Acc</span><strong id="profile-hub-avgacc">0%</strong></div>
+                            <div class="profile-hub-stat"><span>Streak</span><strong id="profile-hub-streak">0d</strong></div>
+                        </div>
+                    </section>
+
+                    <section class="profile-hub-compare">
+                        <div class="profile-hub-compare-head">
+                            <h3>Compare With Friend</h3>
+                            <select id="profile-hub-compare-select" class="auth-input profile-hub-compare-select">
+                                <option value="">Select a friend</option>
+                            </select>
+                        </div>
+                        <div id="profile-hub-compare-grid" class="profile-hub-compare-grid">
+                            <div class="auth-recent-empty">Select a friend to compare stats in this panel.</div>
+                        </div>
+                    </section>
+                </aside>
             </div>
         </div>
     </div>
@@ -608,7 +627,8 @@
                 <section class="modal-surface-block mt-3">
                     <p class="text-xs text-sub uppercase font-bold mb-3">Shortcuts</p>
                     <div class="settings-shortcuts-grid text-sm text-base">
-                        <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Tab</kbd> Restart</div>
+                        <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Tab</kbd> + <kbd class="bg-surface border border-sub px-1 rounded text-sub">Enter</kbd> Restart</div>
+                        <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Esc</kbd> or <kbd class="bg-surface border border-sub px-1 rounded text-sub">Ctrl</kbd> + <kbd class="bg-surface border border-sub px-1 rounded text-sub">Shift</kbd> + <kbd class="bg-surface border border-sub px-1 rounded text-sub">P</kbd> Command line</div>
                         <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Ctrl</kbd> Speak</div>
                         <div><kbd class="bg-surface border border-sub px-1 rounded text-sub">Alt</kbd> Free Look</div>
                     </div>
@@ -781,6 +801,22 @@
                 <button id="song-launch-cancel-btn" type="button" class="auth-friend-btn text-xs px-3 py-1" data-onclick="cancelLyricsFetch()">Cancel</button>
                 <div class="loader"></div>
             </div>
+        </div>
+    </div>
+
+    <div id="command-palette-overlay" class="command-palette-overlay hidden" aria-hidden="true">
+        <div class="command-palette-panel" role="dialog" aria-modal="true" aria-label="Command palette">
+            <div class="command-palette-input-row">
+                <span class="command-palette-icon" aria-hidden="true">></span>
+                <input id="command-palette-input" type="text" class="command-palette-input" placeholder="Search commands..." autocomplete="off" spellcheck="false">
+            </div>
+            <div id="command-palette-list" class="command-palette-list">
+                <button type="button" class="command-palette-item active">
+                    <span class="command-palette-item-title">Go to search</span>
+                    <span class="command-palette-item-meta">tab</span>
+                </button>
+            </div>
+            <div class="command-palette-hint">Esc to close | Enter to run | Up/Down to navigate</div>
         </div>
     </div>
 
@@ -1011,19 +1047,47 @@
                 </div>
             </div>
             <div id="view-leaderboard" class="w-full hidden flex flex-col gap-4">
-                <div class="leaderboard-card">
-                    <div class="leaderboard-head">
-                        <div class="leaderboard-title">Global Leaderboard</div>
-                        <div class="leaderboard-actions">
-                            <button id="leaderboard-period-weekly" class="auth-friend-btn active" data-onclick="setLeaderboardPeriod('weekly')">Weekly</button>
-                            <button id="leaderboard-period-monthly" class="auth-friend-btn" data-onclick="setLeaderboardPeriod('monthly')">Monthly</button>
-                            <button class="auth-friend-btn" data-onclick="refreshLeaderboard()">Refresh</button>
+                <div class="leaderboard-shell">
+                    <aside class="leaderboard-side">
+                        <div class="leaderboard-side-group">
+                            <button id="leaderboard-period-weekly" class="leaderboard-side-btn active" data-onclick="setLeaderboardPeriod('weekly')">weekly xp</button>
+                            <button id="leaderboard-period-monthly" class="leaderboard-side-btn" data-onclick="setLeaderboardPeriod('monthly')">monthly xp</button>
+                            <button class="leaderboard-side-btn muted" disabled>daily (soon)</button>
                         </div>
-                    </div>
-                    <div id="leaderboard-meta" class="duel-view-opponent">Loading...</div>
-                    <div id="leaderboard-list" class="auth-friend-list">
-                        <div class="auth-recent-empty">No leaderboard data yet.</div>
-                    </div>
+                        <div class="leaderboard-side-divider"></div>
+                        <div class="leaderboard-side-group">
+                            <button class="leaderboard-side-btn active" disabled>everyone</button>
+                            <button class="leaderboard-side-btn muted" disabled>friends only (soon)</button>
+                        </div>
+                        <div class="leaderboard-side-divider"></div>
+                        <div class="leaderboard-side-group">
+                            <button class="leaderboard-side-btn active" disabled>time 15</button>
+                            <button class="leaderboard-side-btn muted" disabled>time 60 (soon)</button>
+                        </div>
+                    </aside>
+                    <section class="leaderboard-main">
+                        <div class="leaderboard-main-head">
+                            <div id="leaderboard-heading" class="leaderboard-main-title">Global XP Leaderboard</div>
+                            <div class="leaderboard-actions">
+                                <button class="leaderboard-refresh-btn" data-onclick="refreshLeaderboard()">Refresh</button>
+                            </div>
+                        </div>
+                        <div id="leaderboard-meta" class="leaderboard-main-meta">Loading...</div>
+                        <div class="leaderboard-table">
+                            <div class="leaderboard-row leaderboard-row-head">
+                                <div>#</div>
+                                <div>player</div>
+                                <div>wpm</div>
+                                <div>best</div>
+                                <div>acc</div>
+                                <div>runs</div>
+                                <div>xp</div>
+                            </div>
+                            <div id="leaderboard-list" class="leaderboard-table-body">
+                                <div class="auth-recent-empty">No leaderboard data yet.</div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
             </div>
         </div>
@@ -1105,10 +1169,9 @@
                 <!-- Keys generated here -->
             </div>
 
-            <div class="mt-8 flex justify-center gap-8 text-xs text-sub opacity-70">
-                <span><kbd class="bg-surface px-1 rounded">tab</kbd> - restart</span>
-                <span><kbd class="bg-surface px-1 rounded">ctrl</kbd> - pronounce word</span>
-                <span><kbd class="bg-surface px-1 rounded">alt</kbd> - free look</span>
+            <div class="mt-8 flex flex-col items-center gap-2 text-xs text-sub opacity-70 text-center">
+                <span><kbd class="bg-surface px-1 rounded">tab</kbd> + <kbd class="bg-surface px-1 rounded">enter</kbd> - restart test</span>
+                <span><kbd class="bg-surface px-1 rounded">esc</kbd> or <kbd class="bg-surface px-1 rounded">ctrl</kbd> + <kbd class="bg-surface px-1 rounded">shift</kbd> + <kbd class="bg-surface px-1 rounded">p</kbd> - command line</span>
             </div>
         </div>
 
