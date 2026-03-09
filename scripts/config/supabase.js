@@ -1,2 +1,4 @@
-export const SUPABASE_URL = 'https://fanimwzslunaxybpryll.supabase.co';
-export const SUPABASE_ANON_KEY = 'sb_publishable_z3d_NVjiQMP9j4U5blIO1g_D7m3Pv9Q';
+import { APP_CONFIG } from './runtime-config.js';
+
+export const SUPABASE_URL = APP_CONFIG.SUPABASE_URL;
+export const SUPABASE_ANON_KEY = APP_CONFIG.SUPABASE_ANON_KEY;

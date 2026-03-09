@@ -1,0 +1,10 @@
+# Dependencies
+node_modules/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Frontend runtime config with local keys
+scripts/config/env.local.js

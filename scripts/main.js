@@ -4316,7 +4316,7 @@ bindLegacyInlineHandlers();
             if (!ensureSupabaseReady()) return;
             const identifier = (elements.authFriendUsername?.value || '').trim();
             if (!identifier) {
-                showToast('Enter email or username.', 'error');
+                showToast('Enter friend username or public slug.', 'error');
                 return;
             }
             const { data, error } = await supabase.rpc('create_friend_request_by_username', {
@@ -4851,7 +4851,7 @@ bindLegacyInlineHandlers();
                     elements.duelViewInviteTarget.value = '';
                     elements.duelViewInviteTarget.placeholder = 'Create or join a room first';
                 } else {
-                    elements.duelViewInviteTarget.placeholder = 'friend username/email';
+                    elements.duelViewInviteTarget.placeholder = 'friend username or slug';
                 }
             }
             if (elements.duelViewInviteBtn) {
@@ -5074,7 +5074,7 @@ bindLegacyInlineHandlers();
             }
             const safeTarget = String(target || '').trim();
             if (!safeTarget) {
-                showToast('Enter friend username/email.', 'error');
+                showToast('Enter friend username or public slug.', 'error');
                 return;
             }
             const { data, error } = await supabase.rpc('invite_duel_player', {
@@ -6909,7 +6909,7 @@ bindLegacyInlineHandlers();
 
         function ensureSupabaseReady() {
             if (supabase) return true;
-            showToast('Configure Supabase URL and anon key in scripts/config/supabase.js first.', 'error');
+            showToast('Configure Supabase keys in scripts/config/env.local.js first.', 'error');
             return false;
         }
 
@@ -7131,27 +7131,17 @@ bindLegacyInlineHandlers();
                 return;
             }
             const rawIdentifier = (elements.authLoginEmail?.value || '').trim();
-            const identifier = normalizeEmail(rawIdentifier);
+            const email = normalizeEmail(rawIdentifier);
             const password = elements.authLoginPassword?.value || '';
             const remember = !!elements.authRememberMe?.checked;
 
-            if (!identifier || !password) {
-                showToast('Enter email/username and password.', 'error');
+            if (!email || !password) {
+                showToast('Enter email and password.', 'error');
                 return;
             }
-
-            let email = identifier;
-            if (!identifier.includes('@')) {
-                const resolved = await supabase.rpc('get_login_email', {
-                    login_identifier: identifier
-                });
-                const resolvedEmail = normalizeEmail(resolved?.data || '');
-                if (!resolvedEmail) {
-                    recordAuthAttempt('login', false);
-                    showToast('Login failed. Check your credentials.', 'error');
-                    return;
-                }
-                email = resolvedEmail;
+            if (!email.includes('@')) {
+                showToast('Use your account email to sign in.', 'error');
+                return;
             }
 
             const { data, error } = await supabase.auth.signInWithPassword({ email, password });

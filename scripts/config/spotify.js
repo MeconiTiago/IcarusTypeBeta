@@ -1,5 +1,7 @@
-export const SPOTIFY_CLIENT_ID = '79a95a0dcde843e19634096ccfdf942e';
-export const SPOTIFY_REDIRECT_URI = 'https://icarustypebeta.vercel.app/';
+import { APP_CONFIG } from './runtime-config.js';
+
+export const SPOTIFY_CLIENT_ID = APP_CONFIG.SPOTIFY_CLIENT_ID;
+export const SPOTIFY_REDIRECT_URI = APP_CONFIG.SPOTIFY_REDIRECT_URI;
 export const SPOTIFY_SCOPES = [
   'user-read-recently-played',
   'streaming',
@@ -9,6 +11,9 @@ export const SPOTIFY_SCOPES = [
 ];
 
 export function getSpotifyRedirectUri() {
+  if (/^https?:\/\//i.test(SPOTIFY_REDIRECT_URI)) {
+    return SPOTIFY_REDIRECT_URI;
+  }
   try {
     const origin = String(window.location.origin || '').trim();
     if (/^https?:\/\//i.test(origin)) {

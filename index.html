@@ -102,8 +102,8 @@
                     </div>
                     <div class="auth-divider"><span>or</span></div>
                     <div class="auth-field-group">
-                        <label class="auth-label" for="auth-login-email">Email or username</label>
-                        <input id="auth-login-email" type="text" class="auth-input" placeholder="you@example.com or username" autocomplete="username">
+                        <label class="auth-label" for="auth-login-email">Email</label>
+                        <input id="auth-login-email" type="email" class="auth-input" placeholder="you@example.com" autocomplete="email">
                     </div>
                     <div class="auth-field-group">
                         <label class="auth-label" for="auth-login-password">Password</label>
@@ -254,7 +254,7 @@
                     <div class="friends-utilities-layout">
                         <div class="auth-friends-wrap">
                             <div class="auth-friend-add-row">
-                                <input id="auth-friend-username" type="text" class="auth-input" placeholder="friend email or username">
+                                <input id="auth-friend-username" type="text" class="auth-input" placeholder="friend username or slug">
                                 <button class="auth-submit-btn" data-onclick="sendFriendRequest()">Add</button>
                             </div>
                             <div class="auth-subtitle">Requests</div>
@@ -347,7 +347,7 @@
                             </div>
                             <div id="duel-room-status" class="duel-room-status">Status: waiting</div>
                             <div class="auth-friend-add-row mt-2">
-                                <input id="duel-invite-target" type="text" class="auth-input" placeholder="friend username/email">
+                                <input id="duel-invite-target" type="text" class="auth-input" placeholder="friend username or slug">
                                 <button class="auth-submit-btn" data-onclick="invitePlayerToDuelRoom()">Invite</button>
                             </div>
                             <div class="auth-friend-add-row mt-2">
@@ -994,7 +994,7 @@
                             </div>
                         </div>
                         <div class="auth-friend-add-row mt-2">
-                            <input id="duel-view-invite-target" type="text" class="auth-input" placeholder="friend username/email">
+                            <input id="duel-view-invite-target" type="text" class="auth-input" placeholder="friend username or slug">
                             <button id="duel-view-invite-btn" class="auth-submit-btn" data-onclick="invitePlayerToDuelRoomFromView()">Invite</button>
                         </div>
                         <div class="auth-subtitle mt-3">Invite from friends</div>
@@ -1352,6 +1352,8 @@
     
     <!-- Main Logic Script -->
     
+    <script src="scripts/config/env.js"></script>
+    <script src="scripts/config/env.local.js"></script>
     <script src="scripts/spotify-sdk-bridge.js"></script>
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
     <script type="module" src="scripts/main.js"></script>

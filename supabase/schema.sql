@@ -45,8 +45,70 @@ to authenticated
 using (auth.uid() = id)
 with check (auth.uid() = id);
 
+do $$
+begin
+  -- Normalize legacy usernames before applying stricter constraints.
+  update public.profiles p
+  set username = n.normalized
+  from (
+    select
+      id,
+      case
+        when char_length(v_clean) < 3 then rpad(v_clean, 3, 'x')
+        else left(v_clean, 40)
+      end as normalized
+    from (
+      select
+        id,
+        case
+          when v_base = '' then 'player'
+          else v_base
+        end as v_clean
+      from (
+        select
+          id,
+          trim(
+            both '-._' from lower(
+              regexp_replace(trim(coalesce(username, '')), '[^a-z0-9_.-]+', '-', 'g')
+            )
+          ) as v_base
+        from public.profiles
+      ) cleaned
+    ) base
+  ) n
+  where p.id = n.id
+    and p.username is distinct from n.normalized;
+
+  -- Resolve case-insensitive duplicates deterministically.
+  update public.profiles p
+  set username = d.new_username
+  from (
+    select
+      id,
+      case
+        when rn = 1 then username
+        else left(username, 32) || '-' || substr(md5(id::text), 1, 7)
+      end as new_username
+    from (
+      select
+        id,
+        username,
+        row_number() over (
+          partition by lower(username)
+          order by created_at asc, id asc
+        ) as rn
+      from public.profiles
+    ) ranked
+  ) d
+  where p.id = d.id
+    and p.username is distinct from d.new_username;
+end $$;
+
 alter table public.profiles
   alter column username set not null;
+
+create unique index if not exists idx_profiles_username_unique_ci
+on public.profiles (lower(username));
 
 do $$
 begin
@@ -84,6 +146,15 @@ begin
     alter table public.profiles
       add constraint profiles_spotify_expires_at_chk
       check (spotify_expires_at is null or spotify_expires_at > 0);
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'profiles_username_format_chk'
+  ) then
+    alter table public.profiles
+      add constraint profiles_username_format_chk
+      check (username ~ '^[A-Za-z0-9_.-]+$');
   end if;
 end $$;
 
@@ -755,6 +826,15 @@ on conflict (user_id, provider) do update
       refresh_token = excluded.refresh_token,
       expires_at = excluded.expires_at,
       updated_at = now();
+
+-- Remove legacy token data from profiles after migration to private token store.
+update public.profiles
+set spotify_access_token = null,
+    spotify_refresh_token = null,
+    spotify_expires_at = null
+where spotify_access_token is not null
+   or spotify_refresh_token is not null
+   or spotify_expires_at is not null;
 
 revoke all on table public.user_oauth_tokens from anon, authenticated;
 
@@ -1635,7 +1715,7 @@ begin
   select id into target
   from public.profiles
   where lower(username) = lower(trim(target_username))
-     or lower(email) = lower(trim(target_username))
+     or lower(coalesce(public_slug, '')) = lower(trim(target_username))
   limit 1;
 
   if target is null then
@@ -1696,7 +1776,11 @@ as $$
 $$;
 
 revoke all on function public.get_login_email(text) from public;
-grant execute on function public.get_login_email(text) to anon, authenticated;
+-- Security hardening:
+-- Do not expose login identifier -> email resolution to clients.
+-- Keep this function disabled for anon/authenticated to prevent account enumeration.
+-- If needed, expose this only via trusted backend service role.
+-- grant execute on function public.get_login_email(text) to service_role;
 
 create or replace function public.respond_friend_request(req_id bigint, accept_request boolean)
 returns void
@@ -2266,7 +2350,7 @@ create policy "shared_results_select_auth"
 on public.shared_results
 for select
 to authenticated
-using (true);
+using (auth.uid() = user_id);
 
 drop policy if exists "shared_results_insert_own" on public.shared_results;
 create policy "shared_results_insert_own"
@@ -2697,7 +2781,7 @@ begin
   select p.id into v_target
   from public.profiles p
   where lower(p.username) = lower(trim(p_target_identifier))
-     or lower(p.email) = lower(trim(p_target_identifier))
+     or lower(coalesce(p.public_slug, '')) = lower(trim(p_target_identifier))
   limit 1;
 
   if v_target is null then
