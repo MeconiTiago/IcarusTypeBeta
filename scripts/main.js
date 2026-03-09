@@ -6909,7 +6909,7 @@ bindLegacyInlineHandlers();
 
         function ensureSupabaseReady() {
             if (supabase) return true;
-            showToast('Configure Supabase keys in scripts/config/env.local.js first.', 'error');
+            showToast('Supabase config missing. Check /api/runtime-config.js and Vercel env vars (SUPABASE_URL, SUPABASE_ANON_KEY).', 'error');
             return false;
         }
 
