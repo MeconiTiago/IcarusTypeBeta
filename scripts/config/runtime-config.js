@@ -14,6 +14,15 @@ function readConfigValue(key, fallback = '') {
   return String(value).trim();
 }
 
+export function getAppConfig() {
+  return {
+    SUPABASE_URL: readConfigValue('SUPABASE_URL', ''),
+    SUPABASE_ANON_KEY: readConfigValue('SUPABASE_ANON_KEY', ''),
+    SPOTIFY_CLIENT_ID: readConfigValue('SPOTIFY_CLIENT_ID', ''),
+    SPOTIFY_REDIRECT_URI: readConfigValue('SPOTIFY_REDIRECT_URI', '')
+  };
+}
+
 export const APP_CONFIG = Object.freeze({
   SUPABASE_URL: readConfigValue('SUPABASE_URL', ''),
   SUPABASE_ANON_KEY: readConfigValue('SUPABASE_ANON_KEY', ''),

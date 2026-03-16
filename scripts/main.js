@@ -19,7 +19,7 @@ import {
 } from './services/spotifyAuth.js';
 import { spotifyGetRecentlyPlayed, normalizeRecentlyPlayed } from './services/spotifyApi.js';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config/supabase.js';
+import { getSupabaseConfig } from './config/supabase.js';
 
 window.incrementPracticeCounter = window.incrementPracticeCounter || (() => {});
 window.toggleSavedWord = window.toggleSavedWord || (() => {});
@@ -871,7 +871,8 @@ bindLegacyInlineHandlers();
             authUserLevel: document.getElementById('auth-user-level'),
             authAchievements: document.getElementById('auth-achievements'),
             authStatsSection: document.getElementById('auth-stats-section'),
-            authDeletePassword: document.getElementById('auth-delete-password'),
+            deleteAccountModal: document.getElementById('delete-account-modal-overlay'),
+            deleteAccountPassword: document.getElementById('delete-account-password'),
             authStatGames: document.getElementById('auth-stat-games'),
             authStatBestWpm: document.getElementById('auth-stat-best-wpm'),
             authStatAvgWpm: document.getElementById('auth-stat-avg-wpm'),
@@ -1078,16 +1079,8 @@ bindLegacyInlineHandlers();
         const AUTH_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
         const SPOTIFY_LINK_PROMPT_PREFS_KEY = 'icarus_spotify_link_prompt_prefs_v1';
         let authTab = 'login';
-        const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
-        const supabase = hasSupabaseConfig
-            ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-                auth: {
-                    persistSession: false,
-                    autoRefreshToken: true,
-                    detectSessionInUrl: false
-                }
-            })
-            : null;
+        let supabase = null;
+        let supabaseAuthListenerBound = false;
         let authCurrentUser = null;
         let authIdleTimer = null;
         const authAttempts = { login: [], register: [] };
@@ -1177,6 +1170,83 @@ bindLegacyInlineHandlers();
 
         function normalizeEmail(email) {
             return (email || '').trim().toLowerCase();
+        }
+
+        function createSupabaseClientFromRuntimeConfig() {
+            const { SUPABASE_URL: runtimeUrl, SUPABASE_ANON_KEY: runtimeAnonKey } = getSupabaseConfig();
+            if (!runtimeUrl || !runtimeAnonKey) return null;
+            return createClient(runtimeUrl, runtimeAnonKey, {
+                auth: {
+                    persistSession: false,
+                    autoRefreshToken: true,
+                    detectSessionInUrl: false
+                }
+            });
+        }
+
+        function bindSupabaseAuthListener() {
+            if (!supabase || supabaseAuthListenerBound) return;
+            supabase.auth.onAuthStateChange((_event, session) => {
+                if (session) {
+                    writeStoredSession(session, shouldPersistSession());
+                } else {
+                    clearAuthSession();
+                    if (authIdleTimer) {
+                        clearTimeout(authIdleTimer);
+                        authIdleTimer = null;
+                    }
+                }
+                refreshAuthUI();
+            });
+            supabaseAuthListenerBound = true;
+        }
+
+        function initializeSupabaseClient() {
+            if (supabase) return supabase;
+            supabase = createSupabaseClientFromRuntimeConfig();
+            bindSupabaseAuthListener();
+            return supabase;
+        }
+
+        function isEmailLike(value) {
+            const normalized = normalizeEmail(value);
+            return normalized.includes('@');
+        }
+
+        async function resolveLoginEmail(loginIdentifier) {
+            const normalized = normalizeEmail(loginIdentifier);
+            if (!normalized) return '';
+            if (isEmailLike(normalized)) return normalized;
+            try {
+                const response = await fetch('/api/resolve-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier: normalized })
+                });
+                if (!response.ok) return '';
+                const payload = await response.json().catch(() => ({}));
+                return normalizeEmail(payload?.email || '');
+            } catch (_error) {
+                return '';
+            }
+        }
+
+        function getLoginErrorMessage(error, usedUsernameFallback = false) {
+            const message = String(error?.message || '').toLowerCase();
+            if (message.includes('email not confirmed') || message.includes('email_not_confirmed')) {
+                return 'Check your email inbox and confirm the account before signing in.';
+            }
+            if (message.includes('invalid login credentials')) {
+                return usedUsernameFallback
+                    ? 'Login failed. Check your username/email and password.'
+                    : 'Login failed. Check your credentials.';
+            }
+            if (message.includes('too many requests')) {
+                return 'Too many login attempts. Wait a bit and try again.';
+            }
+            return usedUsernameFallback
+                ? 'Could not sign in. Check your username/email and password.'
+                : 'Could not sign in. Try again.';
         }
 
         function escapeHtml(text) {
@@ -2189,6 +2259,38 @@ bindLegacyInlineHandlers();
             ];
             const failed = rules.find((r) => !r.ok);
             return failed ? failed.msg : '';
+        }
+
+        function validateUsername(username) {
+            const value = String(username || '').trim();
+            if (value.length < 3 || value.length > 40) {
+                return 'Username must have between 3 and 40 characters.';
+            }
+            if (!/^[A-Za-z0-9_.-]+$/.test(value)) {
+                return 'Username can only use letters, numbers, dot, underscore, and hyphen.';
+            }
+            return '';
+        }
+
+        function getRegisterErrorMessage(error) {
+            const message = String(error?.message || '').toLowerCase();
+            if (!message) return 'Could not create account. Try again.';
+            if (message.includes('user already registered')) {
+                return 'This email is already registered.';
+            }
+            if (message.includes('duplicate key value') && message.includes('username')) {
+                return 'This username is already taken.';
+            }
+            if (message.includes('profiles_username_length_chk')) {
+                return 'Username must have between 3 and 40 characters.';
+            }
+            if (message.includes('profiles_username_format_chk')) {
+                return 'Username can only use letters, numbers, dot, underscore, and hyphen.';
+            }
+            if (message.includes('password')) {
+                return error.message;
+            }
+            return error.message || 'Could not create account. Try again.';
         }
 
         function pruneAuthAttempts(type) {
@@ -6908,8 +7010,8 @@ bindLegacyInlineHandlers();
         }
 
         function ensureSupabaseReady() {
-            if (supabase) return true;
-            showToast('Supabase config missing. Check /api/runtime-config.js and Vercel env vars (SUPABASE_URL, SUPABASE_ANON_KEY).', 'error');
+            if (initializeSupabaseClient()) return true;
+            showToast('Supabase config missing. Check /api/runtime-config.js, Vercel env vars, or scripts/config/env.local.js.', 'error');
             return false;
         }
 
@@ -6922,7 +7024,7 @@ bindLegacyInlineHandlers();
             if (elements.authRegisterEmailVerify) elements.authRegisterEmailVerify.value = '';
             if (elements.authRegisterPassword) elements.authRegisterPassword.value = '';
             if (elements.authRegisterPasswordVerify) elements.authRegisterPasswordVerify.value = '';
-            if (elements.authDeletePassword) elements.authDeletePassword.value = '';
+            if (elements.deleteAccountPassword) elements.deleteAccountPassword.value = '';
             if (elements.authFriendUsername) elements.authFriendUsername.value = '';
             if (elements.duelRoomCodeInput) elements.duelRoomCodeInput.value = '';
             if (elements.duelInviteTarget) elements.duelInviteTarget.value = '';
@@ -6986,7 +7088,7 @@ bindLegacyInlineHandlers();
                 if (elements.headerAvatarImage) elements.headerAvatarImage.src = avatarUrl || buildThemePlaceholderUrl(80, 80, 'IT');
                 setPreferredPlayer(preferredPlayer);
                 authStoredAvatarUrl = avatarUrl || '';
-                if (elements.authDeletePassword) elements.authDeletePassword.value = '';
+                if (elements.deleteAccountPassword) elements.deleteAccountPassword.value = '';
                 if (elements.authAvatarFile) elements.authAvatarFile.value = '';
                 if (elements.authAvatarFileName) elements.authAvatarFileName.textContent = 'No file selected';
                 authPendingAvatarFile = null;
@@ -7085,6 +7187,11 @@ bindLegacyInlineHandlers();
                 showToast('Please fill all register fields.', 'error');
                 return;
             }
+            const usernameError = validateUsername(username);
+            if (usernameError) {
+                showToast(usernameError, 'error');
+                return;
+            }
             if (email !== verifyEmail) {
                 showToast('Email confirmation does not match.', 'error');
                 return;
@@ -7108,7 +7215,8 @@ bindLegacyInlineHandlers();
             });
             if (error) {
                 recordAuthAttempt('register', false);
-                showToast('Could not create account. Check fields and try again.', 'error');
+                console.error('Supabase register error:', error);
+                showToast(getRegisterErrorMessage(error), 'error');
                 return;
             }
             recordAuthAttempt('register', true);
@@ -7131,23 +7239,30 @@ bindLegacyInlineHandlers();
                 return;
             }
             const rawIdentifier = (elements.authLoginEmail?.value || '').trim();
-            const email = normalizeEmail(rawIdentifier);
             const password = elements.authLoginPassword?.value || '';
             const remember = !!elements.authRememberMe?.checked;
 
-            if (!email || !password) {
-                showToast('Enter email and password.', 'error');
+            if (!rawIdentifier || !password) {
+                showToast('Enter your email or username and password.', 'error');
                 return;
             }
-            if (!email.includes('@')) {
-                showToast('Use your account email to sign in.', 'error');
+            const usedUsernameFallback = !isEmailLike(rawIdentifier);
+            const email = await resolveLoginEmail(rawIdentifier);
+            if (!email) {
+                recordAuthAttempt('login', false);
+                showToast(
+                    usedUsernameFallback
+                        ? 'Could not find this username. Try your account email instead.'
+                        : 'Enter a valid account email.',
+                    'error'
+                );
                 return;
             }
 
             const { data, error } = await supabase.auth.signInWithPassword({ email, password });
             if (error || !data?.session) {
                 recordAuthAttempt('login', false);
-                showToast('Login failed. Check your credentials.', 'error');
+                showToast(getLoginErrorMessage(error, usedUsernameFallback), 'error');
                 return;
             }
             recordAuthAttempt('login', true);
@@ -7194,26 +7309,40 @@ bindLegacyInlineHandlers();
             if (showToastMessage) showToast('Logged out.', 'info');
         }
 
-        async function deleteAccount() {
+        function openDeleteAccountModal() {
+            if (!ensureSupabaseReady()) return;
+            setAccountViewMode('full');
+            if (elements.deleteAccountPassword) elements.deleteAccountPassword.value = '';
+            elements.deleteAccountModal?.classList.remove('hidden');
+            setTimeout(() => elements.deleteAccountPassword?.focus?.(), 10);
+        }
+
+        function closeDeleteAccountModal() {
+            if (elements.deleteAccountPassword) elements.deleteAccountPassword.value = '';
+            elements.deleteAccountModal?.classList.add('hidden');
+        }
+
+        async function confirmDeleteAccount() {
             if (!ensureSupabaseReady()) return;
             const user = await syncCurrentUser();
             if (!user) {
                 showToast('You need to be logged in.', 'error');
                 return;
             }
-            const confirmed = window.confirm('Delete this account permanently from this device?');
-            if (!confirmed) return;
-            const password = elements.authDeletePassword?.value || '';
+            const password = elements.deleteAccountPassword?.value || '';
             if (!password) {
-                showToast('Enter your password in the field above to delete the account.', 'error');
+                elements.deleteAccountPassword?.focus?.();
+                showToast('Enter your password to delete the account.', 'error');
                 return;
             }
+            const confirmed = window.confirm('Delete this account permanently from this device?');
+            if (!confirmed) return;
             const reauth = await supabase.auth.signInWithPassword({
                 email: user.email,
                 password
             });
             if (reauth.error || !reauth.data?.session) {
-                if (elements.authDeletePassword) elements.authDeletePassword.value = '';
+                if (elements.deleteAccountPassword) elements.deleteAccountPassword.value = '';
                 showToast('Reauthentication failed. Account was not deleted.', 'error');
                 return;
             }
@@ -7228,9 +7357,14 @@ bindLegacyInlineHandlers();
             clearAuthSession();
             localStorage.removeItem(AUTH_PERSIST_MODE_KEY);
             clearAuthFormInputs();
+            closeDeleteAccountModal();
             switchAuthTab('register');
             await refreshAuthUI();
             showToast('Account deleted.', 'info');
+        }
+
+        function deleteAccount() {
+            openDeleteAccountModal();
         }
 
         function focusTypingInput() {
@@ -10715,6 +10849,8 @@ bindLegacyInlineHandlers();
             loginAccount,
             logoutAccount,
             deleteAccount,
+            closeDeleteAccountModal,
+            confirmDeleteAccount,
             sendFriendRequest,
             respondFriendRequest,
             createDuelRoomFromCurrentSong,
@@ -10850,6 +10986,13 @@ bindLegacyInlineHandlers();
         }
         if (elements.customTrans) {
             elements.customTrans.addEventListener('input', updateCustomInputCounters);
+        }
+        if (elements.deleteAccountPassword) {
+            elements.deleteAccountPassword.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                confirmDeleteAccount();
+            });
         }
         if (elements.customCoverFile) {
             elements.customCoverFile.addEventListener('change', (e) => {
@@ -11037,22 +11180,10 @@ bindLegacyInlineHandlers();
         setLeaderboardPeriod(state.leaderboardPeriod);
         bindAuthActivityWatchers();
         setAppBootProgress(28, 'Preparing local data...');
-        if (supabase) {
-            supabase.auth.onAuthStateChange((_event, session) => {
-                if (session) {
-                    writeStoredSession(session, shouldPersistSession());
-                } else {
-                    clearAuthSession();
-                    if (authIdleTimer) {
-                        clearTimeout(authIdleTimer);
-                        authIdleTimer = null;
-                    }
-                }
-                refreshAuthUI();
-            });
-        }
         (async () => {
             try {
+                await (window.__LOCAL_RUNTIME_CONFIG_PROMISE__ || Promise.resolve());
+                initializeSupabaseClient();
                 setAppBootProgress(40, 'Loading your account...');
                 await bootstrapAuthSession();
                 authBootstrapCompleted = true;

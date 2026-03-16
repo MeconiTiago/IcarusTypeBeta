@@ -102,8 +102,8 @@
                     </div>
                     <div class="auth-divider"><span>or</span></div>
                     <div class="auth-field-group">
-                        <label class="auth-label" for="auth-login-email">Email</label>
-                        <input id="auth-login-email" type="email" class="auth-input" placeholder="you@example.com" autocomplete="email">
+                        <label class="auth-label" for="auth-login-email">Email or username</label>
+                        <input id="auth-login-email" type="text" class="auth-input" placeholder="you@example.com or username" autocomplete="username">
                     </div>
                     <div class="auth-field-group">
                         <label class="auth-label" for="auth-login-password">Password</label>
@@ -317,8 +317,8 @@
                                 </summary>
                                 <div class="utility-panel">
                                     <div id="auth-danger-section" class="auth-field-group">
-                                        <label class="auth-label" for="auth-delete-password">Confirm password to delete account</label>
-                                        <input id="auth-delete-password" type="password" class="auth-input" placeholder="Current password" autocomplete="current-password">
+                                        <label class="auth-label">Delete account</label>
+                                        <div class="auth-subtitle">Open a popup, confirm your password, and permanently remove this account.</div>
                                     </div>
                                     <div id="auth-actions-section" class="auth-actions mt-3">
                                         <button class="auth-submit-btn" data-onclick="logoutAccount()">Sign out of account</button>
@@ -529,6 +529,21 @@
             <div class="flex justify-center gap-4">
                 <button data-onclick="cancelRestart()" class="text-base hover:text-main transition text-sm">Resume</button>
                 <button data-onclick="confirmRestart()" class="btn-primary px-6 py-1 rounded font-bold transition text-sm">Restart</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="delete-account-modal-overlay" class="fixed inset-0 z-50 hidden flex justify-center items-center fade-in" data-onclick="if(event.target === this) closeDeleteAccountModal()">
+        <div class="bg-surface p-8 rounded-lg shadow-2xl max-w-sm w-full mx-4 text-center border border-sub">
+            <h3 class="text-main font-bold text-xl mb-2">Delete account?</h3>
+            <p class="text-base text-sm mb-4">This action is permanent. Enter your current password to confirm.</p>
+            <div class="auth-field-group text-left mb-5">
+                <label class="auth-label" for="delete-account-password">Current password</label>
+                <input id="delete-account-password" type="password" class="auth-input" placeholder="Current password" autocomplete="current-password">
+            </div>
+            <div class="flex justify-center gap-4">
+                <button data-onclick="closeDeleteAccountModal()" class="text-base hover:text-main transition text-sm">Cancel</button>
+                <button data-onclick="confirmDeleteAccount()" class="auth-delete-btn px-6 py-1 rounded font-bold transition text-sm">Delete</button>
             </div>
         </div>
     </div>
