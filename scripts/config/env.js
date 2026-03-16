@@ -1,8 +1,8 @@
 window.__APP_CONFIG__ = Object.assign({}, window.__APP_CONFIG__, {
-  SUPABASE_URL: 'https://fanimwzslunaxybpryll.supabase.co',
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhbmltd3pzbHVuYXh5YnByeWxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0ODI1NzIsImV4cCI6MjA4NzA1ODU3Mn0.nsjSwBLineL_HMS_HfMzGsmQOWY5WGX0VxsUS5vLzLU',
-  SPOTIFY_CLIENT_ID: '79a95a0dcde843e19634096ccfdf942e',
-  SPOTIFY_REDIRECT_URI: 'https://icarustypebeta.vercel.app'
+  SUPABASE_URL: '',
+  SUPABASE_ANON_KEY: '',
+  SPOTIFY_CLIENT_ID: '',
+  SPOTIFY_REDIRECT_URI: ''
 });
 
 // Local-only override for non-Vercel development.

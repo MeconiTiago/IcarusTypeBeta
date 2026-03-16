@@ -7011,7 +7011,7 @@ bindLegacyInlineHandlers();
 
         function ensureSupabaseReady() {
             if (initializeSupabaseClient()) return true;
-            showToast('Supabase config missing. Check /api/runtime-config.js, Vercel env vars, or scripts/config/env.local.js.', 'error');
+            showToast('Supabase config missing. Check /api/runtime-config, Vercel env vars, or scripts/config/env.local.js.', 'error');
             return false;
         }
 
